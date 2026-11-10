@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zero-point-modulator"
+version = "0.1.0"
+description = "Durable repository enrollment and worker capacity reconciliation"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+zpm = "zpm.cli:main"
+
+[tool.setuptools]
+packages = ["zpm"]
