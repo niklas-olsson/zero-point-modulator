@@ -10,10 +10,44 @@ OpenJules driver, real coding agents, Polyphony authorization, Docker confinemen
 durable artifact storage, or the complete installation acceptance in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
+## Continuous integration baseline
+
+The `OpenJules lifecycle contract` CI job runs this trial after the existing
+Python 3.11 and 3.12 unit, package-installation and CLI checks pass. It uses the
+ZPM source checked out for that workflow event and an immutable OpenJules pin:
+
+| Component | Revision checked |
+| --- | --- |
+| ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
+| OpenJules | [`5c3568785e754b47f61c8ba6c57fa2668fa6fc81`](https://github.com/niklas-olsson/OpenJules/commit/5c3568785e754b47f61c8ba6c57fa2668fa6fc81) |
+
+The combined OpenJules changes passed
+[full-suite CI on Python 3.11 and 3.12](https://github.com/niklas-olsson/OpenJules/actions/runs/42901146449)
+before this contract pin was selected.
+
+Both revisions are printed in the job log. The contract job runs on Python 3.12,
+installs FastAPI and Uvicorn with their dependencies, and expects all eight
+checks to pass with five subprocess fixtures. It does not use model,
+repository-publication or authority credentials. The workflow has read-only
+repository permissions, and the contract job does not retain checkout credentials.
+
+To update the OpenJules pin:
+
+1. Select an immutable OpenJules commit whose full repository CI passes. Use a
+   clean checkout of that commit for the local trial below.
+2. Change the checkout `ref` in `.github/workflows/ci.yml` and the revision in
+   this table together. Do not substitute a moving branch or tag.
+3. Run the trial locally, then require the ZPM unit, package, CLI and contract
+   jobs to pass for the proposed update before merging it.
+
+The pin records a tested component contract. It does not promote the fixture
+runtime to a production managed coding profile or complete the installation
+acceptance gate.
+
 ## Run
 
 Use a single Linux/Unix host with Python 3.11 or later. Both checkouts must contain
-the proposed ZPM controller and OpenJules lifecycle changes. From the ZPM checkout,
+the ZPM controller and OpenJules lifecycle implementation. From the ZPM checkout,
 in a disposable virtual environment:
 
 ```sh
