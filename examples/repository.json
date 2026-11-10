@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "repository": "github:github.com/example/project",
+  "profile": "approved-coding",
+  "desired_workers": 2,
+  "max_workers": 6
+}

@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "endpoint": "http://127.0.0.1:8000",
+  "token_ref": "env:OPENJULES_WORKER_TOKEN",
+  "max_workers": 8,
+  "timeout_seconds": 10
+}
