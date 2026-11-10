@@ -22,3 +22,31 @@ jobs:
       - run: python -m pip install --no-deps .
       - run: zpm --help
       - run: zpm validate examples/repository.json
+
+  shared-lifecycle:
+    name: OpenJules lifecycle contract
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/OpenJules
+          # Update this immutable pin with docs/http-contract-trial.md.
+          ref: 5c3568785e754b47f61c8ba6c57fa2668fa6fc81
+          path: .contract/OpenJules
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Record ZPM revision
+        run: git rev-parse HEAD
+      - name: Record OpenJules revision
+        run: git -C .contract/OpenJules rev-parse HEAD
+      - name: Install contract trial dependencies
+        run: python -m pip install "fastapi>=0.110.0" "uvicorn>=0.28.0"
+      - name: Verify the shared lifecycle contract
+        run: python tests/contracts/check_openjules.py --openjules-checkout .contract/OpenJules
