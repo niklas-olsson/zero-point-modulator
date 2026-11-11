@@ -182,7 +182,7 @@ def require_empty_snapshot(value, scope=None):
                 "admission authority snapshot changed scope")
 
 
-def require_runtime_capabilities(value, scope, profile, ready):
+def require_runtime_capabilities(value, scope, profile, ready, *, unavailable_reason=RUNTIME_REASON):
     from zpm.models import OPERATIONS
 
     require(isinstance(value, dict)
@@ -198,10 +198,10 @@ def require_runtime_capabilities(value, scope, profile, ready):
             and value.get("repository_access") is ready and value.get("managed_dispatch") is ready,
             "admission runtime did not report the expected current capability")
     if not ready:
-        require(value.get("reason") == RUNTIME_REASON, "admission was blocked by a different failure")
+        require(value.get("reason") == unavailable_reason, "admission was blocked by a different failure")
 
 
-def require_controller_plan(value, scope, profile, target, ready):
+def require_controller_plan(value, scope, profile, target, ready, *, unavailable_reason=CONTROLLER_REASON):
     require(isinstance(value, dict)
             and type(value.get("schema_version")) is int and value["schema_version"] == 1
             and value.get("deployment_id") == scope["deployment_id"],
@@ -222,11 +222,11 @@ def require_controller_plan(value, scope, profile, target, ready):
     ):
         require(type(row.get(key)) is int and row[key] == expected,
                 "admission controller report changed selected or observed capacity")
-    reason = "ready" if ready else CONTROLLER_REASON
+    reason = "ready" if ready else unavailable_reason
     require(row.get("workers") == [] and isinstance(row.get("validation"), dict)
             and row["validation"].get("ready") is ready and row["validation"].get("reason") == reason,
             "admission controller report lacks the expected readiness decision")
-    require(row.get("reasons") == ([] if ready or target == 0 else [CONTROLLER_REASON]),
+    require(row.get("reasons") == ([] if ready or target == 0 else [reason]),
             "admission controller report contains an unrelated shortfall")
     return row
 

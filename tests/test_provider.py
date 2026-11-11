@@ -391,6 +391,143 @@ class TransportTests(unittest.TestCase):
         self.assertLessEqual(sum(row["method"] == "POST" for row in requests), 1)
         return report
 
+    def test_scoped_unsupported_reason_is_durable_without_releasing_or_adding_capacity(self):
+        # This is a real HTTP/transport/Controller/Store test. Runtime lifecycle
+        # behavior and the classified capability response remain named fixtures.
+        reason = "Canonical managed authority is unsupported: child_initial_outcome=1"
+        runtime = FixtureProvider()
+        original_capabilities = runtime.capabilities
+        unavailable = {"value": False}
+
+        def capability(*args, **kwargs):
+            value = original_capabilities(*args, **kwargs)
+            if unavailable["value"]:
+                value.update(repository_access=False, managed_dispatch=False, reason=reason)
+            return value
+
+        self.runtime_http(runtime, lambda request: None)
+        capabilities = ("GET", "capabilities")
+        with patch.object(runtime, "capabilities", side_effect=capability), tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "state.sqlite3"
+            with Store(state, "deployment-a") as store:
+                store.enroll({"schema_version": 1, "repository": "owner/project",
+                              "profile": "fixture", "desired_workers": 1})
+                controller = Controller(store, self.provider, 2)
+                self.assertEqual(controller.check()["repositories"][0]["validation"],
+                                 {"ready": True, "reason": "ready"})
+                unavailable["value"] = True
+                blocked = self.bounded_tick(controller, [capabilities])
+                row = blocked["repositories"][0]
+                self.assertEqual(row["validation"], {"ready": False, "reason": reason})
+                self.assertEqual(row["reasons"], [reason])
+                self.assertEqual((row["desired_workers"], row["effective_target"], row["permitted_target"],
+                                  row["healthy"], row["reserved"], row["shortfall"]), (1, 1, 1, 0, 0, 1))
+                self.assertEqual(store.workers(), [])
+                self.assertEqual(runtime.records, {})
+
+            with Store(state, "deployment-a") as store:
+                before = len(self.requests)
+                retained = Controller(store).plan()["repositories"][0]
+                self.assertEqual(retained["validation"], {"ready": False, "reason": reason})
+                self.assertEqual(retained["reasons"], [reason])
+                self.assertEqual(len(self.requests), before, "offline status contacted the provider")
+                controller = Controller(store, self.provider, 2)
+                self.bounded_tick(controller, [capabilities])
+                self.assertEqual(store.workers(), [])
+                unavailable["value"] = False
+                recovered = self.bounded_tick(controller, [capabilities, ("POST", "ensure")])
+                self.assertEqual(recovered["repositories"][0]["validation"], {"ready": True, "reason": "ready"})
+                self.assertEqual((recovered["reserved"], recovered["repositories"][0]["healthy"]), (1, 1))
+                original = store.workers()[0]
+                worker = original["snapshot"]["worker_id"]
+                self.assertTrue(worker)
+
+                # Losing the optional capability does not release an existing
+                # incarnation or hide positive unmet demand behind target zero.
+                store.change("owner/project", "target", 2)
+                unavailable["value"] = True
+                blocked = self.bounded_tick(controller, [capabilities, ("GET", worker)])
+                row = blocked["repositories"][0]
+                self.assertEqual(row["validation"], {"ready": False, "reason": reason})
+                self.assertEqual(row["reasons"], [reason])
+                self.assertEqual((row["desired_workers"], row["effective_target"], row["healthy"],
+                                  row["reserved"], row["shortfall"]), (2, 2, 1, 1, 1))
+                self.assertEqual(store.workers(), [original])
+
+            with Store(state, "deployment-a") as store:
+                self.assertEqual(Controller(store).plan()["repositories"][0]["validation"],
+                                 {"ready": False, "reason": reason})
+                store.change("owner/project", "target", 1)
+                unavailable["value"] = False
+                recovered = self.bounded_tick(Controller(store, self.provider, 2),
+                                              [capabilities, ("GET", worker)])
+                self.assertEqual(recovered["repositories"][0]["validation"], {"ready": True, "reason": "ready"})
+                self.assertEqual(recovered["repositories"][0]["reasons"], [])
+                self.assertEqual(store.workers(), [original])
+            self.assertEqual(len(runtime.records), 1)
+            self.assertEqual(len([call for call in runtime.calls if call[0] == "ensure"]), 1)
+            self.assertFalse(any(call[0] in {"drain", "stop"} for call in runtime.calls))
+
+    def test_unsupported_reason_requires_the_exact_negative_contract_and_requested_scope(self):
+        reason = "Canonical managed authority is unsupported: child_initial_outcome=1"
+        value = FixtureProvider().capabilities("deployment-a", "github:github.com/owner/project", "fixture")
+        value.update(repository_access=False, managed_dispatch=False, reason=reason)
+        scope_error = "provider capability response does not match the requested scope"
+        cases = [
+            ({}, reason),
+            ({"deployment_id": "another-deployment"}, scope_error),
+            ({"repository": "github:github.com/another/project"}, scope_error),
+            ({"profile": "another-profile"}, scope_error),
+            ({"repository": None}, scope_error),
+            ({"schema_version": True}, "unsupported provider capability schema"),
+            ({"operations": ["ensure", "discover", "observe", "drain"]}, "provider lacks required lifecycle operations"),
+            ({"operations": "ensure discover observe drain stop"}, "provider lacks required lifecycle operations"),
+            ({"operations": value["operations"] + [None]}, "repository_access unavailable"),
+            ({"profile_supported": False}, "profile_supported unavailable"),
+            ({"profile_supported": 1}, "profile_supported unavailable"),
+            ({"repository_access": 0}, "repository_access unavailable"),
+            ({"managed_dispatch": 0}, "repository_access unavailable"),
+            ({"managed_dispatch": None}, "repository_access unavailable"),
+            ({"managed_dispatch": True}, "repository_access unavailable"),
+            ({"reason": reason + "\nfixture-secret"}, "repository_access unavailable"),
+            ({"reason": "fixture-secret arbitrary remote diagnostic"}, "repository_access unavailable"),
+            ({"reason": None}, "repository_access unavailable"),
+            ({}, reason),
+        ]
+        with tempfile.TemporaryDirectory() as directory, Store(Path(directory) / "state.sqlite3", "deployment-a") as store:
+            store.enroll({"schema_version": 1, "repository": "owner/project",
+                          "profile": "fixture", "desired_workers": 1})
+            controller = Controller(store, self.provider, 1)
+            for changes, expected in cases:
+                with self.subTest(changes=changes):
+                    self.response = json.dumps(value | changes).encode()
+                    report = self.bounded_tick(controller, [("GET", "capabilities")])
+                    row = report["repositories"][0]
+                    self.assertEqual(row["validation"], {"ready": False, "reason": expected})
+                    self.assertEqual(row["reasons"], [expected])
+                    self.assertEqual((row["effective_target"], row["shortfall"], report["reserved"]), (1, 1, 0))
+                    self.assertEqual(store.workers(), [])
+                    self.assertNotIn("fixture-secret", json.dumps(report))
+                    self.assertNotIn("arbitrary remote diagnostic", json.dumps(report))
+
+    def test_http_failure_body_cannot_supply_the_unsupported_diagnostic(self):
+        self.response = json.dumps({
+            "reason": "Canonical managed authority is unsupported: child_initial_outcome=1",
+            "secret": "fixture-secret",
+        }).encode()
+        with tempfile.TemporaryDirectory() as directory, Store(Path(directory) / "state.sqlite3", "deployment-a") as store:
+            store.enroll({"schema_version": 1, "repository": "owner/project",
+                          "profile": "fixture", "desired_workers": 1})
+            for status in (403, 503):
+                with self.subTest(status=status):
+                    self.status = status
+                    report = self.bounded_tick(Controller(store, self.provider, 1), [("GET", "capabilities")])
+                    self.assertEqual(report["repositories"][0]["validation"],
+                                     {"ready": False, "reason": f"OpenJules returned HTTP {status}"})
+                    self.assertEqual(store.workers(), [])
+                    self.assertNotIn("child_initial_outcome", json.dumps(report))
+                    self.assertNotIn("fixture-secret", json.dumps(report))
+
     def test_revoked_token_and_scope_keep_original_control_keys_until_access_recovers(self):
         runtime = FixtureProvider()
         access = {"token": True, "scope": True, "revoke_at_stop": False}

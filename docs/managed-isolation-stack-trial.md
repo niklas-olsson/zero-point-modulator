@@ -36,7 +36,7 @@ explicitly and cannot supply the shared-service acceptance evidence in
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `80a51b867d12867a313539186b7c5d7346d54149`, merged managed-installation context and scoped UI runtime |
+| OpenJules | `e50d501cc81975d25e367be3ba1d6de9169207c1`, merged scoped unsupported-capability diagnostics and managed-context runtime |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial outcome authority candidate |
 | ZPM | The workflow's checked-out revision, recorded in the report |
 

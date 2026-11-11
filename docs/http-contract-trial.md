@@ -19,10 +19,10 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`80a51b867d12867a313539186b7c5d7346d54149`](https://github.com/niklas-olsson/OpenJules/commit/80a51b867d12867a313539186b7c5d7346d54149) |
+| OpenJules | [`e50d501cc81975d25e367be3ba1d6de9169207c1`](https://github.com/niklas-olsson/OpenJules/commit/e50d501cc81975d25e367be3ba1d6de9169207c1) |
 
-This is the same merged OpenJules runtime used by all five installed-stack
-jobs. Their common Polyphony pin is `653c0a71a921c0d23b8e0171277524125e929e66`;
+This is the same merged scoped unsupported-capability runtime used by all
+five installed-stack jobs. Their common Polyphony pin is `653c0a71a921c0d23b8e0171277524125e929e66`;
 this HTTP-only trial does not run Polyphony. Its merged ancestry includes
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15)
 after an accepted drain or stop encounters a busy runtime lock. The deterministic

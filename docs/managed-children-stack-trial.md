@@ -21,7 +21,7 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `80a51b867d12867a313539186b7c5d7346d54149`, merged managed-installation context and scoped UI runtime |
+| OpenJules | `e50d501cc81975d25e367be3ba1d6de9169207c1`, merged scoped unsupported-capability diagnostics and managed-context runtime |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
@@ -181,9 +181,20 @@ One actual OpenJules process spans current-authority readiness, the historical
 denial and restored current-authority readiness. Actual source/image/Docker and
 child-transport preflight must first pass at target zero. With the old authority
 running, two completed installed controller passes at target one and two
-identical fresh ensure requests must remain unready. OpenJules reports
-`Canonical managed authority is unavailable`; the controller reports
-`repository_access unavailable`. Every observation must preserve empty
+identical fresh ensure requests must remain unready. The runtime and the
+completed controller reports must both identify the missing required extension
+with `Canonical managed authority is unsupported: child_initial_outcome=1`.
+ZPM accepts only that fixed runtime diagnostic after validating the lifecycle
+response and its exact deployment, repository and profile. Arbitrary reasons,
+malformed capabilities and HTTP/transport failures retain their existing generic
+errors. The separate current-service/no-managed-policy503 scene still reports
+`Canonical managed authority is unavailable` and `repository_access unavailable`.
+Earlier historical-authority runs used those generic messages too; they proved
+refusal and recovery but did not qualify this diagnostic distinction. The new
+paired producer/consumer set must pass the unchanged actual historical phase
+before claiming that operator-visible criterion.
+
+Every observation must preserve empty
 all-scope protected/runtime/child/model histories across seven read-only
 journals, an empty capture directory, unchanged policy fingerprints and Docker
 inventory, and zero accepted or rejected model requests.
