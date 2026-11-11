@@ -237,10 +237,12 @@ Schema-2 configuration is for fresh installations. Adding a repository, changing
 the repository set or approved pins/profile, or converting a schema-1 bundle
 remains an unsupported upgrade and cannot overwrite an existing bundle.
 
-The new generator tests cover configuration, scoped credentials, exact output
-size, secret resolution and retained state. The existing installed trials still
-exercise schema 1. An actual two-repository trial with one controller and one
-service pair remains required before claiming shared-service runtime isolation.
+The generator tests cover configuration, scoped credentials, exact output
+size, secret resolution and retained state. The separate
+[shared-service installed trial](managed-multi-repository-stack-trial.md) exercises
+two schema-2 repositories with one controller and one service pair. Its dedicated
+Docker job must pass on the intended revision set before claiming this topology;
+the other installed trials exercise schema 1.
 Its source-failure evidence must stay scoped: a shared service, authority or
 Docker outage affects both repositories, and broker readiness can couple model
 profiles when an endpoint is unavailable. An already-running B task may continue

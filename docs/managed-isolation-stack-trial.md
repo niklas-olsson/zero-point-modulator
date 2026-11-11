@@ -26,8 +26,10 @@ runtime admission, or replace canonical execution and capture.
 The [schema-2 installer](single-host-installation.md) can generate multiple
 repository profiles and canonical policies within one deployment and service
 pair. This harness still prepares separate schema-1 bundles. Its evidence does
-not qualify shared-service runtime isolation; that requires a distinct actual
-two-repository trial. The report names the tested topology explicitly and must
+not qualify shared-service runtime isolation; the separate
+[two-repository shared-service trial](managed-multi-repository-stack-trial.md)
+requires its own actual Docker result. This report names its tested topology
+explicitly and must
 not close that remaining acceptance criterion in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 

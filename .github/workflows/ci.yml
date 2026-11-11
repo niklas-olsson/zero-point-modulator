@@ -151,6 +151,55 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  managed-multi-repository-stack:
+    name: Install two repositories behind one controller and service pair
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: zpm
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/OpenJules
+          # Same reviewed runtime candidate as every other integration gate.
+          # Update with docs/managed-multi-repository-stack-trial.md.
+          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
+          path: openjules
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/keystone-polyphony
+          ref: 653c0a71a921c0d23b8e0171277524125e929e66
+          path: polyphony
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the shared Docker Engine
+        run: docker info
+      - name: Build the immutable controlled trial image
+        run: docker build --iidfile "$RUNNER_TEMP/multi-repository-image.id" - < zpm/tests/contracts/Dockerfile.managed-trial
+      - name: Prepare one bundle and exercise shared capacity and scoped recovery
+        run: |
+          python zpm/tests/contracts/check_multi_repository_stack.py \
+            --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/multi-repository-image.id")" \
+            --work-dir "$RUNNER_TEMP/managed-multi-repository-trial"
+      - name: Retain only aggregate shared-service evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-multi-repository-evidence
+          path: |
+            ${{ runner.temp }}/managed-multi-repository-trial/report.json
+            ${{ runner.temp }}/managed-multi-repository-trial/diagnostics.json
+          if-no-files-found: warn
+          retention-days: 14
+
   managed-children-stack:
     name: Install and verify two children inside one worker
     needs: test
