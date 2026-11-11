@@ -45,6 +45,16 @@ manager installs each service in a separate virtual environment and starts each
 from its own pinned checkout. Do not combine their source directories into one
 `PYTHONPATH`.
 
+The generated bundle enrolls one repository with one approved profile. Two
+bundles can use the same Docker Engine with distinct deployment IDs, private
+directories and service ports. The
+[installed isolation trial](managed-isolation-stack-trial.md) exercises that
+topology, including one installation's outage and removal while the other task
+continues. Each bundle retains its own OpenJules API and Polyphony authority.
+This does not provide a generated multi-repository installation or multiple
+deployments behind one OpenJules API. Trusted services sharing Docker access
+are not mutually isolated host tenants.
+
 ## Prepare an installation
 
 Start from [the operator configuration example](../examples/deployment.json).

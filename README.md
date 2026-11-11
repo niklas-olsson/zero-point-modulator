@@ -304,7 +304,7 @@ before dispatch, accepted drain recovery after runtime lock contention and
 dispatcher restart, cancellation, and five real subprocess fixtures. It is separate
 from the unit suite and does not establish production agent or confinement proof.
 
-Three additional CI jobs install the generated three-service bundle and use real
+Four additional CI jobs install the generated three-service bundle and use real
 Docker. The [command-based trial](docs/managed-stack-trial.md) exercises capacity,
 crashes, watchdog termination and durable capture. The
 [model-backed trial](docs/managed-model-stack-trial.md) exercises the real coding
@@ -312,7 +312,13 @@ agent and broker against a deterministic localhost provider fixture, including
 canonical ingress, captured hashes and independent patch verification. The
 [child trial](docs/managed-children-stack-trial.md) runs two real children inside
 one worker, composes their returned patches, drains to zero during active work,
-and verifies final capture and restart without repeated inference. These trials
+and verifies final capture and restart without repeated inference. The
+[isolation trial](docs/managed-isolation-stack-trial.md) installs two independent
+single-repository deployments on one Docker Engine and requires one deployment's
+original task to keep progressing while the other scales, drains, loses service,
+removes enrollment and reconnects. It does not qualify a generated multi-repository
+installation, one-controller fairness or multiple deployments behind one
+OpenJules API. These trials
 use controlled commands or deterministic model replies and keep independent
 review and live forge publication as separate acceptance gates.
 
