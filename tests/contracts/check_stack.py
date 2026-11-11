@@ -460,10 +460,19 @@ def run(args):
         target(0)
         checks.append("installed removal drains owned workers, retains authority and artifacts, and explicit re-enrollment resumes with the same identity and credentials")
 
+        final_reserved = plan()["reserved"]
+        processes.close()
+        # Import only after definitions and the generated installation have
+        # completed; the contract helper reuses this module's HTTP/process tools.
+        from check_two_runtime_stack import run_contract
+        contention = run_contract(root, bundle, data, source_paths, revisions, image)
+        checks.append("two independent managed runtimes contend through real canonical claims without duplicating protected execution")
+
         report = {"passed": True, "schema_version": 1, "deployment_id": deployment, "image": image,
                   "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed",
                   "checks": checks, "canonical_task": first["task"]["id"], "candidate": candidate["id"],
-                  "captured_artifacts": attempt["captured_artifacts"], "final_reserved": plan()["reserved"],
+                  "captured_artifacts": attempt["captured_artifacts"], "final_reserved": final_reserved,
+                  "two_runtime_contention": contention,
                   "proof": "real Docker, real HTTP, separate services, controlled code change",
                   "not_proven": ["live model inference", "child delegation", "independent semantic review", "forge publication", "merge authorization",
                                  "interrupted preparation recovery", "version upgrade", "destructive removal"]}
@@ -475,6 +484,10 @@ def run(args):
         sensitive = set(environment_tokens.values()) | set(operator_tokens.values())
         diagnostic = diagnostics(root, str(exc) if isinstance(exc, AssertionError) else type(exc).__name__,
                                  checks, revisions, sensitive)
+        if hasattr(exc, "contract_diagnostic"):
+            diagnostic["two_runtime_contention"] = exc.contract_diagnostic
+            # The nested helper has already redacted its distinct credentials.
+            (root / "diagnostics.json").write_text(json.dumps(diagnostic, indent=2, sort_keys=True))
         print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
         raise
     finally:
