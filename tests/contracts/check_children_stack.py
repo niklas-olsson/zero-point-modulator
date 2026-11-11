@@ -16,9 +16,11 @@ import sqlite3
 import subprocess
 import sys
 import threading
+import time
 
 from check_cleanup import journal_paths, qualify_owned_cleanup, require_retained
 from check_model_stack import ModelFixture, TOKEN_SOURCE
+from operational_measurement import Measurements, RequestMeasurements, idle_process_sample
 from check_historical_authority import qualify_historical_authority
 from check_stack import (
     Client, Processes, clean_environment, diagnostics, eventually, port,
@@ -103,6 +105,7 @@ class ChildrenFixture(ModelFixture):
         self.initial_outcomes = initial_outcomes
         self.root_limit = 8 if initial_outcomes else 6
         self.total_calls = self.root_limit + 4
+        self.measurements = RequestMeasurements(self.root_limit)
         self.compose_turn = self.root_limit - 1
         self.root_turns = 0
         self.child_turns = {"left": 0, "right": 0}
@@ -117,6 +120,7 @@ class ChildrenFixture(ModelFixture):
         return super().__exit__(*args)
 
     def reply(self, payload):
+        observed_ns = time.monotonic_ns()
         require(isinstance(payload, dict) and payload.get("model") == MODEL_NAME, "fixture model mismatch")
         require(payload.get("max_tokens") == 1024 and payload.get("stream") is False,
                 "fixture output policy mismatch")
@@ -143,6 +147,7 @@ class ChildrenFixture(ModelFixture):
                 require(results[-1].get("tool_call_id") == f"{identity}-{previous}", "tool result identity changed")
                 require(not results[-1].get("content", "").startswith("Tool error:"), "preceding agent tool failed")
             turn = previous + 1
+            self.measurements.request(identity, turn, payload, observed_ns)
             if child_name:
                 require(turn <= 2, "unexpected extra child model call")
                 self.child_turns[child_name] = turn
@@ -231,14 +236,17 @@ class ChildrenFixture(ModelFixture):
                     summary = ("Preserved the right child's decline, composed left and completed right as root; passed combined tests; request independent review"
                                if self.initial_outcomes else "Composed both child patches and passed combined tests; request independent review")
                     tool, arguments = "finish", {"summary": summary}
+            response = {"role": "assistant", "content": None, "tool_calls": [{
+                "id": f"{identity}-{turn}", "type": "function",
+                "function": {"name": tool, "arguments": json.dumps(arguments)},
+            }]}
+            if tool == "spawn_child":
+                self.measurements.spawn_prepared(name, arguments["instructions"], time.monotonic_ns())
             self.requests.append(payload)
         if pause:
             self.two_spawned.set()
             require(self.release_root.wait(20), "harness did not release the bounded child observation gate")
-        return {"role": "assistant", "content": None, "tool_calls": [{
-            "id": f"{identity}-{turn}", "type": "function",
-            "function": {"name": tool, "arguments": json.dumps(arguments)},
-        }]}
+        return response
 
 
 def read_artifacts(authority, scope, mapping, sensitive, *, attempt_id=None, child_id=None):
@@ -255,6 +263,100 @@ def read_artifacts(authority, scope, mapping, sensitive, *, attempt_id=None, chi
         require(all(token not in content for token in sensitive), "captured artifact contains a host credential")
         artifacts[kind] = content
     return artifacts
+
+
+def configured_verification_output_observation(output, *, present=True):
+    """Retain only fixed exception classes and this verifier's numeric frames."""
+    result = {
+        "available": present and isinstance(output, str),
+        "output_kind": "missing" if not present else "text" if isinstance(output, str) else "nontext",
+        "output_bytes": None,
+        "scanned_bytes": 0, "scan_limited": False,
+        "exception_classes": [], "fixed_script_lines": [], "details_limited": False,
+    }
+    if not result["available"]:
+        return result
+    raw = output.encode("utf-8", errors="replace")
+    lines = raw[:8192].decode("utf-8", errors="ignore").splitlines()
+    result.update(output_bytes=len(raw), scanned_bytes=min(len(raw), 8192),
+                  scan_limited=len(raw) > 8192 or len(lines) > 128)
+    classes = (
+        "AssertionError", "TimeoutError", "ConnectionRefusedError", "PermissionError",
+        "ConnectionResetError", "BrokenPipeError", "FileNotFoundError", "OSError",
+        "ValueError", "KeyError", "UnicodeDecodeError", "json.decoder.JSONDecodeError",
+        "struct.error",
+    )
+    for line in lines[:128]:
+        for name in classes:
+            if line == name or line.startswith(name + ":"):
+                if name not in result["exception_classes"]:
+                    if len(result["exception_classes"]) < 2:
+                        result["exception_classes"].append(name)
+                    else:
+                        result["details_limited"] = True
+                break
+        frame = re.fullmatch(
+            r'  File "<string>", line ([1-9][0-9]{0,2}), in (?:<module>|deny_socket)', line,
+        )
+        if frame and int(frame.group(1)) <= len(CHILD_VERIFY[-1].splitlines()):
+            if len(result["fixed_script_lines"]) < 4:
+                result["fixed_script_lines"].append(int(frame.group(1)))
+            else:
+                result["details_limited"] = True
+    return result
+
+
+def child_capture_observation(actor, uid, content):
+    """Describe the failed log predicate without exporting guest-controlled text."""
+    require(actor in {"left", "right"} and type(uid) is int
+            and uid == (60000 if actor == "left" else 60001),
+            "child diagnostic identity is not a fixed trial actor")
+    raw = content.encode("utf-8")
+    scanned = raw[:65536].decode("utf-8", errors="ignore")
+    lines = scanned.splitlines()
+    observation = {
+        "actor": actor, "expected_uid": uid,
+        "log_bytes": len(raw), "log_sha256": hashlib.sha256(raw).hexdigest(),
+        "expected_uid_marker_present": "CHILD_STACK_BOUNDARY_VERIFIED uid=" + str(uid) in content,
+        "configured_verification_literal_present": '"event": "configured_verification"' in content,
+        "scanned_bytes": min(len(raw), 65536),
+        "scan_limited": len(raw) > 65536 or len(lines) > 256,
+        "configured_verification_events_observed": 0,
+        "configured_verification_details": [],
+    }
+    for line in lines[:256]:
+        try:
+            event = json.loads(line)
+        except (ValueError, RecursionError):
+            continue
+        if not isinstance(event, dict) or event.get("event") != "configured_verification":
+            continue
+        observation["configured_verification_events_observed"] += 1
+        details = observation["configured_verification_details"]
+        if len(details) >= 4:
+            continue
+        state = event.get("state")
+        code = event.get("exit_code")
+        code_kind = (
+            "missing" if "exit_code" not in event else
+            "null" if code is None else
+            "integer" if type(code) is int and -255 <= code <= 255 else "unrecognized"
+        )
+        details.append({
+            "state": state if isinstance(state, str) and state in {
+                "exited", "timed_out", "output_limit", "unknown",
+            } else "unrecognized",
+            "exit_code_kind": code_kind,
+            "exit_code": code if code_kind == "integer" else None,
+            "output_observation": configured_verification_output_observation(
+                event.get("output"), present="output" in event,
+            ),
+        })
+    observation["verification_details_limited"] = (
+        observation["configured_verification_events_observed"]
+        > len(observation["configured_verification_details"])
+    )
+    return observation
 
 
 def verify_root_log(content, compose_turn=5):
@@ -315,7 +417,7 @@ def run(args):
     zpm = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(zpm))
     from zpm.controller import Controller
-    from zpm.deployment import MODEL_TOKEN_ENV, prepare, verify
+    from zpm.deployment import MODEL_TOKEN_ENV, _command, prepare, verify
     from zpm.models import released, snapshot as worker_snapshot
     from zpm.store import Store
 
@@ -324,6 +426,8 @@ def run(args):
     root.mkdir(mode=0o700)
     processes = Processes(root)
     checks, revisions, sensitive = [], {}, set()
+    child_capture_observations = []
+    measurements = Measurements()
     initial_outcomes = bool(getattr(args, "initial_outcomes", False))
     with ChildrenFixture(initial_outcomes) as model:
         sensitive.add(model.token)
@@ -356,6 +460,7 @@ def run(args):
             while authority_port == runtime_port:
                 runtime_port = port()
             bundle = root / "installation"
+            measurements.start("prepare")
             prepare({
                 "schema_version": 1, "deployment_id": scope["deployment_id"],
                 "binding": {"schema_version": 1, "repository": scope["repository"], "profile": profile, "desired_workers": 0},
@@ -375,7 +480,10 @@ def run(args):
                                  "capabilities": ["python"], "uid_start": 60000, "verify_argv": CHILD_VERIFY,
                                  **({"outcome_protocol": "initial-v1"} if initial_outcomes else {})},
             }, bundle)
+            measurements.stop("prepare")
+            measurements.start("verify")
             verify(bundle)
+            measurements.stop("verify")
             environment_tokens = json.loads((bundle / "secrets/environment.json").read_text())
             operator_tokens = json.loads((bundle / "secrets/operator.json").read_text())
             sensitive.update(environment_tokens.values())
@@ -397,6 +505,17 @@ def run(args):
             runtime = Client(f"http://127.0.0.1:{runtime_port}", environment_tokens["OPENJULES_WORKER_TOKEN"])
             manager = [sys.executable, str(bundle / "manage.py")]
             manager_environment = clean_environment({TOKEN_SOURCE: model.token})
+            installation_data = json.loads((bundle / "manifest.json").read_text())["configuration"]
+            service_commands = {name: _command(bundle, name, installation_data) for name in ("polyphony", "openjules", "zpm")}
+            measured_journals = journal_paths(bundle, runtime_config) | {
+                "canonical": Path(service_commands["polyphony"][service_commands["polyphony"].index("--db") + 1]),
+            }
+            measured_captures = measured_journals["runtime"].parent / "captures"
+
+            def storage_phase(label):
+                measurements.storage_phase(label, bundle.resolve(), measured_journals, measured_captures)
+
+            storage_phase("prepared")
 
             def plan():
                 with Store(state, scope["deployment_id"]) as store:
@@ -419,22 +538,40 @@ def run(args):
                 require(result.returncode in {0, 3}, "generated doctor could not inspect the child installation")
                 return json.loads(result.stdout).get("ready") is True
 
+            measurements.start("bootstrap")
             processes.run_once("bootstrap", manager + ["bootstrap"], bundle, clean_environment(), 900)
+            measurements.stop("bootstrap")
             if initial_outcomes:
                 historical_admission = qualify_historical_authority(
                     bundle, paths, args.historical_polyphony_checkout, scope, profile,
                     model, processes, manager_environment,
                 )
                 checks.append("a real prior authority revision returns scoped managed capabilities without initial child outcomes; the same OpenJules process rejects two completed controller passes and repeated ensure with empty protected histories, then recovers current authority readiness before any work")
-            processes.start("installation", manager + ["start"], bundle, manager_environment)
+            measurements.start("initial_manager_ready")
+            installation = processes.start("installation", manager + ["start"], bundle, manager_environment)
             eventually(installed_ready, processes, "generated child installation readiness", 60)
+            measurements.stop("initial_manager_ready")
             require(plan()["reserved"] == 0 and not model.requests, "readiness performed unrequested inference")
+            storage_phase("ready_target_zero")
+            measurements.start("target_one_converged")
             target(1)
-            require(not model.requests, "idle worker performed unrequested inference")
+            measurements.stop("target_one_converged")
+            with model.lock:
+                require(not model.requests and not model.errors, "idle worker performed unrequested inference")
+            idle_measurement = idle_process_sample(
+                installation, service_commands | {"manager": manager + ["start"]},
+                {name: Path(installation_data["sources"][name]["checkout"]) for name in service_commands}
+                | {"manager": bundle.resolve()},
+            )
+            with model.lock:
+                require(not model.requests and not model.errors, "idle observation performed unrequested inference")
+            storage_phase("idle_before_enrollment")
             checks.append("generated installation starts three real services with aligned child policies and no idle inference")
 
             request = {"schema_version": 1, **scope, "source": "github:issue:controlled-children-trial", "request_key": "run-1",
                        "title": "Controlled two-child coding", "requirements": REQUIREMENTS}
+            with model.lock:
+                model.measurements.enrollment_started(time.monotonic_ns())
             task = ingress.request("POST", "/managed/enroll", data=request)["task"]["id"]
             require(ingress.request("POST", "/managed/enroll", data=request)["task"]["id"] == task,
                     "source replay created another canonical task")
@@ -577,6 +714,7 @@ def run(args):
                         "child manifest lacks its monotonically bounded armed deadline")
                 require(captured_child["patch"] == model.patches[name],
                         "final child artifact differs from its provisional result")
+                child_capture_observations.append(child_capture_observation(name, uid, captured_child["log"]))
                 if initial_outcomes and name == "right":
                     require(captured_child["patch"] == ""
                             and '"event": "configured_verification"' not in captured_child["log"],
@@ -643,6 +781,7 @@ def run(args):
                     "agent modified the approved source checkout")
             checks.append("independent checkout reapplies the canonical root patch to the exact approved base, preserves tests and instructions, and passes both contribution assertions")
 
+            storage_phase("capture_verified")
             wait_for_capacity(plan, processes, 0, retired_worker_ids={worker})
             require(plan()["repositories"][0]["desired_workers"] == 0,
                     "active-child scale-down changed the requested zero target")
@@ -699,9 +838,13 @@ def run(args):
                                  "child_lineage": attempt["child_lineage"]},
             )
             checks.append("installed OpenJules host cleanup removes only the fully captured root worker container and volume against the reopened real canonical authority; repeated cleanup retains all journals, archive bytes, canonical captures and the idle replacement")
+            require(not processes.running, "cleanup measurement requires fully stopped owned services")
+            storage_phase("cleanup_stopped")
             verify(bundle)
+            measurements.start("restart_manager_ready")
             processes.start("installation", manager + ["start"], bundle, manager_environment)
             eventually(installed_ready, processes, "child installation restart", 60)
+            measurements.stop("restart_manager_ready")
             authority = Client(authority_endpoint, environment_tokens["POLYPHONY_RUNTIME_TOKEN"])
             durable = snapshot()
             durable_children = children(attempt["id"])
@@ -734,6 +877,14 @@ def run(args):
                         "restart exposed private child summaries in the broad snapshot")
                 checks.append("a fresh authorized runtime client reconnects after full service restart and retrieves identical committed private child outcomes; no child or inference is replayed")
 
+            storage_phase("restart_replayed")
+            with model.lock:
+                request_measurements = model.measurements.report(
+                    model.child_ids, canonical_children["children"],
+                    worker_id=worker, task_id=task, attempt_id=attempt["id"],
+                )
+            operational_measurements = measurements.report(idle_measurement, request_measurements)
+            checks.append("bounded operational observations retain exact service PID/starttime identities, zero idle inference, canonical child timing lineage, logical request sizes and stat-only journal/capture storage")
             report = {"passed": True, "schema_version": 1, "deployment_id": scope["deployment_id"], "image": image,
                       "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed", "checks": checks,
                       "canonical_task": task, "root_attempt": attempt["id"], "candidate": candidate["id"],
@@ -741,6 +892,7 @@ def run(args):
                       "active_observation": {"top_level_target": 1, "reserved_workers": 1, "active_executions": 3, "children": 2},
                       "active_scale_to_zero_observation": draining_observation,
                       "inference_allowance": allowance, "model_fixture_calls": len(model.requests), "final_reserved": plan()["reserved"],
+                       "operational_measurements": operational_measurements,
                       "owned_cleanup": cleanup["report"] | {"original_ensure_replay": "same retired worker; no resurrection"},
                       "proof": "real generated installation, canonical grants, Docker root/children, private brokers and durable capture; deterministic localhost model replies",
                       "not_proven": ["live provider compatibility", "model reasoning quality", "financial spend bound",
@@ -760,6 +912,11 @@ def run(args):
             return report
         except Exception as exc:
             diagnostic = diagnostics(root, str(exc) if isinstance(exc, AssertionError) else type(exc).__name__, checks, revisions, sensitive)
+            diagnostic["child_capture_observations"] = child_capture_observations
+            try:
+                private_json(root / "diagnostics.json", diagnostic)
+            except OSError:
+                pass  # Keep the original failure; the same bounded evidence is printed below.
             print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
             raise
         finally:
