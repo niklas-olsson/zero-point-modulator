@@ -28,6 +28,7 @@ import time
 from typing import Any
 from urllib.parse import urlsplit
 
+from . import installation_context
 from .models import Binding, ConfigurationError, ProviderConfig, identifier
 from .store import Store
 
@@ -774,7 +775,20 @@ def _command(root: Path, service: str, data: dict) -> list[str]:
     return _zpm_command(root, data, "reconcile") + ["--watch"]
 
 
+def _installation_context(root: Path, data: dict, *, require_complete: bool = True) -> None:
+    installation_context.probe(
+        root, Path(data["sources"]["openjules"]["checkout"]), _environment(root, "bootstrap", data),
+        require_complete=require_complete, revision=data["sources"]["openjules"]["revision"],
+    )
+
+
 def _bootstrap_locked(root: Path, data: dict) -> dict:
+    # Check retained OpenJules evidence before installing or rewriting anything.
+    openjules_complete = installation_context.completed(root, data["sources"]["openjules"]["revision"])
+    if openjules_complete:
+        _installation_context(root, data)
+    else:
+        installation_context.validate_selector(root, required=False)
     # Explicit dependency installation, separate from offline preparation.
     for service in SOURCE_FILES:
         checkout = Path(data["sources"][service]["checkout"])
@@ -790,9 +804,14 @@ def _bootstrap_locked(root: Path, data: dict) -> dict:
         subprocess.run(install, cwd=checkout, env=environment, check=True)
         resolved = subprocess.run([python, "-m", "pip", "freeze"], env=environment, check=True, capture_output=True, text=True)
         (env_root / "resolved-requirements.txt").write_text(resolved.stdout, encoding="utf-8")
-        _write(marker, {"revision": data["sources"][service]["revision"], "python": sys.version})
+        completion = {"revision": data["sources"][service]["revision"], "python": sys.version}
+        if service == "openjules":
+            installation_context.publish_selector(root)
+            _installation_context(root, data, require_complete=False)
+            installation_context.publish_private(marker, (json.dumps(completion, sort_keys=True, indent=2) + "\n").encode("utf-8"))
+        else:
+            _write(marker, completion)
     return {"installed": True, "services_started": False, "remote_access_checked": False}
-
 
 @contextmanager
 def _manager_lock(root: Path):
@@ -819,6 +838,7 @@ def _start(root: Path, data: dict) -> int:
     with _manager_lock(root):
         previous = signal.signal(signal.SIGTERM, stop_on_signal)
         try:
+            _installation_context(root, data)
             for service in ("polyphony", "openjules", "zpm"):
                 processes.append(subprocess.Popen(_command(root, service, data), cwd=data["sources"][service]["checkout"],
                                                   env=_environment(root, service, data), start_new_session=True))
@@ -848,6 +868,7 @@ def _start(root: Path, data: dict) -> int:
 
 
 def _doctor(root: Path, data: dict) -> dict:
+    _installation_context(root, data)
     command = _zpm_command(root, data, "check")
     result = subprocess.run(command, cwd=data["sources"]["zpm"]["checkout"], env=_environment(root, "zpm", data),
                             capture_output=True, text=True, timeout=45)
@@ -901,6 +922,9 @@ Retry the same preparation command after interruption. Complete bundles retain
 their credentials and current enrollment; abandoned private stages are retained.
 An unpublished stage cannot be bootstrapped or started as an installation.
 Bootstrap explicitly installs dependencies into three separate environments.
+The OpenJules environment must confirm its managed installation context before
+bootstrap completes. Its legacy execution commands refuse; use canonical ingress.
+Missing or changed retained context is not repaired or implicitly upgraded.
 Start runs all services in the foreground and stops them together on Ctrl-C.
 Doctor checks real authenticated repository-scoped OpenJules capabilities.
 It does not run a coding task or verify independent review or forge publication.

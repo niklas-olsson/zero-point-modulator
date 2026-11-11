@@ -19,11 +19,11 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6`](https://github.com/niklas-olsson/OpenJules/commit/9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6) |
+| OpenJules | [`80a51b867d12867a313539186b7c5d7346d54149`](https://github.com/niklas-olsson/OpenJules/commit/80a51b867d12867a313539186b7c5d7346d54149) |
 
-This is the same merged OpenJules revision used by all five installed-stack
+This is the same merged OpenJules runtime used by all five installed-stack
 jobs. Their common Polyphony pin is `653c0a71a921c0d23b8e0171277524125e929e66`;
-this HTTP-only trial does not run Polyphony. The merged OpenJules revision includes
+this HTTP-only trial does not run Polyphony. Its merged ancestry includes
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15)
 after an accepted drain or stop encounters a busy runtime lock. The deterministic
 regression below requires that replay without another client control request.
@@ -58,7 +58,7 @@ To update the shared component pins:
 3. Run the HTTP trial locally, then require the ZPM unit, package, CLI and all
    five integration jobs to pass for the proposed update before merging it.
 
-The pin records a tested component contract. It does not promote the fixture
+The pin identifies the component contract intended for qualification. It does not promote the fixture
 runtime to a production managed coding profile or complete the installation
 acceptance gate.
 

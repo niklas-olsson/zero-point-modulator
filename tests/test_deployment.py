@@ -13,9 +13,11 @@ import sys
 import tempfile
 import time
 import unittest
+import venv
 from unittest.mock import Mock, patch
 
 from zpm.deployment import CHILD_ENTRYPOINTS, MANAGED_ENTRYPOINTS, MODEL_ENTRYPOINTS, MODEL_TOKEN_ENV, SOURCE_FILES, _bootstrap, _command, _doctor, _environment, prepare, verify
+from zpm import installation_context
 from zpm.models import ConfigurationError
 from zpm.store import Store
 
@@ -445,15 +447,18 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(set(profile), {"base", "attempt_seconds", "capabilities"})
 
     def test_doctor_requires_ready_validation_for_every_repository(self):
+        # Real local-probe ordering and refusals are covered in test_installation_context.
         prepare(self.config, self.bundle)
         data = self.read("manifest.json")["configuration"]
         report = {"deployment_id": data["deployment_id"], "repositories": [{"validation": {"ready": True}}]}
         successful_check = subprocess.CompletedProcess([], 0, json.dumps(report), "")
-        with patch("zpm.deployment.subprocess.run", return_value=successful_check):
+        with patch("zpm.deployment._installation_context"), \
+                patch("zpm.deployment.subprocess.run", return_value=successful_check):
             self.assertTrue(_doctor(self.bundle, data)["ready"])
         report["repositories"].append({"validation": {"ready": False}})
         incomplete_check = subprocess.CompletedProcess([], 0, json.dumps(report), "")
-        with patch("zpm.deployment.subprocess.run", return_value=incomplete_check):
+        with patch("zpm.deployment._installation_context"), \
+                patch("zpm.deployment.subprocess.run", return_value=incomplete_check):
             self.assertFalse(_doctor(self.bundle, data)["ready"])
 
     def test_doctor_cannot_turn_deployment_identifier_into_a_mutating_command(self):
@@ -461,7 +466,8 @@ class DeploymentTests(unittest.TestCase):
         prepare(configuration, self.bundle)
         data = self.read("manifest.json")["configuration"]
         report = {"deployment_id": "reconcile", "repositories": [{"validation": {"ready": True}}]}
-        with patch("zpm.deployment.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(report), "")) as invoke:
+        with patch("zpm.deployment._installation_context"), \
+                patch("zpm.deployment.subprocess.run", return_value=subprocess.CompletedProcess([], 0, json.dumps(report), "")) as invoke:
             self.assertTrue(_doctor(self.bundle, data)["ready"])
         argv = invoke.call_args.args[0]
         identity_index = argv.index("--deployment-id") + 1
@@ -518,14 +524,26 @@ class DeploymentTests(unittest.TestCase):
                             f"Path({str(pid_path)!r}).write_text(str(os.getpid()))\n" +
                             "while True: time.sleep(1)\n")
             (checkout / entrypoint.split("/")[0] / "__init__.py").write_text("")
+            if service == "openjules":
+                from tests.test_installation_context import PROBE_FIXTURE
+                (checkout / "src/worker/execution_context.py").write_text(PROBE_FIXTURE)
             subprocess.run(["git", "-C", str(checkout), "add", "."], check=True, capture_output=True)
             subprocess.run(["git", "-C", str(checkout), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "service fixture"], check=True, capture_output=True)
             self.config["sources"][service]["revision"] = subprocess.check_output(["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True).strip()
         prepare(self.config, self.bundle)
         for service in SOURCE_FILES:
             interpreter = self.bundle / "environments" / service / "bin/python"
-            interpreter.parent.mkdir(parents=True)
-            interpreter.symlink_to(sys.executable)
+            if service == "openjules":
+                venv.EnvBuilder(with_pip=False).create(interpreter.parent.parent)
+            else:
+                interpreter.parent.mkdir(parents=True)
+                interpreter.symlink_to(sys.executable)
+        installation_context.publish_selector(self.bundle)
+        completion = {"revision": self.config["sources"]["openjules"]["revision"], "python": sys.version}
+        installation_context.publish_private(
+            self.bundle / "environments/openjules/bootstrap-complete.json",
+            (json.dumps(completion, sort_keys=True, indent=2) + "\n").encode(),
+        )
         program = "import json; from pathlib import Path; from zpm.deployment import _start; " + \
                   f"root=Path({str(self.bundle)!r}); " + \
                   "raise SystemExit(_start(root,json.loads((root/'manifest.json').read_text())['configuration']))"

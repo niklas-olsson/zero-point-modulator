@@ -110,6 +110,7 @@ existing resources are overwritten or deleted.
 | `secrets/` | Separate owner, reviewer, ingress, runtime and ZPM credentials |
 | `state/` | Durable ZPM, authority and runtime journals and artifacts |
 | `environments/` | Three isolated Python environments created by bootstrap |
+| `environments/openjules/openjules-managed-installation.json` | Private interpreter context created by bootstrap, bound to the sealed OpenJules configuration; it restricts legacy execution without adding task authority |
 | `manage.py` | Explicit bootstrap, foreground start, offline verify and online doctor commands |
 
 The root and configuration directories use mode `0700`; secret files use mode
@@ -295,6 +296,87 @@ command-only profiles retain their explicit `environment_refs` behavior.
 Model-backed profiles reject guest environment references and keep the provider
 credential exclusively in the trusted OpenJules process.
 
+## Managed interpreter context and bootstrap recovery
+
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/80a51b867d12867a313539186b7c5d7346d54149).
+A valid generic source pin alone is insufficient. Require the component's CI and
+all eight ZPM jobs for the same exact integration set before promotion; retained
+reports for earlier revisions do not qualify this new installation contract.
+
+The current OpenJules pin is the merged result of
+[OpenJules #26](https://github.com/niklas-olsson/OpenJules/pull/26), tree
+`0231a62c20d8ff66e0d5e9a3d5fc6b40e84909fa`. Its exact current-head and
+relevant-base Python 3.11/3.12 suites each passed 612 tests and four subtests
+without skips; [the complete qualification](https://github.com/niklas-olsson/OpenJules/pull/26#issuecomment-6808337505)
+preserves the initial test-state failure and narrow correction. All normal and
+manual integration references select that same merged revision. Qualification
+of the changed ZPM combination remains a separate required gate; earlier
+`9e6aaa49` / OpenJules `d3d50b32` runtime reports remain historical evidence.
+
+A prepared bundle is still offline configuration. Bootstrap installs its three
+isolated environments and binds the dedicated OpenJules interpreter to the
+original sealed `config/openjules.json`. The private selector has one fixed name
+under that interpreter's prefix. It contains only version 1, the canonical
+configuration path and its SHA-256, with a 4 KiB limit. It carries no credentials,
+repository policy or authority grants.
+
+Before bootstrap marks OpenJules complete, it invokes the actual installed
+interpreter from the approved OpenJules checkout:
+
+`python -m src.worker.execution_context --probe-managed-installation`
+
+The probe receives the credential-free bootstrap environment. It imports only
+the companion's local context helper, validates the original binding and calls
+the same predicate that refuses legacy execution. ZPM requires the exact
+versioned response, the SHA-256 of its expected selector bytes and
+`legacy_execution_allowed: false`. Missing or older helper implementations,
+malformed responses, changed bindings and timeouts fail closed. The probe has
+a ten-second execution bound, at most 4 KiB of stdout and a separate two-second
+owned-process cleanup bound. Child stderr is discarded and failure messages do
+not echo private paths or subprocess output. No Docker, provider, model or
+canonical-authority request is part of this probe.
+
+The same check runs before a completed environment is reused by bootstrap and
+before start or doctor can report operational readiness. It does not replace
+doctor's authenticated capability check. Fresh `prepare` and offline `verify`
+remain valid without installed environments and do not claim managed-context or
+runtime readiness. Merely writing a selector cannot qualify an older OpenJules
+revision that ignores it.
+
+Bootstrap publishes the selector and OpenJules completion marker through
+private temporary files and atomic, no-replace hard links on the same local
+filesystem. Each published file and its directory are flushed. This requires
+local regular-file hard-link and directory-fsync support in addition to the
+preparation requirements above. An interruption leaves each final file absent
+or complete. A new incomplete bootstrap may publish its original absent
+selector or reuse identical bytes. It never overwrites a different file or
+adopts a foreign path; abandoned private temporary files remain available for
+diagnosis. The tests exercise process crashes, not hardware power loss.
+
+A completed environment with a missing, malformed, symlinked, nonprivate or
+changed selector refuses reuse and startup. Restore the retained original
+installation from trusted state rather than deleting completion markers to
+force adoption. This is not an automatic repair or version-upgrade operation.
+An old source-pinned bundle keeps its original contract; use a separately
+approved new bundle for different source revisions. Pause, removal and
+re-enrollment retain the context, credentials, journals and canonical policies.
+
+Within this managed interpreter, legacy raw-task, review and other execution
+entry points refuse before their owned effects. Canonical managed service,
+publication and cleanup entry points retain their existing authority checks.
+The selector does not restrict an approved host's alternate canonical
+configuration to a new scope list. Separate unbound standalone interpreters
+keep their ordinary behavior. Deleting private host state or choosing another
+interpreter is an operator action outside the request-isolation boundary.
+
+The existing [installed command trial](managed-stack-trial.md) invokes the real
+legacy CLI before services start, requires its explicit refusal, and compares
+retained state hashes and the complete Docker container/volume inventory before
+and afterward. It then runs the unchanged positive canonical execution,
+capture, outage and recovery scenario. Its installed evidence must qualify the
+reviewed OpenJules producer and ZPM consumer revisions together; unit protocol
+fixtures alone do not demonstrate that integration.
+
 ## Enable a model-backed root agent
 
 Start from [the model deployment example](../examples/deployment-model.json).
@@ -427,7 +509,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/80a51b867d12867a313539186b7c5d7346d54149/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -445,7 +527,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/80a51b867d12867a313539186b7c5d7346d54149/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature
