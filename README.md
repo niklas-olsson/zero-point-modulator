@@ -108,10 +108,18 @@ repository targets or their ceilings to select existing workers for drain.
 When existing reservations exceed a newly reduced deployment ceiling,
 reconciliation reports the `over_capacity` count and a reason for every binding.
 It does not silently change another repository's selected target.
-`timeout_seconds` sets the HTTP socket I/O timeout and must be greater than zero
-and at most 120. It is not a hard elapsed-time deadline for an entire response;
-an endpoint that continually sends partial data can extend a request. A timeout
-is an uncertain outcome, never evidence of termination.
+`timeout_seconds` sets one total HTTP request deadline and must be greater than
+zero and at most 120. The deadline includes transport-process startup, DNS,
+connection/TLS setup, request transmission, and response headers/body. A
+short-lived standard-library helper isolates each request; expiry kills and
+reaps it so trickled responses cannot leave active local I/O holding the
+controller. Process cleanup and OS scheduling can add a small return delay.
+Credentials pass through a private pipe, never process arguments. Proxy and TLS
+certificate environment settings retain their normal transport behavior;
+unrelated credentials are not inherited. Each request incurs interpreter startup
+overhead, and requests remain sequential. This is a per-request bound, not a
+deadline for an entire reconciliation tick. A timeout is an uncertain remote
+outcome, never evidence of worker termination or permission to release capacity.
 
 ## Check and reconcile
 
@@ -264,8 +272,10 @@ python -m unittest discover -v
 The deterministic tests cover enrollment/restart, 0 → 2 → 3 → 1 → 0, duplicate
 and lost launches, uncertain observations, immutable identity, scope isolation,
 controller contention, concurrent policy edits, quota reservations, child-aware
-drain, and failed artifact capture. The test provider performs no inference or
-real coding. The CI workflow also installs the package and checks the CLI on
+drain, and failed artifact capture. Local HTTP tests also cover total deadlines
+under trickled headers/body, stalled resolution/TLS, helper cleanup and durable
+recovery of timed-out ensure/drain/stop operations. The test provider performs no
+inference or real coding. The CI workflow also installs the package and checks the CLI on
 Python 3.11 and 3.12.
 
 An optional [OpenJules HTTP contract trial](docs/http-contract-trial.md) exercises

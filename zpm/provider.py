@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
+import subprocess
+import sys
+import time
 from typing import Any, Protocol
-from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
-from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .models import ConfigurationError, ProviderConfig
 
@@ -25,41 +27,64 @@ class WorkerProvider(Protocol):
     def stop(self, deployment_id: str, repository: str, worker_id: str, request_key: str) -> dict[str, Any]: ...
 
 
-class _NoRedirects(HTTPRedirectHandler):
-    def redirect_request(self, request: Request, file: Any, code: int, message: str, headers: Any, new_url: str) -> None:
-        return None
+def _transport_environment() -> dict[str, str]:
+    # urllib uses these proxy settings and OpenSSL uses the certificate paths.
+    # Do not pass model, authority or other unrelated process credentials.
+    return {name: value for name, value in os.environ.items()
+            if name.lower() in {"http_proxy", "https_proxy", "all_proxy", "no_proxy", "request_method"}
+            or name in {"SSL_CERT_FILE", "SSL_CERT_DIR"}}
 
 
 class OpenJulesProvider:
     def __init__(self, config: ProviderConfig):
         self.config = config
-        self._opener = build_opener(_NoRedirects())
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None, query: dict[str, Any] | None = None) -> Any:
         token = os.environ.get(self.config.token_ref[len("env:"):])
         if not token:
             raise ProviderError("provider credential reference is unresolved")
+        deadline = time.monotonic() + self.config.timeout_seconds
         url = self.config.endpoint + "/api/workers" + path
         if query:
             url += "?" + urlencode(query)
-        data = None if payload is None else json.dumps(payload).encode("utf-8")
-        request = Request(url, data=data, method=method, headers={"Authorization": "Bearer " + token, "Accept": "application/json", "Content-Type": "application/json"})
+        request = json.dumps({"method": method, "url": url, "payload": payload,
+                              "token": token, "timeout": self.config.timeout_seconds}).encode("utf-8")
+        process = None
         try:
-            with self._opener.open(request, timeout=self.config.timeout_seconds) as response:
-                raw = response.read(1_000_001)
-            if len(raw) > 1_000_000:
+            # A socket timeout is reset by each received byte and cannot bound
+            # DNS or trickled headers. Isolate the blocking stdlib transport so
+            # expiry stops its I/O, rather than abandoning a live worker thread.
+            process = subprocess.Popen(
+                [sys.executable, "-I", "-S", str(Path(__file__).with_name("_http_transport.py"))],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                env=_transport_environment(), close_fds=True,
+            )
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(process.args, self.config.timeout_seconds)
+            raw, _ = process.communicate(request, timeout=remaining)
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired(process.args, self.config.timeout_seconds)
+            if process.returncode == 3 and len(raw) == 3 and raw.isdigit():
+                raise ProviderError(f"OpenJules returned HTTP {int(raw)}")
+            if process.returncode == 4:
                 raise ProviderError("provider response exceeds the supported size")
+            if process.returncode != 0 or len(raw) > 1_000_000:
+                raise ProviderError("OpenJules transport unavailable; operation outcome may be unknown")
             return json.loads(raw)
-        except HTTPError as exc:
-            # Provider exception bodies can contain credentials or subprocess output.
-            # Status is sufficient here; do not persist or print that untrusted body.
-            status = exc.code
-            exc.close()
-            raise ProviderError(f"OpenJules returned HTTP {status}") from None
-        except (URLError, TimeoutError, OSError):
+        except subprocess.TimeoutExpired:
+            raise ProviderError("OpenJules total request deadline exceeded; operation outcome may be unknown") from None
+        except (TimeoutError, OSError):
             raise ProviderError("OpenJules transport unavailable; operation outcome may be unknown") from None
         except (ValueError, UnicodeError):
             raise ProviderError("OpenJules returned an invalid JSON response") from None
+        finally:
+            if process is not None:
+                if process.poll() is None:
+                    process.kill()
+                # Reap on every path, including interruption. No helper may
+                # issue a late request after this call releases controller use.
+                process.communicate()
 
     def capabilities(self, deployment_id: str, repository: str, profile: str) -> dict[str, Any]:
         return self._request("GET", "/capabilities", query={"deployment_id": deployment_id, "repository": repository, "profile": profile})

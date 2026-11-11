@@ -18,7 +18,7 @@ import sys
 from tempfile import TemporaryDirectory
 import threading
 import time
-from urllib.request import ProxyHandler, build_opener
+from unittest.mock import patch
 
 
 def require(condition: bool, message: str) -> None:
@@ -90,7 +90,7 @@ def run_trial(checkout: Path) -> dict:
     from src.worker.lifecycle import LifecycleConflict, UnavailableRuntime, WorkerLifecycle, WorkerScope
     from zpm.controller import Controller
     from zpm.models import ProviderConfig
-    from zpm.provider import OpenJulesProvider, ProviderError, _NoRedirects
+    from zpm.provider import OpenJulesProvider, ProviderError
     from zpm.store import Store
 
     class DropFirstLaunchReply(OpenJulesProvider):
@@ -99,9 +99,6 @@ def run_trial(checkout: Path) -> dict:
         def __init__(self, config):
             super().__init__(config)
             self.lost = False
-            # The trial is loopback-only. Never send its test credential to an
-            # external proxy configured in the surrounding shell environment.
-            self._opener = build_opener(ProxyHandler({}), _NoRedirects())
 
         def ensure(self, spec):
             result = super().ensure(spec)
@@ -110,7 +107,11 @@ def run_trial(checkout: Path) -> dict:
                 raise ProviderError("injected lost reply after successful HTTP launch")
             return result
 
-    with TemporaryDirectory(prefix="zpm-openjules-contract-") as temporary, temporary_credential() as credential:
+    # The helper inherits normal proxy behavior. Keep this loopback-only trial's
+    # credential away from any external proxy configured by the surrounding shell.
+    with (TemporaryDirectory(prefix="zpm-openjules-contract-") as temporary,
+          temporary_credential() as credential,
+          patch.dict(os.environ, {"no_proxy": "*", "NO_PROXY": "*"})):
         root = Path(temporary)
         runtime = load_fixture(checkout)(root)
         deployment = "contract-trial"
