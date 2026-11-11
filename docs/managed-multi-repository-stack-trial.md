@@ -21,7 +21,7 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `11842db8fc573b461121dc321a1537a9a148ad90` |
+| OpenJules | `9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6` |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66` |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
@@ -57,13 +57,19 @@ captures through restart and zero final reservations. The complete exact-head
 aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
 
 The workflow now selects the merged OpenJules revision
-`11842db8fc573b461121dc321a1537a9a148ad90` from
-[OpenJules #20](https://github.com/niklas-olsson/OpenJules/pull/20), including
-versioned creation proof, strict cleanup transport checks and explicit owned cleanup alongside the earlier
-child outcomes and durable replay, with the
-Polyphony pin unchanged. That refreshed set requires its own complete eight-job
-ZPM qualification and current component CI. The historical results above remain
-bound to their recorded revisions; they are not results for the new pin.
+`9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6` from
+[OpenJules #23](https://github.com/niklas-olsson/OpenJules/pull/23). It refuses
+legacy PR-conversation run commands before task construction or background
+dispatch. The generated managed service still exposes no legacy webhook route.
+This adds no public conversation or canonical webhook adapter. The pin retains
+the component claim-versus-drain regressions, actual Docker
+[combined-verification failure case](https://github.com/niklas-olsson/OpenJules/pull/21),
+[versioned creation proof](https://github.com/niklas-olsson/OpenJules/pull/20),
+strict cleanup transport checks, explicit owned cleanup, child outcomes and
+durable replay. The Polyphony pin is unchanged. This refreshed set requires its
+own complete eight-job ZPM qualification and current component CI. The historical
+results above remain bound to their recorded revisions; they are not results
+for the new pin.
 Record the refreshed set's actual outcome in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 

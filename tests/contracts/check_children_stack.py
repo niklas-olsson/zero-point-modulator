@@ -19,6 +19,7 @@ import threading
 
 from check_cleanup import journal_paths, qualify_owned_cleanup, require_retained
 from check_model_stack import ModelFixture, TOKEN_SOURCE
+from check_historical_authority import qualify_historical_authority
 from check_stack import (
     Client, Processes, clean_environment, diagnostics, eventually, port,
     private_json, require, wait_for_capacity,
@@ -419,6 +420,12 @@ def run(args):
                 return json.loads(result.stdout).get("ready") is True
 
             processes.run_once("bootstrap", manager + ["bootstrap"], bundle, clean_environment(), 900)
+            if initial_outcomes:
+                historical_admission = qualify_historical_authority(
+                    bundle, paths, args.historical_polyphony_checkout, scope, profile,
+                    model, processes, manager_environment,
+                )
+                checks.append("a real prior authority revision returns scoped managed capabilities without initial child outcomes; the same OpenJules process rejects two completed controller passes and repeated ensure with empty protected histories, then recovers current authority readiness before any work")
             processes.start("installation", manager + ["start"], bundle, manager_environment)
             eventually(installed_ready, processes, "generated child installation readiness", 60)
             require(plan()["reserved"] == 0 and not model.requests, "readiness performed unrequested inference")
@@ -741,6 +748,7 @@ def run(args):
                                      "two-round live child conversation", "managed public conversation", "automatic root-agent process resumption"]}
             if initial_outcomes:
                 report["initial_outcome_protocol"] = "initial-v1"
+                report["historical_authority_admission"] = historical_admission
                 report["publication_compatibility"] = {
                     "qualified": False,
                     "reason": "root adds work beyond child patches; the publisher contract would reject candidate_tree_mismatch; publication is not invoked",
@@ -768,7 +776,13 @@ def main():
     parser.add_argument("--image", required=True, help="already-present full sha256 ID from the managed-agent Dockerfile")
     parser.add_argument("--work-dir", type=Path, required=True, help="new private directory, retained for recovery")
     parser.add_argument("--initial-outcomes", action="store_true", help="qualify explicit completion, decline and durable private outcome recovery")
+    parser.add_argument("--historical-polyphony-checkout", type=Path,
+                        help="separate immutable prior-authority checkout, required only with --initial-outcomes")
     args = parser.parse_args()
+    if args.initial_outcomes != (args.historical_polyphony_checkout is not None):
+        parser.error("--initial-outcomes requires --historical-polyphony-checkout, and the default trial does not use it")
+    if args.historical_polyphony_checkout is not None:
+        args.historical_polyphony_checkout = args.historical_polyphony_checkout.resolve(strict=True)
     args.polyphony_checkout = args.polyphony_checkout.resolve(strict=True)
     args.openjules_checkout = args.openjules_checkout.resolve(strict=True)
     try:

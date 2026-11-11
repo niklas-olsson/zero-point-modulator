@@ -427,7 +427,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/11842db8fc573b461121dc321a1537a9a148ad90/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -445,7 +445,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/11842db8fc573b461121dc321a1537a9a148ad90/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature
@@ -458,6 +458,14 @@ repository CI and independent review must cover the actual head and base before
 promotion or merge. The generated manager does not publish automatically, and
 the installation trial uses no live forge credential. Completing that live
 workflow remains a separate qualification step.
+
+The pinned standalone legacy webhook also refuses run commands delivered in a
+PR's general conversation with HTTP 409
+`pull_request_comment_requires_review_event`, before task construction or
+background dispatch. Its existing review-event guard remains separate. The
+generated managed service exposes no legacy webhook route. This refusal does
+not establish convergence of every standalone ingress or enable public managed
+conversation; see [OpenJules #23](https://github.com/niklas-olsson/OpenJules/pull/23).
 
 ## Install dependencies and start
 
