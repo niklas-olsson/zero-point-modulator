@@ -251,6 +251,11 @@ The [model deployment example](examples/deployment-model.json) adds an explicit
 provider policy and uses the managed agent image. Its provider token resolves
 only into OpenJules; the worker retains disabled networking and uses its own
 private model socket.
+The [child deployment example](examples/deployment-children.json) additionally
+binds bounded children to that profile and its canonical task budget. It uses a
+new child-enabled worker incarnation, distinct child UIDs and the same root
+model allowance. Child expiry or cancellation retires the whole worker; final
+capture precedes root finalization. Children do not increase the ZPM target.
 
 ```sh
 python -m unittest discover -v
@@ -268,13 +273,17 @@ the actual client and lifecycle API together, including lost replies, recovery
 before dispatch, cancellation, and five real subprocess fixtures. It is separate
 from the unit suite and does not establish production agent or confinement proof.
 
-Two additional CI jobs install the generated three-service bundle and use real
+Three additional CI jobs install the generated three-service bundle and use real
 Docker. The [command-based trial](docs/managed-stack-trial.md) exercises capacity,
 crashes, watchdog termination and durable capture. The
 [model-backed trial](docs/managed-model-stack-trial.md) exercises the real coding
 agent and broker against a deterministic localhost provider fixture, including
-canonical ingress, captured hashes and independent patch verification. Neither
-trial makes a live model call or treats runtime output as independent review.
+canonical ingress, captured hashes and independent patch verification. The
+[child trial](docs/managed-children-stack-trial.md) runs two real children inside
+one worker, composes their returned patches, drains to zero during active work,
+and verifies final capture and restart without repeated inference. These trials
+use controlled commands or deterministic model replies and keep independent
+review and live forge publication as separate acceptance gates.
 
 This implementation advances [enrollment #1](https://github.com/niklas-olsson/zero-point-modulator/issues/1)
 and [reconciliation #2](https://github.com/niklas-olsson/zero-point-modulator/issues/2).
