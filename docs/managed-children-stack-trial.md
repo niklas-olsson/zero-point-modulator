@@ -376,6 +376,123 @@ authority when its actual Docker run passes. It does not repeat the separately
 qualified OpenJules subprocess-death experiment, prove arbitrary storage failure
 recovery, invoke a live provider or publish a forge candidate.
 
+## Bounded operational measurements
+
+Both existing child variants add an **operational_measurements** object to the
+aggregate report. These observations use the same installed services, workers,
+two child grants and deterministic model replies already required by the trial.
+They add no provider requests, worker incarnations, inference loop, workflow job
+or package dependency. The ordinary variant still makes ten model calls; the
+initial-outcome variant still makes twelve. The existing 90-second child,
+180-second attempt, 240-second worker and CI timeout limits remain unchanged.
+
+This is an operational measurement for this controlled profile. It does not
+qualify live-provider latency, model reasoning, provider token usage, financial
+cost, a warm reused-child session or a second private instruction round. Public
+conversation and those session behaviors still need their own implementations
+and qualification.
+
+### Timing and causal identity
+
+All durations use the host monotonic clock and are reported in nanoseconds.
+The named intervals have the following exact boundaries:
+
+| Report interval | Start | End |
+| --- | --- | --- |
+| prepare | Existing bundle preparation call | Successful return |
+| verify | Existing initial offline verification call | Successful return |
+| bootstrap | Existing installed bootstrap command | Successful command and owned-process cleanup |
+| initial_manager_ready | Existing manager launch | Successful installed doctor readiness observation |
+| target_one_converged | Existing target-one request | Existing capacity-convergence predicate succeeds |
+| restart_manager_ready | Existing full manager restart | Successful installed doctor readiness observation |
+| Enrollment to first root request | Immediately before the original enrollment POST | First validated root model-fixture request |
+| spawn_response_prepared_to_first_request_ns | Existing spawn tool response is prepared, before returning it | Matching child's first validated model-fixture request |
+
+These are observed end-to-end intervals. They do not isolate one controller tick,
+backend call or operating-system process launch. Bootstrap is not a claim about
+an empty package cache. The child interval includes canonical grant handling,
+scheduling, UID/socket setup and the broker path. A child can make its first
+request before its parent receives the spawn result, so the parent receipt is
+not used as the starting clock edge.
+
+The fixture records only its existing actor label, ordinal, timestamps and
+instruction digest. Before publishing measurements, the trial reconciles each
+label with the existing canonical child ID, grant digest, instruction digest,
+root/parent attempt, worker and task binding. The existing model reservation and
+final capture assertions remain required. A fixture label does not establish
+canonical authority by itself.
+
+### One idle sample
+
+After the existing target-one capacity convergence and before enrollment, the
+trial takes one fixed two-second idle sample. Model requests and fixture errors
+must both be empty before and after it. This is a passive observation; it does
+not invoke an extra reconciliation, model call or Docker statistics command.
+
+The cohort is the owned installation manager and exactly its three direct
+Polyphony, OpenJules and ZPM service children. Their actual command vectors and
+working directories must match the generated installation. Each process is
+fenced by its PID and Linux process start time, with parent identity and the
+complete child cohort checked again at the second endpoint. Missing, replaced,
+reparented or mismatched processes and counter regressions fail qualification.
+
+The report retains user/system CPU tick deltas, the observed wall interval,
+clock ticks per second, page size and RSS byte observations at both endpoints.
+These are process self counters, including their own system CPU time. They
+exclude descendants, the Docker daemon and unrelated host or kernel work.
+RSS is an approximate endpoint observation, not a peak or precise memory
+snapshot; Linux documents the asynchronous nature of this accounting in its
+[proc filesystem reference](https://docs.kernel.org/filesystems/proc.html).
+The sample does not prove that a complete controller cycle occurred within it.
+
+### Context and storage units
+
+Each already-retained fixture request contributes actor, ordinal, message count
+and byte lengths for its messages, tools and full request. The encoding is
+UTF-8 JSON with sorted keys, compact separators and ensure_ascii=False.
+These logical JSON sizes are neither captured HTTP traffic nor provider tokens.
+Prompts, tool payloads, instructions and credentials are omitted from the
+measurement report. Existing output-token reservations remain separate from
+observed token generation or monetary cost.
+
+Storage is observed at six ordered boundaries: prepared bundle, ready at target
+zero, idle before enrollment, verified final capture, stopped services after
+owned cleanup, and the existing full restart plus original ensure replay.
+The initial-outcome variant's interval from preparation to readiness also
+contains its separately reported historical-authority admission phase.
+
+For each of the seven existing canonical/controller/runtime/lifecycle/
+dispatcher/model/child journals, the report records main, WAL and SHM files
+separately, with presence and byte length. Paths come from the generated
+configuration and existing runtime layout. The capture inventory records only
+aggregate regular-file count and byte length under the owned runtime capture
+directory, with a maximum of 4,096 entries and 16 directory levels.
+
+Measurements use file metadata only. They create no SQLite connection and
+perform no checkpoint, vacuum or other database action. Symlinks, special
+files, paths outside the bundle or excessive inventories fail qualification.
+Each file stat is a separate observation, not an atomic database snapshot,
+allocated-block measurement or a combined main-plus-WAL durability proof.
+Adjacent phase deltas are signed: WAL/SHM shrinkage or disappearance can be
+normal. Capture paths, filenames, database rows and archive contents do not
+appear in these aggregates.
+
+### Validation boundary
+
+The helper has deterministic negative tests for timing/order and canonical
+lineage, boolean or nonfinite numbers, Unicode byte accounting, PID reuse and
+counter regression, incomplete process cohorts, unsafe or excessive storage
+inventories, and incomplete phase reports. A Linux owned-subprocess fixture
+checks the actual process-reader interface; a real SQLite WAL fixture checks
+that metadata observation preserves bytes without opening another connection.
+Those tests do not substitute for the existing installed Docker child jobs.
+
+The report uses schema version 1 and is bounded to 100,000 logical JSON bytes.
+The existing privacy checks cover the added object before it is written.
+There is no invented performance acceptance threshold. Actual measurements
+must first be obtained from the exact delivered component revision set, and any
+later threshold requires separately reviewed evidence.
+
 ## Qualification limits and retained state
 
 This trial exercises graceful scale-to-zero while children are active. It does
