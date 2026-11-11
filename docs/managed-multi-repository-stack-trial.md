@@ -21,7 +21,7 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177` |
+| OpenJules | `80a51b867d12867a313539186b7c5d7346d54149` |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66` |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
@@ -56,8 +56,8 @@ fresh B progress checkpoints, an unchanged single B worker, both canonical
 captures through restart and zero final reservations. The complete exact-head
 aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
 
-The workflow now selects the reviewed OpenJules context implementation
-[`d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177`](https://github.com/niklas-olsson/OpenJules/commit/d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177).
+The workflow now selects the merged OpenJules context implementation
+[`80a51b867d12867a313539186b7c5d7346d54149`](https://github.com/niklas-olsson/OpenJules/commit/80a51b867d12867a313539186b7c5d7346d54149).
 Its dedicated-interpreter selector refuses legacy execution before owned effects,
 while canonical service, publication and cleanup retain their authority checks.
 It also contains the repository-qualified opaque UI routing correction. Bootstrap,

@@ -43,7 +43,7 @@ The CI job currently pins:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177`, managed-installation context and scoped UI candidate over the merged runtime |
+| OpenJules | `80a51b867d12867a313539186b7c5d7346d54149`, merged managed-installation context and scoped UI runtime |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The workflow's checked-out candidate revision, recorded in the report |
 

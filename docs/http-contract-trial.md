@@ -19,9 +19,9 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177`](https://github.com/niklas-olsson/OpenJules/commit/d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177) |
+| OpenJules | [`80a51b867d12867a313539186b7c5d7346d54149`](https://github.com/niklas-olsson/OpenJules/commit/80a51b867d12867a313539186b7c5d7346d54149) |
 
-This is the same reviewed OpenJules candidate used by all five installed-stack
+This is the same merged OpenJules runtime used by all five installed-stack
 jobs. Their common Polyphony pin is `653c0a71a921c0d23b8e0171277524125e929e66`;
 this HTTP-only trial does not run Polyphony. Its merged ancestry includes
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15)

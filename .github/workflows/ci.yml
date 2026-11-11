@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177
+          ref: 80a51b867d12867a313539186b7c5d7346d54149
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -65,9 +65,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Reviewed managed-installation context candidate, shared by every gate.
+          # Merged managed-installation context, shared by every gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177
+          ref: 80a51b867d12867a313539186b7c5d7346d54149
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -115,9 +115,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Same reviewed runtime candidate as every other integration gate.
+          # Same merged runtime as every other integration gate.
           # Update this pin with docs/managed-isolation-stack-trial.md.
-          ref: d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177
+          ref: 80a51b867d12867a313539186b7c5d7346d54149
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -164,9 +164,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Same reviewed runtime candidate as every other integration gate.
+          # Same merged runtime as every other integration gate.
           # Update with docs/managed-multi-repository-stack-trial.md.
-          ref: d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177
+          ref: 80a51b867d12867a313539186b7c5d7346d54149
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -213,9 +213,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Reviewed managed-installation context candidate, shared by every gate.
+          # Merged managed-installation context, shared by every gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177
+          ref: 80a51b867d12867a313539186b7c5d7346d54149
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -285,9 +285,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Reviewed managed-installation context candidate, shared by every gate.
+          # Merged managed-installation context, shared by every gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177
+          ref: 80a51b867d12867a313539186b7c5d7346d54149
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4

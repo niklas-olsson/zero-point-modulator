@@ -298,10 +298,20 @@ credential exclusively in the trusted OpenJules process.
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/80a51b867d12867a313539186b7c5d7346d54149).
 A valid generic source pin alone is insufficient. Require the component's CI and
 all eight ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
+
+The current OpenJules pin is the merged result of
+[OpenJules #26](https://github.com/niklas-olsson/OpenJules/pull/26), tree
+`0231a62c20d8ff66e0d5e9a3d5fc6b40e84909fa`. Its exact current-head and
+relevant-base Python 3.11/3.12 suites each passed 612 tests and four subtests
+without skips; [the complete qualification](https://github.com/niklas-olsson/OpenJules/pull/26#issuecomment-6808337505)
+preserves the initial test-state failure and narrow correction. All normal and
+manual integration references select that same merged revision. Qualification
+of the changed ZPM combination remains a separate required gate; earlier
+`9e6aaa49` / OpenJules `d3d50b32` runtime reports remain historical evidence.
 
 A prepared bundle is still offline configuration. Bootstrap installs its three
 isolated environments and binds the dedicated OpenJules interpreter to the
@@ -499,7 +509,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/80a51b867d12867a313539186b7c5d7346d54149/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -517,7 +527,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/80a51b867d12867a313539186b7c5d7346d54149/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature
