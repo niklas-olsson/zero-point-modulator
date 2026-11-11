@@ -171,7 +171,7 @@ def container_for(worker_id):
 
 
 def progress(container_id):
-    result = subprocess.run(["docker", "cp", container_id + ":/workspace/run/.isolation-progress", "-"],
+    result = subprocess.run(["docker", "cp", container_id + ":/workspace/run/repo/.isolation-progress", "-"],
                             capture_output=True, timeout=10)
     if result.returncode:
         return None
@@ -189,7 +189,7 @@ def release(container_id):
     # barrier. Lifecycle admission, runtime receipts and capture stay real.
     subprocess.run(["docker", "exec", "--user", "65532:65532", container_id,
                     "python3", "-I", "-S", "-c",
-                    "from pathlib import Path; Path('/workspace/run/.isolation-release').touch()"],
+                    "from pathlib import Path; Path('/workspace/run/repo/.isolation-release').touch()"],
                    check=True, capture_output=True, timeout=10)
 
 
