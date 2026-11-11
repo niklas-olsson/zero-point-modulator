@@ -102,6 +102,59 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  managed-children-stack:
+    name: Install and verify two children inside one worker
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: zpm
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/OpenJules
+          # Qualified PR12 head includes the child runtime and publication CLI.
+          # Update this pin with docs/managed-children-stack-trial.md.
+          ref: 8a40e04478ef25c128364b6c989a77735cca21eb
+          path: openjules
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/keystone-polyphony
+          # Qualified canonical child grants plus durable conversation baseline.
+          ref: 473df5a0406accfe5cb550877e7b28a602cb116c
+          path: polyphony
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the local Docker Engine
+        run: docker info
+      - name: Build the real managed root and child agent image
+        run: |
+          docker build --build-arg PYTHON_BASE=python:3.12-slim \
+            --iidfile "$RUNNER_TEMP/managed-children-image.id" \
+            -f openjules/docker/Dockerfile.managed-agent openjules
+      - name: Install and exercise canonical child delegation and capture
+        run: |
+          python zpm/tests/contracts/check_children_stack.py \
+            --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/managed-children-image.id")" \
+            --work-dir "$RUNNER_TEMP/managed-children-stack-trial"
+      - name: Retain only the credential-free child trial report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-children-stack-evidence
+          path: |
+            ${{ runner.temp }}/managed-children-stack-trial/report.json
+            ${{ runner.temp }}/managed-children-stack-trial/diagnostics.json
+          if-no-files-found: warn
+          retention-days: 14
+
   managed-model-stack:
     name: Install and verify the model-backed root agent
     needs: test

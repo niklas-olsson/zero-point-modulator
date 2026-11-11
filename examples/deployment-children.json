@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "deployment_id": "my-child-deployment",
+  "binding": {
+    "schema_version": 1,
+    "repository": "github:github.com/owner/project",
+    "profile": "approved-child-coding-v1",
+    "desired_workers": 0,
+    "max_workers": 8
+  },
+  "max_workers": 8,
+  "sources": {
+    "zpm": {
+      "checkout": "/absolute/checkouts/zero-point-modulator",
+      "revision": "REPLACE_WITH_FULL_TESTED_GIT_COMMIT"
+    },
+    "openjules": {
+      "checkout": "/absolute/checkouts/OpenJules",
+      "revision": "REPLACE_WITH_FULL_TESTED_GIT_COMMIT"
+    },
+    "polyphony": {
+      "checkout": "/absolute/checkouts/keystone-polyphony",
+      "revision": "REPLACE_WITH_FULL_TESTED_GIT_COMMIT"
+    }
+  },
+  "source": {
+    "checkout": "/absolute/checkouts/enrolled-repository",
+    "revision": "REPLACE_WITH_FULL_APPROVED_BASE_COMMIT"
+  },
+  "image": "sha256:REPLACE_WITH_FULL_APPROVED_IMAGE_ID",
+  "command": [
+    "python3", "-I", "-S", "/opt/openjules/managed_root_runner.py",
+    "--socket", "/run/openjules-model/model.sock",
+    "--control-socket", "/run/openjules-model/control.sock",
+    "--max-turns", "25",
+    "--verify-json", "[\"python3\",\"-m\",\"unittest\",\"discover\"]"
+  ],
+  "policy": {
+    "checks": ["repository-tests"],
+    "reviewers": ["operator"],
+    "max_attempts": 3,
+    "budget_seconds": 900,
+    "attempt_seconds": 180,
+    "capabilities": ["python"]
+  },
+  "model_policy": {
+    "endpoint": "https://provider.example/v1/chat/completions",
+    "model": "REPLACE_WITH_OPERATOR_APPROVED_MODEL",
+    "token_ref": "env:MY_MODEL_PROVIDER_KEY",
+    "max_calls": 64,
+    "max_output_tokens": 2048,
+    "max_total_output_tokens": 131072,
+    "request_timeout_seconds": 30,
+    "token_parameter": "max_tokens"
+  },
+  "child_policy": {
+    "max_children": 2,
+    "max_child_seconds": 90,
+    "max_child_turns": 8,
+    "capabilities": ["python"],
+    "uid_start": 60000,
+    "command": ["python3", "-I", "-S", "/opt/openjules/managed_runner.py"],
+    "verify_argv": ["python3", "-m", "unittest", "discover"],
+    "max_result_bytes": 4000000
+  }
+}

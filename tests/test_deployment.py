@@ -14,7 +14,7 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from zpm.deployment import MANAGED_ENTRYPOINTS, MODEL_ENTRYPOINTS, MODEL_TOKEN_ENV, SOURCE_FILES, _bootstrap, _command, _doctor, _environment, prepare, verify
+from zpm.deployment import CHILD_ENTRYPOINTS, MANAGED_ENTRYPOINTS, MODEL_ENTRYPOINTS, MODEL_TOKEN_ENV, SOURCE_FILES, _bootstrap, _command, _doctor, _environment, prepare, verify
 from zpm.models import ConfigurationError
 from zpm.store import Store
 
@@ -67,6 +67,24 @@ class DeploymentTests(unittest.TestCase):
             "endpoint": "https://provider.example/v1/chat/completions", "model": "operator-approved-model",
             "token_ref": token_ref, "max_calls": 4, "max_output_tokens": 1024, "max_total_output_tokens": 4096,
             "request_timeout_seconds": 5, "token_parameter": "max_completion_tokens",
+        }}
+
+    def child_configuration(self):
+        configuration = self.model_configuration()
+        for name, entrypoints in CHILD_ENTRYPOINTS.items():
+            checkout = Path(configuration["sources"][name]["checkout"])
+            for entrypoint in entrypoints:
+                path = checkout / entrypoint
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("fixture child entry point\n")
+            subprocess.run(["git", "-C", str(checkout), "add", "."], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(checkout), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                            "commit", "-qm", "child fixture"], check=True, capture_output=True)
+            configuration["sources"][name]["revision"] = subprocess.check_output(
+                ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True).strip()
+        return configuration | {"child_policy": {
+            "max_children": 2, "max_child_seconds": 30, "max_child_turns": 6,
+            "capabilities": ["python"], "verify_argv": ["python3", "-m", "unittest", "discover"],
         }}
 
     def test_prepare_is_private_offline_and_scopes_all_three_services(self):
@@ -254,6 +272,74 @@ class DeploymentTests(unittest.TestCase):
         self.assertNotIn("model_policy", self.read("manifest.json")["configuration"])
         self.assertNotIn("models", self.read("config/openjules.json"))
         self.assertTrue(verify(self.bundle)["valid"])
+
+    def test_children_share_the_approved_profile_without_changing_top_level_capacity(self):
+        configuration = self.child_configuration()
+        with patch("urllib.request.OpenerDirector.open", side_effect=AssertionError("preparation contacted a service")):
+            prepare(configuration, self.bundle)
+            self.assertTrue(verify(self.bundle)["valid"])
+        data = self.read("manifest.json")["configuration"]
+        runtime = self.read("config/openjules.json")
+        scope = {"deployment_id": data["deployment_id"], "repository": data["binding"]["repository"],
+                 "profile": data["binding"]["profile"]}
+        self.assertEqual(runtime["children"], [{**scope, "policy": data["child_policy"]}])
+        canonical = self.read("config/polyphony.json")["repositories"][scope["repository"]]["profiles"][scope["profile"]]
+        self.assertEqual({name: canonical[name] for name in ("max_children", "max_child_seconds", "max_child_turns")},
+                         {name: data["child_policy"][name] for name in ("max_children", "max_child_seconds", "max_child_turns")})
+        self.assertEqual(canonical["child_capabilities"], data["child_policy"]["capabilities"])
+        self.assertNotIn("uid_start", canonical)
+        self.assertNotIn("command", canonical)
+        self.assertEqual(runtime["profiles"][0]["environment_refs"], {})
+        self.assertEqual(self.read("config/provider.json")["max_workers"], configuration["max_workers"])
+        with Store(self.bundle / "state/zpm.sqlite3", data["deployment_id"]) as store:
+            self.assertEqual(len(store.bindings()), 1)
+            self.assertEqual(store.bindings()[0]["desired_workers"], 0)
+
+    def test_children_reject_invalid_limits_identity_overlap_and_expanded_capabilities_before_writing(self):
+        configuration = self.child_configuration()
+        variants = [
+            {"max_children": 0}, {"max_children": 65}, {"max_children": True},
+            {"max_child_seconds": 0}, {"max_child_seconds": 61}, {"max_child_seconds": float("nan")},
+            {"max_child_seconds": float("inf")}, {"max_child_seconds": True},
+            {"max_child_turns": 0}, {"max_child_turns": 1001}, {"max_child_turns": 1.5},
+            {"capabilities": ["owner"]}, {"capabilities": ["python", "python"]}, {"capabilities": [None]},
+            {"uid_start": 0}, {"uid_start": True}, {"uid_start": 65535},
+            {"uid_start": 65531}, {"uid_start": 65533},
+            {"command": []}, {"command": ["python3", ""]}, {"command": "python3"},
+            {"verify_argv": ["python3", "\x00"]}, {"verify_argv": None},
+            {"max_result_bytes": 1023}, {"max_result_bytes": 4_000_001},
+            {"token_ref": "env:TEST_PROVIDER_KEY"}, {"depth": 2},
+        ]
+        for variant in variants:
+            with self.subTest(variant=variant), self.assertRaises(ConfigurationError):
+                prepare(configuration | {"child_policy": configuration["child_policy"] | variant}, self.bundle)
+            self.assertFalse(self.bundle.exists())
+        for invalid in (None, {}, []):
+            with self.subTest(child_policy=invalid), self.assertRaises(ConfigurationError):
+                prepare(configuration | {"child_policy": invalid}, self.bundle)
+            self.assertFalse(self.bundle.exists())
+        with self.assertRaisesRegex(ConfigurationError, "protected root"):
+            prepare(configuration | {"runtime": {"uid": 60000}}, self.bundle)
+        self.assertFalse(self.bundle.exists())
+
+    def test_children_require_the_host_model_policy_and_current_component_entrypoints(self):
+        configuration = self.model_configuration() | {"child_policy": {
+            "max_children": 2, "max_child_seconds": 30, "max_child_turns": 6, "capabilities": ["python"],
+        }}
+        no_model = deepcopy(configuration)
+        no_model.pop("model_policy")
+        with self.assertRaisesRegex(ConfigurationError, "requires an explicit model_policy"):
+            prepare(no_model, self.bundle)
+        self.assertFalse(self.bundle.exists())
+        with self.assertRaisesRegex(ConfigurationError, "managed child entry points"):
+            prepare(configuration, self.bundle)
+        self.assertFalse(self.bundle.exists())
+        configuration.pop("child_policy")
+        prepare(configuration, self.bundle)
+        self.assertNotIn("child_policy", self.read("manifest.json")["configuration"])
+        self.assertNotIn("children", self.read("config/openjules.json"))
+        profile = self.read("config/polyphony.json")["repositories"]["github:github.com/owner/project"]["profiles"]["approved"]
+        self.assertEqual(set(profile), {"base", "attempt_seconds", "capabilities"})
 
     def test_doctor_requires_ready_validation_for_every_repository(self):
         prepare(self.config, self.bundle)

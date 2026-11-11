@@ -39,6 +39,11 @@ MANAGED_ENTRYPOINTS = {
 SECRET_ENV = {"zpm": "OPENJULES_WORKER_TOKEN", "openjules": "POLYPHONY_RUNTIME_TOKEN"}
 MODEL_TOKEN_ENV = "ZPM_MODEL_PROVIDER_TOKEN"
 MODEL_ENTRYPOINTS = ("src/worker/model_broker.py", "src/agent/managed_runner.py")
+CHILD_ENTRYPOINTS = {
+    "openjules": ("src/worker/child_supervisor.py", "src/worker/child_types.py",
+                  "src/worker/child_broker.py", "src/agent/child_tools.py", "src/agent/managed_root_runner.py"),
+    "polyphony": ("src/core/collaboration/child_grants.py", "src/liminal_bridge/child_service.py"),
+}
 _SHA = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
 _ENV = re.compile(r"[A-Z_][A-Z0-9_]*")
 _MODEL_ENV = {"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "AZURE_OPENAI_API_KEY"}
@@ -138,9 +143,35 @@ def _model_policy(value: Any) -> dict:
     return data
 
 
+def _child_policy(value: Any, runtime: dict, root_seconds: float, root_capabilities: list[str]) -> dict:
+    required = {"max_children", "max_child_seconds", "max_child_turns", "capabilities"}
+    defaults = {"uid_start": 60000, "command": ["python3", "-I", "-S", "/opt/openjules/managed_runner.py"],
+                "verify_argv": [], "max_result_bytes": 4_000_000}
+    data = defaults | _object(value, required | set(defaults), "child_policy", required)
+    count = _number(data["max_children"], "child max_children", 1, 64, integer=True)
+    seconds = data["max_child_seconds"]
+    if type(seconds) not in {int, float} or not 0 < seconds <= min(86400, root_seconds):
+        raise ConfigurationError("child duration must be positive and no longer than the approved root attempt")
+    _number(data["max_child_turns"], "child max_child_turns", 1, 1000, integer=True)
+    capabilities = _strings(data["capabilities"], "child capabilities", False)
+    if not set(capabilities) <= set(root_capabilities):
+        raise ConfigurationError("child capabilities exceed the approved root bundle")
+    data["capabilities"] = sorted(capabilities)
+    uid = _number(data["uid_start"], "child uid_start", 1, 65535 - count + 1, integer=True)
+    if any(uid <= protected < uid + count for protected in (runtime["uid"], 65534)):
+        raise ConfigurationError("child UID range overlaps a protected root or watchdog identity")
+    for name in ("command", "verify_argv"):
+        command = data[name]
+        if (not isinstance(command, list) or (name == "command" and not command) or len(command) > 128
+                or any(not isinstance(item, str) or not item or "\x00" in item or len(item) > 4096 for item in command)):
+            raise ConfigurationError("child " + name + " must be bounded explicit argv")
+    _number(data["max_result_bytes"], "child max_result_bytes", 1024, 4_000_000, integer=True)
+    return data
+
+
 def parse_configuration(value: Any) -> dict:
     required = {"schema_version", "deployment_id", "binding", "max_workers", "sources", "source", "image", "command", "policy"}
-    data = _object(value, required | {"ports", "runtime", "environment_refs", "model_policy"}, "deployment configuration", required)
+    data = _object(value, required | {"ports", "runtime", "environment_refs", "model_policy", "child_policy"}, "deployment configuration", required)
     if type(data["schema_version"]) is not int or data["schema_version"] != 1:
         raise ConfigurationError("deployment schema_version must be 1")
     deployment = identifier(data["deployment_id"], "deployment_id")
@@ -212,6 +243,13 @@ def parse_configuration(value: Any) -> dict:
             raise ConfigurationError("model-backed profiles cannot inject guest environment_refs")
         if any(not (Path(sources["openjules"]["checkout"]) / name).is_file() for name in MODEL_ENTRYPOINTS):
             raise ConfigurationError("OpenJules revision lacks the required managed model entry points")
+    if "child_policy" in data:
+        if "model_policy" not in model:
+            raise ConfigurationError("child_policy requires an explicit model_policy")
+        model["child_policy"] = _child_policy(data["child_policy"], runtime, seconds, capabilities)
+        for name, entrypoints in CHILD_ENTRYPOINTS.items():
+            if any(not (Path(sources[name]["checkout"]) / entrypoint).is_file() for entrypoint in entrypoints):
+                raise ConfigurationError(f"{name} revision lacks the required managed child entry points")
     return {"schema_version": 1, "deployment_id": deployment, "binding": binding.to_dict(), "max_workers": maximum,
             "sources": sources, "source": source, "image": image, "command": command, "ports": ports,
             "runtime": runtime, "environment_refs": environment, **model,
@@ -257,12 +295,17 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
     _write(root / "secrets/environment.json", {SECRET_ENV["zpm"]: tokens["zpm"], SECRET_ENV["openjules"]: tokens["runtime"]})
     _write(root / "secrets/operator.json", {"owner": tokens["owner"], "reviewer": tokens["reviewer"], "ingress": tokens["ingress"]})
     policy = data["policy"]
+    canonical_profile = {
+        "base": data["source"]["revision"], "attempt_seconds": policy["attempt_seconds"], "capabilities": policy["capabilities"],
+    }
+    if "child_policy" in data:
+        child = data["child_policy"]
+        canonical_profile.update({name: child[name] for name in ("max_children", "max_child_seconds", "max_child_turns")})
+        canonical_profile["child_capabilities"] = child["capabilities"]
     _write(root / "config/polyphony.json", {
         "schema_version": 1, "deployment_id": deployment, "repositories": {repository: {
             "checks": policy["checks"], "reviewers": policy["reviewers"], "max_attempts": policy["max_attempts"],
-            "budget_seconds": policy["budget_seconds"], "profiles": {profile: {
-                "base": data["source"]["revision"], "attempt_seconds": policy["attempt_seconds"], "capabilities": policy["capabilities"],
-            }},
+            "budget_seconds": policy["budget_seconds"], "profiles": {profile: canonical_profile},
         }},
     })
     openjules = {
@@ -281,6 +324,8 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
         openjules["models"] = [{**scope, "profile": profile, "policy": {
             **data["model_policy"], "token_ref": "env:" + MODEL_TOKEN_ENV,
         }}]
+    if "child_policy" in data:
+        openjules["children"] = [{**scope, "profile": profile, "policy": data["child_policy"]}]
     _write(root / "config/openjules.json", openjules)
     _write(root / "config/provider.json", ProviderConfig.parse({
         "schema_version": 1, "endpoint": f"http://127.0.0.1:{data['ports']['openjules']}",
@@ -524,6 +569,9 @@ in configuration must be supplied to the start command's environment. Optional
 model_policy credentials resolve only in the trusted OpenJules service, which
 brokers inference through a worker-owned Unix socket. Model-backed profiles
 reject guest environment_refs. Control credentials never enter task containers.
+An optional child_policy requires model_policy, matching canonical child grants
+and a new approved profile. Child expiry or cancellation retires the whole
+worker. Children share root allowances and do not add ZPM replicas.
 The model socket requires rootful Linux Docker with the approved task UID mapping.
 Doctor does not contact the provider or prove model compatibility or quality.
 

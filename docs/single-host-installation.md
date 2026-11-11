@@ -29,8 +29,10 @@ that the services are ready. `verify` is also an offline integrity check.
   inference over the worker's private Unix socket. The model path requires
   rootful Docker with the approved task UID mapping; rootless Docker and user
   namespace remapping need separate qualification.
-- This installation supports root execution. It does not enable child
-  delegation, independent semantic review or forge publication. Deterministic
+- Root execution is the default. An explicit `child_policy` enables bounded
+  children only with matching qualified OpenJules and Polyphony revisions and
+  a new approved runtime profile. Independent semantic review and forge
+  publication have separate interfaces. Deterministic
   model fixture results do not establish a live provider's compatibility or
   model quality.
 
@@ -146,6 +148,78 @@ The limits bound calls and reserved output tokens per attempt. They do not
 guarantee a monetary ceiling: input tokens, provider-specific reasoning behavior
 and already dispatched requests have separate billing implications. Multiple
 workers and deliberate new attempts have distinct budgets.
+
+## Enable bounded children inside a worker
+
+Start from [the child deployment example](../examples/deployment-children.json)
+and select component revisions that pass the child installation trial. The
+optional `child_policy` requires `model_policy` and the child entrypoints in
+both OpenJules and Polyphony. It creates matching scoped runtime policy and
+canonical grant limits. It adds no services, task ledger or ZPM replicas.
+
+Use a new approved profile name and a managed-agent image containing the root
+wrapper and child tools. The root command invokes `managed_root_runner.py`
+with separate model and child-control socket paths. The approved child command
+uses the ordinary `managed_runner.py`; the host appends its exact model socket,
+turn bound and optional verification argv. Repository instructions never choose
+the command, UID, provider, credentials or execution identity.
+
+| Child policy field | Meaning and accepted bounds |
+| --- | --- |
+| `max_children` | Lifetime children within one root attempt, 1–64; completion does not refund a slot |
+| `max_child_seconds` | Positive duration, at most the approved root attempt duration and 86,400 seconds |
+| `max_child_turns` | Canonical inference turns per child, 1–1,000 |
+| `capabilities` | Exact approved runner capability bundle, contained in the root's declared capabilities |
+| `uid_start` | First distinct child UID, default 60,000; the complete range must exclude root guest UID, watchdog UID 65,534 and zero |
+| `command` | Operator-approved child runner argv; defaults to the ordinary managed runner |
+| `verify_argv` | Optional operator-approved child verification argv; defaults to no extra command |
+| `max_result_bytes` | Bound per child patch/log result, 1,024–4,000,000 bytes; default 4,000,000 |
+
+These capability names describe the approved runner bundle. Removing a model
+tool does not establish a new operating-system privilege boundary. Each child
+uses its own private workspace and UID inside the existing worker container,
+starting from the same approved immutable source base. Children share the
+root's model call/output-token allowance and reserve additional time against
+the same canonical task budget. Set that budget for the root plus the child
+allocations you intend to permit; a maximum child count does not promise that
+every requested allocation will fit.
+
+**Expiry and cancellation retire the whole worker in this first version.** An
+exited child command does not prove all its descendants stopped. Child patch
+and log reads remain provisional until the host stops the owning container and
+captures each child before finalizing the root. The earliest child deadline or
+an explicit child cancellation therefore stops that root and its siblings.
+Other workers and independent peers are unaffected. Admission closes on drain;
+unknown termination or failed capture retains the worker reservation and work.
+
+The root may combine provisional outputs, but later publication must verify
+the final canonical artifact hashes and the actual composite commit. Neither
+an agent's summary nor a runtime capture supplies independent acceptance.
+Changing child policy requires a new approved profile and worker incarnation;
+an existing root-only watchdog cannot acquire children through a config edit.
+Omitting `child_policy` preserves the existing root-only profile and behavior.
+
+The [child installation trial](managed-children-stack-trial.md) records the
+qualified component pins and exercises graceful target-zero draining while the
+root and both children remain active. It retains the worker reservation until
+final canonical captures exist, then verifies restart without new inference.
+
+## Publish a final child composition
+
+The pinned OpenJules child baseline also includes an explicit operator command
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/8a40e04478ef25c128364b6c989a77735cca21eb/docs/managed-publication.md).
+Run it from the approved OpenJules checkout with that service's environment.
+Its separate private configuration selects the captured canonical candidate,
+exact source base, numeric GitHub repository identity, target branch, feature
+namespace, commit identity and explicit host credential references. Publication
+does not start another service or add worker capacity.
+
+The command independently composes every final child patch and requires its Git
+tree to match the canonical root candidate. It creates a normal draft only;
+repository CI and independent review must cover the actual head and base before
+promotion or merge. The generated manager does not publish automatically, and
+the installation trial uses no live forge credential. Completing that live
+workflow remains a separate qualification step.
 
 ## Install dependencies and start
 
