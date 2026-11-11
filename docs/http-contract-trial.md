@@ -19,11 +19,17 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`5c3568785e754b47f61c8ba6c57fa2668fa6fc81`](https://github.com/niklas-olsson/OpenJules/commit/5c3568785e754b47f61c8ba6c57fa2668fa6fc81) |
+| OpenJules | [`cf079b90ee081e84b29b6179ad1aaebdb8156365`](https://github.com/niklas-olsson/OpenJules/commit/cf079b90ee081e84b29b6179ad1aaebdb8156365) |
 
-The combined OpenJules changes passed
-[full-suite CI on Python 3.11 and 3.12](https://github.com/niklas-olsson/OpenJules/actions/runs/42901146449)
-before this contract pin was selected.
+This is the same merged OpenJules revision used by all three installed-stack
+jobs. Their common Polyphony pin is `473df5a0406accfe5cb550877e7b28a602cb116c`;
+this HTTP-only trial does not run Polyphony. OpenJules' merged revision passed
+[its repository CI](https://github.com/niklas-olsson/OpenJules/actions/runs/42987159785).
+The local HTTP trial also passes all eight checks with the total-deadline ZPM
+provider. Those results do not qualify the complete candidate revision set:
+the changed ZPM revision must pass its unit/package checks and all four
+integration jobs before promotion. Record exact ZPM and component revisions,
+CI links and remaining acceptance in [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
 Both revisions are printed in the job log. The contract job runs on Python 3.12,
 installs FastAPI and Uvicorn with their dependencies, and expects all eight
@@ -31,14 +37,16 @@ checks to pass with five subprocess fixtures. It does not use model,
 repository-publication or authority credentials. The workflow has read-only
 repository permissions, and the contract job does not retain checkout credentials.
 
-To update the OpenJules pin:
+To update the shared component pins:
 
 1. Select an immutable OpenJules commit whose full repository CI passes. Use a
    clean checkout of that commit for the local trial below.
-2. Change the checkout `ref` in `.github/workflows/ci.yml` and the revision in
-   this table together. Do not substitute a moving branch or tag.
-3. Run the trial locally, then require the ZPM unit, package, CLI and contract
-   jobs to pass for the proposed update before merging it.
+2. Change all corresponding checkout `ref` values in `.github/workflows/ci.yml`
+   and the revision tables in the HTTP, command, model and child trial guides
+   together. Keep one explicit three-repository revision set. Do not substitute
+   a moving branch or tag.
+3. Run the HTTP trial locally, then require the ZPM unit, package, CLI and all
+   four integration jobs to pass for the proposed update before merging it.
 
 The pin records a tested component contract. It does not promote the fixture
 runtime to a production managed coding profile or complete the installation
@@ -97,9 +105,10 @@ admission and capture-barrier fixtures; they are not spawned child agents.
 
 The HTTP server binds only to loopback on an ephemeral port. Requests bypass
 external proxy configuration for this local trial. A random test credential is
-stored under a newly generated environment-variable name and removed afterward;
-existing environment values are not replaced. Credentials and worker output are
-not included in the JSON result.
+stored under a newly generated environment-variable name and removed afterward.
+The trial temporarily sets both `no_proxy` and `NO_PROXY` to `*` and restores
+their prior values on exit. Credentials and worker output are not included in
+the JSON result.
 
 SQLite state and fixture artifacts live in a temporary directory. HTTP calls,
 server startup and shutdown, and subprocess cleanup have bounded waits. The

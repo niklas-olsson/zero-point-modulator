@@ -21,16 +21,22 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `8a40e04478ef25c128364b6c989a77735cca21eb`, qualified PR12 head including the child runtime and publication CLI |
-| Keystone Polyphony | `473df5a0406accfe5cb550877e7b28a602cb116c`, qualified child grants and durable conversation baseline |
+| OpenJules | `cf079b90ee081e84b29b6179ad1aaebdb8156365`, merged final-composition and publication implementation |
+| Keystone Polyphony | `473df5a0406accfe5cb550877e7b28a602cb116c`, merged child grants and durable conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
-The pinned OpenJules revision passed all 404 tests plus four subtests on Python
-3.11 and 3.12, including mandatory Docker and Unix socket CI, before merging.
+The pinned OpenJules revision passed
+[its post-merge CI](https://github.com/niklas-olsson/OpenJules/actions/runs/42987159785).
+Its Git tree matches the previously qualified PR12 head
+`8a40e04478ef25c128364b6c989a77735cca21eb`. This historical component evidence
+does not qualify the changed ZPM revision: all required ZPM jobs must pass for
+the current candidate set before it is promoted. Record the exact revisions
+and successful CI run in [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 The publication CLI is present in this installation; this trial does not invoke
-forge publication. Update the workflow pin and this table together when qualifying
-another component revision. The installed child trial remains a separate
-required result; a component's passing tests alone do not qualify this bundle.
+forge publication. Update all workflow pins and corresponding trial guides
+together when qualifying another component revision. The installed child trial
+remains a separate required result; a component's passing tests alone do not
+qualify this bundle.
 
 Use clean sibling checkouts, Python 3.11 or newer, Linux procfs and a local
 rootful Docker Engine with the host and guest UID mapping used by Unix peer
@@ -39,8 +45,8 @@ qualification. Keep peer credential checks enabled. The trusted OpenJules host
 service owns Docker control; the root and children do not receive that socket.
 
 The existing [controlled command trial](managed-stack-trial.md) and
-[model-backed root trial](managed-model-stack-trial.md) retain their established
-pins and independent CI gates. This child trial adds a new gate.
+[model-backed root trial](managed-model-stack-trial.md) use the same component
+pins and retain their independent CI gates.
 
 ## Build and run
 

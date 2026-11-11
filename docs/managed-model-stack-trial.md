@@ -17,9 +17,15 @@ The separate `managed-model-stack` CI job pins these revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `5dadee74e824e3fa3f19c6a45a44374e2467e0d1`, the tested model integration head retained in main's ancestry |
-| Keystone Polyphony | `f90c97416f6bc81abcb7835598d09d7954437542` |
+| OpenJules | `cf079b90ee081e84b29b6179ad1aaebdb8156365`, merged final-composition and publication implementation |
+| Keystone Polyphony | `473df5a0406accfe5cb550877e7b28a602cb116c`, merged child grants and durable conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
+
+All installation gates use this same candidate set. The changed combination is
+unqualified until every required ZPM CI job passes on the exact candidate
+revision. Record the successful run and exact revisions in
+[ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3); local
+HTTP fixtures and historical component tests do not replace these Docker runs.
 
 Use clean sibling checkouts at these revisions, Python 3.11 or newer, Linux
 procfs and a local rootful Docker Engine. This slice requires the host and guest
@@ -28,7 +34,7 @@ namespace remapping require separate qualification; the peer check must remain
 enabled. The trusted OpenJules service controls the local Docker Engine.
 
 The existing [command-based trial](managed-stack-trial.md) remains a separate CI
-gate at its established pins. It continues to exercise API crashes, watchdog
+gate using the same component pins. It continues to exercise API crashes, watchdog
 termination, uncertain reservations, capture recovery and capacity changes
 through zero, two, three, one and zero workers.
 

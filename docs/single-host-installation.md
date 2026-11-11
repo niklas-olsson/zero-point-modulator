@@ -200,14 +200,14 @@ an existing root-only watchdog cannot acquire children through a config edit.
 Omitting `child_policy` preserves the existing root-only profile and behavior.
 
 The [child installation trial](managed-children-stack-trial.md) records the
-qualified component pins and exercises graceful target-zero draining while the
-root and both children remain active. It retains the worker reservation until
+candidate component pins and required qualification gates. It exercises graceful
+target-zero draining while the root and both children remain active. It retains the worker reservation until
 final canonical captures exist, then verifies restart without new inference.
 
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/8a40e04478ef25c128364b6c989a77735cca21eb/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/cf079b90ee081e84b29b6179ad1aaebdb8156365/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature
