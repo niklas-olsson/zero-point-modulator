@@ -9,17 +9,17 @@ import sys
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parent / "contracts"))
 try:
     from check_isolation_stack import (
-        LOCK_CONTENTION, PENDING_DRAIN, aggregate_diagnostics, canonical,
+        Installation, LOCK_CONTENTION, PENDING_DRAIN, aggregate_diagnostics, canonical,
         checkpoint_progress, controller_operation, live_ids, read_journal,
         require_active_runtime, require_controller_drain, require_live_container,
         require_peer_runtime, require_peer_unchanged, require_pending_drain_journals,
         require_pending_drain_runtime, require_removed_plan, require_uncontrolled_journals,
-        worker_binding, worker_journals,
+        wait_for_capture, worker_binding, worker_journals,
     )
 finally:
     sys.path.pop(0)
@@ -400,6 +400,148 @@ class DurableWitnessTests(unittest.TestCase):
                 mutated["repositories"][0].update(changed)
                 with self.assertRaises(AssertionError):
                     require_removed_plan(mutated, self.binding)
+
+
+
+class CapturePublicationTests(unittest.TestCase):
+    def setUp(self):
+        self.scope = {"deployment_id": "deployment-a", "repository": "github:github.com/trial/a"}
+        self.base = "a" * 40
+        self.complete = {
+            **self.scope,
+            "task": [{"id": "task-a", "status": "awaiting_review", "current_candidate": "candidate-a"}],
+            "attempt": [{
+                "id": "attempt-a", "task": "task-a", "worker": "runtime-author",
+                "state": "exited", "termination_confirmed": True, "launch_fenced": True,
+                "runtime_binding": {**self.scope, "worker_id": "worker-a", "attempt_id": "attempt-a",
+                                    "base": self.base, "profile": "profile-a"},
+                "captured_artifacts": {"patch": "b" * 64, "log": "c" * 64, "manifest": "d" * 64},
+            }],
+            "candidate": [{"id": "candidate-a", "task": "task-a", "attempt": "attempt-a",
+                           "base": self.base, "patch": "b" * 64}],
+        }
+        self.pending = deepcopy(self.complete)
+        self.pending["candidate"] = []
+        self.pending["task"][0].update(status="in_progress")
+        self.pending["task"][0].pop("current_candidate")
+        self.running = deepcopy(self.pending)
+        self.running["attempt"][0].update(state="running", termination_confirmed=False)
+        self.running["attempt"][0].pop("launch_fenced")
+        self.running["attempt"][0].pop("captured_artifacts")
+
+    def observe(self, snapshots, clock=None):
+        self.read = Mock(side_effect=snapshots)
+        self.processes = SimpleNamespace(check=Mock())
+        times = list(range(len(snapshots) + 1)) if clock is None else clock
+        with patch("check_stack.time.monotonic", side_effect=times), patch("check_stack.time.sleep") as self.sleep:
+            return wait_for_capture(self.read, self.scope, "task-a", "worker-a", self.base, self.processes, "a")
+
+    def test_separate_terminal_and_candidate_publications_complete_within_one_barrier(self):
+        unclaimed = deepcopy(self.running)
+        unclaimed["attempt"] = []
+        snapshots = [unclaimed, deepcopy(self.running), deepcopy(self.pending), deepcopy(self.complete)]
+        # A prior task's valid candidate is ordinary retained history.
+        for snapshot in snapshots:
+            snapshot["candidate"].append({"id": "prior-candidate", "task": "prior-task", "attempt": "prior-attempt",
+                                          "base": self.base, "patch": "e" * 64})
+        self.assertEqual(self.observe(snapshots), (self.complete["attempt"][0], self.complete["candidate"][0]))
+        self.assertEqual(self.read.call_count, 4)
+        self.assertEqual(self.processes.check.call_count, 4)
+        self.assertEqual(self.sleep.call_count, 3)
+
+    def test_one_unchanged_deadline_distinguishes_terminal_and_candidate_waits(self):
+        for snapshot, phase in ((self.running, "terminal capture"), (self.pending, "candidate publication")):
+            with self.subTest(phase=phase), self.assertRaisesRegex(AssertionError, "deadline waiting for " + phase + " a"):
+                self.observe([deepcopy(snapshot)], clock=[0, 1, 46])
+            self.assertEqual(self.read.call_count, 1)
+            self.assertEqual(self.sleep.call_count, 1)
+
+    def test_existing_invalid_candidates_fail_on_first_observation(self):
+        cases = [
+            ("malformed collection", lambda item: item.update(candidate={})),
+            ("malformed row", lambda item: item.update(candidate=[None])),
+            ("missing identity", lambda item: item["candidate"][0].pop("id")),
+            ("missing task", lambda item: item["candidate"][0].pop("task")),
+            ("missing attempt", lambda item: item["candidate"][0].pop("attempt")),
+            ("missing base", lambda item: item["candidate"][0].pop("base")),
+            ("missing patch", lambda item: item["candidate"][0].pop("patch")),
+            ("duplicate", lambda item: item["candidate"].append(deepcopy(item["candidate"][0]))),
+            ("wrong task", lambda item: item["candidate"][0].update(task="foreign-task")),
+            ("wrong attempt", lambda item: item["candidate"][0].update(attempt="foreign-attempt")),
+            ("wrong base", lambda item: item["candidate"][0].update(base="f" * 40)),
+            ("wrong patch", lambda item: item["candidate"][0].update(patch="f" * 64)),
+            ("wrong current candidate", lambda item: item["task"][0].update(current_candidate="foreign-candidate")),
+            ("missing current candidate", lambda item: item["task"][0].pop("current_candidate")),
+            ("not awaiting review", lambda item: item["task"][0].update(status="in_progress")),
+            ("self acceptance", lambda item: item["task"][0].update(status="accepted")),
+            ("self admission", lambda item: item.update(admission=[{"id": "unauthorized"}])),
+            ("premature candidate", lambda item: item["attempt"][0].update(termination_confirmed=False)),
+        ]
+        for name, mutate in cases:
+            with self.subTest(case=name):
+                changed = deepcopy(self.complete)
+                mutate(changed)
+                with self.assertRaises(AssertionError):
+                    self.observe([changed, deepcopy(self.complete)])
+                self.assertEqual(self.read.call_count, 1)
+                self.assertEqual(self.sleep.call_count, 0)
+
+    def test_pending_publication_cannot_hide_changed_capture_or_scope(self):
+        def replace_attempt(item):
+            item["attempt"][0]["id"] = "replacement"
+            item["attempt"][0]["runtime_binding"]["attempt_id"] = "replacement"
+            item["candidate"][0]["attempt"] = "replacement"
+
+        def replace_patch(item):
+            item["attempt"][0]["captured_artifacts"]["patch"] = "f" * 64
+            item["candidate"][0]["patch"] = "f" * 64
+
+        cases = [
+            ("scope", lambda item: item.update(repository="github:github.com/trial/b")),
+            ("missing task", lambda item: item.update(task=[])),
+            ("missing attempt", lambda item: item.update(attempt=[])),
+            ("duplicate attempt", lambda item: item["attempt"].append(deepcopy(item["attempt"][0]))),
+            ("replacement attempt", replace_attempt),
+            ("changed capture", replace_patch),
+            ("changed profile", lambda item: item["attempt"][0]["runtime_binding"].update(profile="replacement")),
+            ("foreign worker", lambda item: item["attempt"][0]["runtime_binding"].update(worker_id="foreign-worker")),
+            ("lost fence", lambda item: item["attempt"][0].update(launch_fenced=False)),
+            ("false terminal", lambda item: item["attempt"][0].update(termination_confirmed=False)),
+            ("nonboolean terminal", lambda item: item["attempt"][0].update(termination_confirmed=1)),
+            ("wrong terminal state", lambda item: item["attempt"][0].update(state="running")),
+            ("missing capture", lambda item: item["attempt"][0].pop("captured_artifacts")),
+        ]
+        for name, mutate in cases:
+            with self.subTest(case=name):
+                changed = deepcopy(self.complete)
+                mutate(changed)
+                with self.assertRaises(AssertionError):
+                    self.observe([deepcopy(self.pending), changed, deepcopy(self.complete)])
+                self.assertEqual(self.read.call_count, 2)
+                self.assertEqual(self.sleep.call_count, 1)
+
+    def test_installation_still_verifies_the_exact_captured_bytes_after_publication(self):
+        contents = {"patch": "+completed a\n", "log": "ISOLATION_BOUNDARY_VERIFIED_a\nISOLATION_COMPLETED_a\n",
+                    "manifest": "{}"}
+        artifacts = {kind: hashlib.sha256(content.encode()).hexdigest() for kind, content in contents.items()}
+        pending, complete = deepcopy(self.pending), deepcopy(self.complete)
+        for snapshot in (pending, complete):
+            snapshot["attempt"][0]["captured_artifacts"] = artifacts
+        complete["candidate"][0]["patch"] = artifacts["patch"]
+        read = Mock(side_effect=[pending, complete])
+        by_path = {"/managed/artifacts/" + artifacts[kind]: content for kind, content in contents.items()}
+        authority = SimpleNamespace(request=Mock(side_effect=lambda method, path, **kwargs: by_path[path]))
+        with TemporaryDirectory() as directory:
+            source = Path(directory)
+            (source / "answer.txt").write_text("initial a\n")
+            installation = SimpleNamespace(snapshot=read, scope=self.scope, base=self.base, label="a",
+                                           source=source, sensitive={"private-token"}, authority=authority)
+            with patch("check_stack.time.monotonic", side_effect=[0, 1, 2]), patch("check_stack.time.sleep"):
+                result = Installation.captured(installation, "task-a", "worker-a", SimpleNamespace(check=lambda: None))
+        self.assertEqual(result, {"task": "task-a", "attempt": "attempt-a", "worker": "worker-a",
+                                  "candidate": "candidate-a", "artifacts": artifacts})
+        self.assertEqual(read.call_count, 2)
+        self.assertEqual(authority.request.call_count, 3)
 
 
 if __name__ == "__main__":

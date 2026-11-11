@@ -44,6 +44,7 @@ MANAGED_ENTRYPOINTS = {
 }
 SECRET_ENV = {"zpm": "OPENJULES_WORKER_TOKEN", "openjules": "POLYPHONY_RUNTIME_TOKEN"}
 MODEL_TOKEN_ENV = "ZPM_MODEL_PROVIDER_TOKEN"
+MANAGED_FILE_LIMIT = 1_000_000
 MODEL_ENTRYPOINTS = ("src/worker/model_broker.py", "src/agent/managed_runner.py")
 CHILD_ENTRYPOINTS = {
     "openjules": ("src/worker/child_supervisor.py", "src/worker/child_types.py",
@@ -179,6 +180,13 @@ def _child_policy(value: Any, runtime: dict, root_seconds: float, root_capabilit
 
 
 def parse_configuration(value: Any) -> dict:
+    if isinstance(value, dict) and type(value.get("schema_version")) is int and value["schema_version"] == 2:
+        return _parse_multiple_configuration(value)
+    # Keep schema-1 normalization and rejection behavior unchanged.
+    return _parse_single_configuration(value)
+
+
+def _parse_single_configuration(value: Any, *, validated_sources: dict | None = None) -> dict:
     required = {"schema_version", "deployment_id", "binding", "max_workers", "sources", "source", "image", "command", "policy"}
     data = _object(value, required | {"ports", "runtime", "environment_refs", "model_policy", "child_policy"}, "deployment configuration", required)
     if type(data["schema_version"]) is not int or data["schema_version"] != 1:
@@ -191,10 +199,13 @@ def parse_configuration(value: Any) -> dict:
         raise ConfigurationError("managed Docker profile name contains unsupported characters")
     maximum = _number(data["max_workers"], "max_workers", 1, 2**63 - 1, True)
     sources = _object(data["sources"], set(SOURCE_FILES), "sources")
-    sources = {name: _checkout(source, name) for name, source in sources.items()}
-    for name, entrypoints in MANAGED_ENTRYPOINTS.items():
-        if any(not (Path(sources[name]["checkout"]) / entrypoint).is_file() for entrypoint in entrypoints):
-            raise ConfigurationError(f"{name} revision lacks the required managed entry point")
+    if validated_sources is None:
+        sources = {name: _checkout(source, name) for name, source in sources.items()}
+        for name, entrypoints in MANAGED_ENTRYPOINTS.items():
+            if any(not (Path(sources[name]["checkout"]) / entrypoint).is_file() for entrypoint in entrypoints):
+                raise ConfigurationError(f"{name} revision lacks the required managed entry point")
+    else:
+        sources = validated_sources
     source = _checkout(data["source"], "repository source")
     if len(source["revision"]) != 40:
         raise ConfigurationError("the managed Docker baseline requires a SHA-1 Git repository")
@@ -266,6 +277,86 @@ def parse_configuration(value: Any) -> dict:
                        "budget_seconds": budget, "attempt_seconds": seconds, "capabilities": capabilities}}
 
 
+
+def _parse_multiple_configuration(value: Any) -> dict:
+    required = {"schema_version", "deployment_id", "max_workers", "sources", "repositories"}
+    data = _object(value, required | {"ports"}, "multiple-repository deployment configuration", required)
+    entries = data["repositories"]
+    if not isinstance(entries, list) or not 2 <= len(entries) <= 100:
+        raise ConfigurationError("schema 2 requires 2 to 100 repository entries")
+    entry_required = {"binding", "source", "image", "command", "policy"}
+    entry_fields = entry_required | {"runtime", "environment_refs", "model_policy", "child_policy"}
+    ordered = []
+    seen = set()
+    for entry in entries:
+        _object(entry, entry_fields, "repository entry", entry_required)
+        repository = Binding.parse(entry["binding"]).repository
+        if repository in seen:
+            raise ConfigurationError("repository entries contain duplicate canonical identities")
+        seen.add(repository)
+        ordered.append((repository, entry))
+    shared = {name: data[name] for name in ("deployment_id", "max_workers", "sources")}
+    if "ports" in data:
+        shared["ports"] = data["ports"]
+    normalized = []
+    common = None
+    for _, entry in sorted(ordered, key=lambda item: item[0]):
+        single = _parse_single_configuration(
+            {"schema_version": 1, **shared, **entry},
+            validated_sources=common["sources"] if common is not None else None,
+        )
+        if common is None:
+            common = {name: single[name] for name in ("deployment_id", "max_workers", "sources", "ports")}
+        normalized.append({name: single[name] for name in single if name in entry_fields})
+    result = {"schema_version": 2, **common, "repositories": normalized}
+    keys = [_repository_key(entry["binding"]["repository"]) for entry in normalized]
+    if len(set(keys)) != len(keys):
+        raise ConfigurationError("repository-derived configuration paths collide")
+    _multiple_environment_references(result)  # Check derived aliases without resolving secrets.
+    return result
+
+
+def _entries(data: dict) -> list[dict]:
+    return data["repositories"] if data["schema_version"] == 2 else [data]
+
+
+def _repository_key(repository: str) -> str:
+    return hashlib.sha256(repository.encode("utf-8")).hexdigest()
+
+
+def _binding_file(entry: dict) -> str:
+    return "config/repository-" + _repository_key(entry["binding"]["repository"]) + ".json"
+
+
+def _multiple_alias(entry: dict, target: str | None = None) -> str:
+    prefix = "ZPM_REPOSITORY_" + _repository_key(entry["binding"]["repository"]).upper()
+    return prefix + ("_PROVIDER_TOKEN" if target is None else "_GUEST_" + target)
+
+
+def _multiple_environment_references(data: dict) -> dict[str, tuple[str, bool]]:
+    references = {}
+    for entry in data["repositories"]:
+        for target, reference in entry["environment_refs"].items():
+            alias = _multiple_alias(entry, target)
+            if alias in references or not _ENV.fullmatch(alias):
+                raise ConfigurationError("repository-derived environment aliases collide or are invalid")
+            references[alias] = (reference, False)
+        if "model_policy" in entry:
+            alias = _multiple_alias(entry)
+            if alias in references or not _ENV.fullmatch(alias):
+                raise ConfigurationError("repository-derived environment aliases collide or are invalid")
+            references[alias] = (entry["model_policy"]["token_ref"], True)
+    return references
+
+
+def _write_managed_json(path: Path, value: Any) -> None:
+    # Match _write's exact UTF-8 serialization, including its final newline.
+    content = json.dumps(value, sort_keys=True, indent=2) + "\n"
+    if len(content.encode("utf-8")) > MANAGED_FILE_LIMIT:
+        raise ConfigurationError("generated OpenJules configuration or credentials exceed the 1000000-byte parser limit")
+    _write(path, content)
+
+
 def _write(path: Path, value: Any, executable: bool = False) -> None:
     content = value if isinstance(value, str) else json.dumps(value, sort_keys=True, indent=2) + "\n"
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o700 if executable else 0o600)
@@ -335,7 +426,7 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
     if root.is_symlink():
         raise ConfigurationError("deployment directory must not be a symlink")
     root = root.parent.resolve(strict=True) / root.name
-    for item in [*data["sources"].values(), data["source"]]:
+    for item in [*data["sources"].values(), *(entry["source"] for entry in _entries(data))]:
         source = Path(item["checkout"])
         if root == source or source in root.parents or root in source.parents:
             raise ConfigurationError("deployment data must be outside all source checkouts")
@@ -383,6 +474,9 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
 
 
 def _prepare_files(data: dict, root: Path, final: Path) -> None:
+    if data["schema_version"] == 2:
+        _prepare_multiple_files(data, root, final)
+        return
     for name in ("config", "secrets", "state", "state/openjules", "state/polyphony", "environments"):
         (root / name).mkdir(mode=0o700)
     deployment = data["deployment_id"]
@@ -441,6 +535,117 @@ def _prepare_files(data: dict, root: Path, final: Path) -> None:
     with Store(root / "state/zpm.sqlite3", deployment) as store:
         store.enroll(data["binding"])
     (root / "state/zpm.sqlite3").chmod(0o600)
+    _finish_bundle(data, root, final, _BUNDLE_README)
+
+
+def _prepare_multiple_files(data: dict, root: Path, final: Path) -> None:
+    for name in ("config", "secrets", "state", "state/openjules", "state/polyphony", "environments"):
+        (root / name).mkdir(mode=0o700)
+    deployment = data["deployment_id"]
+    entries = data["repositories"]
+    repositories = [entry["binding"]["repository"] for entry in entries]
+    scopes = [{"deployment_id": deployment, "repository": repository} for repository in repositories]
+    tokens = {name: secrets.token_urlsafe(48) for name in ("owner", "runtime", "zpm")}
+    credentials = {
+        tokens["owner"]: {"identity": "operator", "role": "owner"},
+        tokens["runtime"]: {"identity": "openjules-runtime", "role": "runtime",
+                            "deployment_id": deployment, "repositories": repositories},
+    }
+    operator = {"schema_version": 2, "owner": tokens["owner"], "repositories": {}}
+    policies, profiles, models, children = {}, [], [], []
+    for entry in entries:
+        repository = entry["binding"]["repository"]
+        profile = entry["binding"]["profile"]
+        scope = {"deployment_id": deployment, "repository": repository}
+        local = {role: secrets.token_urlsafe(48) for role in ("reviewer", "ingress")}
+        for role, token in local.items():
+            credentials[token] = {"identity": "operator" if role == "reviewer" else "ingress", "role": role,
+                                  "deployment_id": deployment, "repositories": [repository]}
+        operator["repositories"][repository] = {
+            **local, "request_key_prefix": "repository-" + _repository_key(repository) + "-",
+        }
+        policy = entry["policy"]
+        canonical_profile = {
+            "base": entry["source"]["revision"], "attempt_seconds": policy["attempt_seconds"],
+            "capabilities": policy["capabilities"],
+        }
+        if "child_policy" in entry:
+            child = entry["child_policy"]
+            canonical_profile.update({name: child[name] for name in ("max_children", "max_child_seconds", "max_child_turns")})
+            canonical_profile["child_capabilities"] = child["capabilities"]
+            children.append({**scope, "profile": profile, "policy": child})
+        policies[repository] = {
+            "checks": policy["checks"], "reviewers": policy["reviewers"], "max_attempts": policy["max_attempts"],
+            "budget_seconds": policy["budget_seconds"], "profiles": {profile: canonical_profile},
+        }
+        profiles.append({
+            "name": profile, **scope, "source_path": entry["source"]["checkout"],
+            "base_commit": entry["source"]["revision"], "image": entry["image"], "command": entry["command"],
+            **entry["runtime"], "environment_refs": {
+                target: "env:" + _multiple_alias(entry, target) for target in entry["environment_refs"]
+            },
+        })
+        if "model_policy" in entry:
+            models.append({**scope, "profile": profile, "policy": {
+                **entry["model_policy"], "token_ref": "env:" + _multiple_alias(entry),
+            }})
+    openjules = {
+        "schema_version": 1, "host": "127.0.0.1", "port": data["ports"]["openjules"], "poll_interval_seconds": 1,
+        "state_directory": str(final / "state/openjules/runtime"),
+        "lifecycle_database": str(final / "state/openjules/lifecycle.sqlite3"),
+        "credentials_file": str(final / "secrets/openjules.json"),
+        "authority": {"endpoint": f"http://127.0.0.1:{data['ports']['polyphony']}", "token_ref": "env:" + SECRET_ENV["openjules"]},
+        "profiles": profiles,
+    }
+    if models:
+        openjules["models"] = models
+    if children:
+        openjules["children"] = children
+    # These are the exact files that OpenJules bounds at 1,000,000 bytes.
+    # Reject oversized serialized output before any stage can be published.
+    _write_managed_json(root / "config/openjules.json", openjules)
+    _write_managed_json(root / "secrets/openjules.json", {tokens["zpm"]: scopes})
+    _write(root / "secrets/polyphony.json", credentials)
+    _write(root / "secrets/environment.json", {SECRET_ENV["zpm"]: tokens["zpm"], SECRET_ENV["openjules"]: tokens["runtime"]})
+    _write(root / "secrets/operator.json", operator)
+    _write(root / "config/polyphony.json", {"schema_version": 1, "deployment_id": deployment, "repositories": policies})
+    _write(root / "config/provider.json", ProviderConfig.parse({
+        "schema_version": 1, "endpoint": f"http://127.0.0.1:{data['ports']['openjules']}",
+        "token_ref": "env:" + SECRET_ENV["zpm"], "max_workers": data["max_workers"], "timeout_seconds": 10,
+    }).__dict__)
+    for entry in entries:
+        _write(root / _binding_file(entry), entry["binding"])
+    with Store(root / "state/zpm.sqlite3", deployment) as store:
+        for entry in entries:
+            store.enroll(entry["binding"])
+    (root / "state/zpm.sqlite3").chmod(0o600)
+    readme = _BUNDLE_README + """
+This schema-2 bundle runs one controller, one OpenJules API and one Polyphony
+authority for all configured repositories. It shares their service and Docker
+failure domains. Removing enrollment preserves canonical policy, credentials,
+history and captures; it does not remove a repository from sealed configuration.
+
+secrets/operator.json has schema_version 2, one owner token and a repositories
+map keyed by canonical identity. Each entry contains ingress and reviewer tokens
+and a nonsecret request_key_prefix. Append a stable unique operation suffix to
+that prefix. Review suffixes must distinguish the candidate, check and evidence
+observation. After uncertainty, retry the exact full key and unchanged payload;
+changed evidence or a new operation requires a new key. The 76-byte prefix leaves
+436 UTF-8 bytes within the managed ingress key limit of 512 bytes. It is operator
+metadata, not automatic key enforcement. Different reviewer tokens still
+identify the same operator and do not establish independent review.
+
+The following binding files work with the existing zpm enroll command. Target,
+pause, resume, remove and status use the canonical repository identities.
+Status/plan read local observations without loading the deployment ceiling.
+Run python3 manage.py doctor for authenticated capabilities and the configured
+ceiling with journalled capacity. Its ready flag does not prove target convergence.
+"""
+    readme += "\n".join(entry["binding"]["repository"] + ": " + _binding_file(entry) for entry in entries) + "\n"
+    _finish_bundle(data, root, final, readme)
+
+
+def _finish_bundle(data: dict, root: Path, final: Path, readme: str) -> None:
     manager = '''#!/usr/bin/env python3
 import json
 from pathlib import Path
@@ -452,7 +657,7 @@ from zpm.deployment import manage
 raise SystemExit(manage(root, sys.argv[1:]))
 '''
     _write(root / "manage.py", manager, executable=True)
-    _write(root / "README.txt", _BUNDLE_README)
+    _write(root / "README.txt", readme)
     sealed = [str(path.relative_to(root)) for folder in ("config", "secrets") for path in sorted((root / folder).iterdir())]
     sealed.extend(["manage.py", "README.txt", "preparation.json"])
     manifest = {"schema_version": 1, "configuration": data, "directory": str(final),
@@ -461,8 +666,11 @@ raise SystemExit(manage(root, sys.argv[1:]))
 
 
 def _prepared_report(root: Path, data: dict, *, reused: bool) -> dict:
+    scope = ({"repositories": [{"repository": entry["binding"]["repository"], "binding_file": _binding_file(entry)}
+                               for entry in data["repositories"]]}
+             if data["schema_version"] == 2 else {"repository": data["binding"]["repository"]})
     return {"prepared": True, "reused": reused, "directory": str(root), "deployment_id": data["deployment_id"],
-            "repository": data["binding"]["repository"], "services_started": False, "remote_access_checked": False,
+            **scope, "services_started": False, "remote_access_checked": False,
             "next": ["python3 manage.py bootstrap", "python3 manage.py start", "python3 manage.py doctor"]}
 
 
@@ -506,9 +714,11 @@ def verify(directory: str | Path) -> dict:
         # existing WAL-aware journal without initializing or re-enrolling it.
         with closing(sqlite3.connect(journal.as_uri() + "?mode=ro", uri=True, timeout=1)) as database:
             identity = database.execute("SELECT value FROM metadata WHERE key='deployment_id'").fetchone()
-            enrolled = database.execute("SELECT 1 FROM bindings WHERE repository=?", (data["binding"]["repository"],)).fetchone()
+            enrolled = all(database.execute("SELECT 1 FROM bindings WHERE repository=?",
+                                            (entry["binding"]["repository"],)).fetchone() is not None
+                           for entry in _entries(data))
             database.execute("SELECT launch_key FROM workers LIMIT 0")
-        if identity != (data["deployment_id"],) or enrolled is None:
+        if identity != (data["deployment_id"],) or not enrolled:
             raise ConfigurationError("deployment journal identity or retained enrollment does not match the bundle")
     except sqlite3.Error:
         raise ConfigurationError("cannot read the retained deployment journal; restore state before continuing") from None
@@ -525,6 +735,13 @@ def _environment(root: Path, service: str, data: dict) -> dict[str, str]:
         name = SECRET_ENV[service]
         result[name] = json.loads((root / "secrets/environment.json").read_text())[name]
     if service == "openjules":
+        if data["schema_version"] == 2:
+            for alias, (reference, provider_token) in _multiple_environment_references(data).items():
+                value = os.environ.get(reference.removeprefix("env:"), "")
+                if not value or (provider_token and any(character.isspace() for character in value)):
+                    raise ConfigurationError("a configured repository model reference is unavailable or invalid")
+                result[alias] = value
+            return result
         for target, reference in data["environment_refs"].items():
             name = reference.removeprefix("env:")
             if not os.environ.get(name):

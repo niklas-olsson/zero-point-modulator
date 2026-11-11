@@ -17,17 +17,18 @@ runtime admission, or replace canonical execution and capture.
 | Topology or outcome | What this trial establishes when it passes |
 | --- | --- |
 | Two generated single-repository deployments sharing Docker | Actual installation, API scope separation, independent capacity and recovery, isolated task inputs and canonical capture |
-| Two repositories in one generated installation | Not established; the preparer accepts one binding/source/profile |
+| Two repositories in one generated installation | Not exercised; this harness prepares two separate schema-1 bundles |
 | One controller managing two repositories | Not exercised; this trial uses one controller per deployment |
 | Two deployments behind one OpenJules API | Not supported by this trial; each OpenJules service has its own authority endpoint |
 | Mutually hostile host services with Docker access | Not established; the trusted services have host-control authority |
 | Live model behavior, independent review or forge publication | Separate acceptance gates |
 
-OpenJules service configuration can describe several repository profiles and
-Polyphony can authorize several repositories within one deployment. Those
-component capabilities do not turn the generated single-repository bundle into
-a multi-repository installation. The report names the tested topology explicitly;
-it must not close the distinct installation and shared-API gaps in
+The [schema-2 installer](single-host-installation.md) can generate multiple
+repository profiles and canonical policies within one deployment and service
+pair. This harness still prepares separate schema-1 bundles. Its evidence does
+not qualify shared-service runtime isolation; that requires a distinct actual
+two-repository trial. The report names the tested topology explicitly and must
+not close that remaining acceptance criterion in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
 ## Exact candidate set
@@ -156,7 +157,24 @@ paths come from the generated OpenJules configuration, including the managed
 service's additional runtime subdirectory. These tests validate evidence
 assertions and redaction; they do not run Docker.
 
-### Retained failed qualification evidence
+Canonical terminal capture and candidate publication are separate operations.
+The capture barrier reads one fresh scoped snapshot per poll and uses the same
+45-second deadline for both. A valid terminal attempt may precede its candidate;
+the barrier retains its exact attempt identity, runtime binding, launch fence and
+artifact hashes while waiting. An existing malformed, duplicate or mismatched
+candidate fails immediately. Completion requires that exact candidate to be the
+task's current review request with status `awaiting_review`, without admission.
+Artifact byte hashes, credential exclusion, expected command output and unchanged
+approved source are still checked afterward. Timeout diagnostics distinguish
+terminal capture from candidate publication without exporting snapshot contents.
+
+The deterministic capture tests drive the real polling loop with a controlled
+clock and separately delivered snapshots. They cover delayed publication, the
+unchanged deadline, immediate rejection of invalid candidates and changes to an
+already observed capture. They also exercise the installation's subsequent
+artifact checks. They do not establish HTTP scheduling or actual runtime success.
+
+### Retained qualification and source-review evidence
 
 The first [PR run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43029634925/job/130553309385)
 at head `98e38e31ee52eb2a55ba69f1c4a283e020e9a296` exposed the harness reading and
@@ -181,10 +199,32 @@ generated configuration, uses the actual generator in its fixture, and rejects
 pending or missing controller evidence. The rejected tree was never committed
 or published to a branch, and no test execution was claimed for it.
 
-Both failed runs used the companion revisions listed above. Their partial
-evidence does not qualify the remaining isolation criteria. The corrected source
-must pass the existing actual Docker job and every other CI gate; source review
-and unexecuted negative fixtures are not passing results.
+Those failed runs used the companion revisions listed above. Their partial
+evidence did not qualify the remaining isolation criteria. The corrected
+strict-witness head `f17f5b2e9978dea2860840a56c32359e0d217f41` subsequently
+[passed the actual isolation job](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43038690070/job/130584589634)
+at synthetic merge `64d1e63e0aec37d3cb2e673d50741c5d23bd4755`.
+
+A later schema-2 installer head, `0ed9cb6073eee9f3cfb01a3b37ee0c86aed187d3`,
+had a split result. All seven [PR jobs](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43042193464)
+passed, including the [isolation job](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43042193464/job/130596918671)
+at synthetic merge `06c481f0ffe6d64f8fdbaf264f047f409055c1f3`. The same head's
+[push isolation job](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43042176907/job/130596874632)
+failed with `candidate changed its source base or capture`; its other six jobs
+passed. Diagnostics artifact `13866405863` retains the failure and exact component
+revisions, but it does not contain the observed candidate count or values. The
+historical cause therefore remains unproven.
+
+Pinned OpenJules
+[`_publish_capture`](https://github.com/niklas-olsson/OpenJules/blob/7ca211ebb01d041827df5e480ad65c30cf7ba9ee/src/worker/managed_dispatch.py)
+records terminal artifacts before a separate candidate request. Pinned Polyphony
+[`managed_observe` and `managed_candidate`](https://github.com/niklas-olsson/keystone-polyphony/blob/653c0a71a921c0d23b8e0171277524125e929e66/src/core/collaboration/managed_runtime.py)
+preserve those separate calls. The earlier harness waited only for terminal
+artifacts, then immediately required a candidate. The complete-capture barrier
+above corrects that demonstrated observation gap, without asserting a confirmed
+historical product failure or changing either component. Its exact published
+revision must pass all existing CI gates; source review and unexecuted fixtures
+are not passing results.
 
 ## Retained evidence
 
