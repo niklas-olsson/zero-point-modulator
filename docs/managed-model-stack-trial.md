@@ -6,6 +6,11 @@ fixture created by the trial. The agent reads the canonical task requirements
 and repository instructions, reads a source file, changes it through its coding
 tools, runs tests and submits a captured candidate for review.
 
+Before admitting that task, the trial keeps the same installed OpenJules process
+running while the actual current coordinator loses and regains its managed
+policy configuration. The responsive service must refuse new capacity and
+protected work throughout the unsupported phase, with no model request.
+
 No provider account, live model credential or paid inference is used. A passing
 result qualifies this installation and protocol path. It does not qualify a
 provider's API behavior, model reasoning quality, delegated children, semantic
@@ -71,14 +76,75 @@ repository instructions, and rejects extra calls or a failed preceding tool.
 Four deterministic replies direct read, write, test and finish operations.
 The agent and broker run their production implementations.
 
+## Responsive coordinator without managed policy
+
+This is an actual current-service configuration test. The harness starts the
+pinned Polyphony coordinator with its generated executable, database, port and
+credentials, omitting only the `--managed-config` option and its value. Its
+authenticated legacy `/snapshot` remains responsive with HTTP 200, while
+`/managed/capabilities` returns HTTP 503 with the exact reason
+`managed runtime policy is not configured`. It does not run an old release,
+invent a `/health` endpoint, or substitute a health-only HTTP fixture.
+
+The generated singleton bundle already has an unscoped owner principal. Only
+that existing host-side credential can read the legacy snapshot; the original
+scoped runtime and ingress credentials remain unchanged. The owner token is
+never placed in a service command, service environment or guest, and the
+credential file remains private and byte-identical.
+
+The phase begins and ends with a positive capability observation and a completed
+installed one-shot reconcile at target zero. These positive checks use the real
+approved source, immutable image, Docker Engine and model broker's local Unix
+transport preflight. The same OpenJules process and PID remain alive across the
+authority swap. A negative result cannot be explained by an invalid source,
+missing image, absent engine, invalid model reference or a restarted runtime.
+
+While the no-policy coordinator is held:
+
+- Fresh OpenJules capabilities retain the lifecycle protocol and selected
+  profile, but report `repository_access=false`, `managed_dispatch=false` and
+  exactly `Canonical managed authority is unavailable`.
+- Two completed normal installed controller passes request one worker and report
+  zero reservations and healthy capacity, with a shortfall of one and normalized
+  reason `repository_access unavailable`. Each pass uses the generated
+  command and environment with only its final `--watch` removed; the report is
+  read from a fresh bounded log after successful process completion.
+- Two identical direct ensure requests for a fresh launch key return HTTP 503
+  with `Managed runtime preflight is not ready`. A valid ingress enrollment
+  also returns the exact missing-policy rejection.
+- Fresh all-scope lifecycle, runtime, dispatcher, model and controller journals
+  contain no execution, allocation, control, delivery or inference history.
+  Canonical records, artifacts and events remain empty. The readers use the
+  generated paths, verify the pinned component schemas and read committed WAL
+  state in SQLite read-only mode. Missing journals or unexpected schemas fail
+  the trial.
+- Retained deployment identity and runtime/model policy fingerprints remain
+  unchanged. The entire Docker container and volume inventory matches the
+  baseline taken before the first manager startup. Under the fixture lock,
+  both successful requests and rejected or malformed requests remain absent.
+
+The target returns to zero before the original coordinator command is restored.
+The same OpenJules process must regain positive managed readiness, and a fresh
+completed controller pass must preserve zero reservations and protected history.
+Cleanup attempts the target reset and stops and reaps both owned service groups
+even after an assertion failure, preserving the original failure. The sealed
+installation and credentials must remain unchanged.
+
+The harness then restarts the complete generated manager and runs every normal
+positive model-execution, capture, retirement and restart check below. This
+scene adds installed-service admission and recovery evidence to the component
+tests. It does not by itself demonstrate behavior of an installed historical
+authority release or of a literal legacy HTTP health endpoint.
+
 ## Acceptance evidence
 
 The test fails unless all of the following occur through the real service
 boundaries:
 
 1. `prepare`, generated `bootstrap`, generated `start` and scoped `doctor` work
-   with the optional model policy. Readiness and an idle worker make no model
-   calls.
+   with the optional model policy. The no-managed-policy phase above rejects
+   positive capacity and protected work, then recovers without new history or
+   model traffic. Readiness and an idle worker make no model calls.
 2. Scoped ingress creates one canonical task. Replayed delivery returns that
    task and another repository's request is denied.
 3. The real agent uses its worker's Unix socket to make exactly four authorized
@@ -100,8 +166,12 @@ boundaries:
 
 The success report records the three revisions, immutable image ID, canonical
 task and candidate IDs, artifact hashes, fixture call count and final reservation
-count. These are evidence for the controlled trial, not a semantic review of
-arbitrary model output or a financial spend guarantee.
+count. Its `authority_admission` object adds the exact rejection reasons, the two
+completed blocked capacity reports, repeated ensure rejection count, unchanged
+history digest, Docker inventory counts and same-process recovery result. It
+does not export raw journal rows or credentials. These are evidence for the
+controlled trial, not a semantic review of arbitrary model output or a financial
+spend guarantee.
 
 ## Retained state and diagnostics
 
