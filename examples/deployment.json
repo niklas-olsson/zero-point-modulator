@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "deployment_id": "my-deployment",
+  "binding": {
+    "schema_version": 1,
+    "repository": "github:github.com/owner/project",
+    "profile": "approved-coding-v1",
+    "desired_workers": 0,
+    "max_workers": 8
+  },
+  "max_workers": 8,
+  "sources": {
+    "zpm": {
+      "checkout": "/absolute/checkouts/zero-point-modulator",
+      "revision": "REPLACE_WITH_FULL_TESTED_GIT_COMMIT"
+    },
+    "openjules": {
+      "checkout": "/absolute/checkouts/OpenJules",
+      "revision": "REPLACE_WITH_FULL_TESTED_GIT_COMMIT"
+    },
+    "polyphony": {
+      "checkout": "/absolute/checkouts/keystone-polyphony",
+      "revision": "REPLACE_WITH_FULL_TESTED_GIT_COMMIT"
+    }
+  },
+  "source": {
+    "checkout": "/absolute/checkouts/enrolled-repository",
+    "revision": "REPLACE_WITH_FULL_APPROVED_BASE_COMMIT"
+  },
+  "image": "sha256:REPLACE_WITH_FULL_APPROVED_IMAGE_ID",
+  "command": ["python", "approved_offline_agent.py"],
+  "policy": {
+    "checks": ["tests"],
+    "reviewers": ["operator"],
+    "max_attempts": 3,
+    "budget_seconds": 600,
+    "attempt_seconds": 120,
+    "capabilities": ["python"]
+  },
+  "ports": {
+    "polyphony": 8766,
+    "openjules": 8000
+  },
+  "environment_refs": {}
+}

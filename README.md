@@ -78,7 +78,9 @@ The version 1 repository binding is intentionally small:
 Profile definitions and execution settings stay in OpenJules. The profile name
 must resolve to an approved immutable configuration there; arbitrary commands,
 images, authority URLs, or secret values are not launch input supplied by ZPM.
-No production profile is created by this repository.
+Enrollment itself creates no execution profile. The optional single-host
+installer writes an approved offline root profile from explicit operator choices
+of source revision, image, command and limits.
 
 The shared provider configuration is separate from individual enrollments:
 
@@ -235,6 +237,15 @@ validation is in `zpm/models.py`. This contract is implemented with OpenJules
 [lifecycle issue #3](https://github.com/niklas-olsson/OpenJules/issues/3).
 
 ## Validation and remaining integration
+
+An explicit [single-host installation bundle](docs/single-host-installation.md)
+prepares private credentials, durable state, pinned source references and
+separate service environments. `zpm deployment prepare` and `verify` are offline;
+the generated `doctor` command checks actual scoped provider capabilities.
+Preparation does not establish managed-runtime readiness or run a coding agent.
+The bundle requires OpenJules and Polyphony revisions containing their managed
+service entry points; it rejects older checkouts instead of falling back to the
+legacy execution path.
 
 ```sh
 python -m unittest discover -v
