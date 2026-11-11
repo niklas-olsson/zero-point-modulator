@@ -363,11 +363,40 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(canonical["child_capabilities"], data["child_policy"]["capabilities"])
         self.assertNotIn("uid_start", canonical)
         self.assertNotIn("command", canonical)
+        self.assertNotIn("outcome_protocol", data["child_policy"])
+        self.assertNotIn("outcome_protocol", canonical)
         self.assertEqual(runtime["profiles"][0]["environment_refs"], {})
         self.assertEqual(self.read("config/provider.json")["max_workers"], configuration["max_workers"])
         with Store(self.bundle / "state/zpm.sqlite3", data["deployment_id"]) as store:
             self.assertEqual(len(store.bindings()), 1)
             self.assertEqual(store.bindings()[0]["desired_workers"], 0)
+
+    def test_initial_child_outcomes_are_explicit_and_do_not_change_canonical_limits(self):
+        configuration = self.child_configuration()
+        configured = configuration | {"child_policy": configuration["child_policy"] | {"outcome_protocol": "initial-v1"}}
+        prepare(configured, self.bundle)
+        self.assertTrue(verify(self.bundle)["valid"])
+        runtime = self.read("config/openjules.json")
+        policy = runtime["children"][0]["policy"]
+        self.assertEqual(policy["outcome_protocol"], "initial-v1")
+        self.assertEqual(policy["command"], ["python3", "-I", "-S", "/opt/openjules/managed_runner.py"])
+        canonical = self.read("config/polyphony.json")["repositories"]["github:github.com/owner/project"]["profiles"]["approved"]
+        self.assertNotIn("outcome_protocol", canonical)
+        self.assertEqual(canonical["max_children"], 2)
+        with Store(self.bundle / "state/zpm.sqlite3") as store:
+            self.assertEqual(store.bindings()[0]["desired_workers"], 0)
+
+    def test_initial_child_outcomes_reject_unsupported_protocol_or_custom_runner(self):
+        configuration = self.child_configuration()
+        for variant in ({"outcome_protocol": value} for value in (None, False, 1, "", "future-v2", {})):
+            with self.subTest(variant=variant), self.assertRaisesRegex(ConfigurationError, "outcome_protocol"):
+                prepare(configuration | {"child_policy": configuration["child_policy"] | variant}, self.bundle)
+            self.assertFalse(self.bundle.exists())
+        with self.assertRaisesRegex(ConfigurationError, "supported managed runner"):
+            prepare(configuration | {"child_policy": configuration["child_policy"] | {
+                "outcome_protocol": "initial-v1", "command": ["python3", "custom.py"],
+            }}, self.bundle)
+        self.assertFalse(self.bundle.exists())
 
     def test_children_reject_invalid_limits_identity_overlap_and_expanded_capabilities_before_writing(self):
         configuration = self.child_configuration()

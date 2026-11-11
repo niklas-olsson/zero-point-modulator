@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: 3f0575364cc4b8d96e703f161652ec6fdfc8a6a1
+          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -65,16 +65,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Durable control replay candidate, shared by every integration gate.
+          # Initial child outcomes and durable replay candidate, shared by every gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: 3f0575364cc4b8d96e703f161652ec6fdfc8a6a1
+          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          # Same merged Polyphony revision in every installed-stack gate.
-          ref: 473df5a0406accfe5cb550877e7b28a602cb116c
+          # Same initial-outcome authority candidate in every installed-stack gate.
+          ref: 653c0a71a921c0d23b8e0171277524125e929e66
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -115,16 +115,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Durable control replay candidate, shared by every integration gate.
+          # Initial child outcomes and durable replay candidate, shared by every gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: 3f0575364cc4b8d96e703f161652ec6fdfc8a6a1
+          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          # Same merged Polyphony revision in every installed-stack gate.
-          ref: 473df5a0406accfe5cb550877e7b28a602cb116c
+          # Same initial-outcome authority candidate in every installed-stack gate.
+          ref: 653c0a71a921c0d23b8e0171277524125e929e66
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -144,6 +144,14 @@ jobs:
             --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
             --image "$(cat "$RUNNER_TEMP/managed-children-image.id")" \
             --work-dir "$RUNNER_TEMP/managed-children-stack-trial"
+      - name: Install and recover explicit child completion and decline
+        run: |
+          python zpm/tests/contracts/check_children_stack.py \
+            --initial-outcomes \
+            --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/managed-children-image.id")" \
+            --work-dir "$RUNNER_TEMP/managed-child-outcomes-trial"
       - name: Retain only the credential-free child trial report
         if: always()
         uses: actions/upload-artifact@v4
@@ -152,6 +160,8 @@ jobs:
           path: |
             ${{ runner.temp }}/managed-children-stack-trial/report.json
             ${{ runner.temp }}/managed-children-stack-trial/diagnostics.json
+            ${{ runner.temp }}/managed-child-outcomes-trial/report.json
+            ${{ runner.temp }}/managed-child-outcomes-trial/diagnostics.json
           if-no-files-found: warn
           retention-days: 14
 
@@ -168,15 +178,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Durable control replay candidate, shared by every integration gate.
+          # Initial child outcomes and durable replay candidate, shared by every gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: 3f0575364cc4b8d96e703f161652ec6fdfc8a6a1
+          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 473df5a0406accfe5cb550877e7b28a602cb116c
+          ref: 653c0a71a921c0d23b8e0171277524125e929e66
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5

@@ -32,8 +32,8 @@ The CI job currently pins:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `3f0575364cc4b8d96e703f161652ec6fdfc8a6a1`, durable control replay candidate |
-| Keystone Polyphony | `473df5a0406accfe5cb550877e7b28a602cb116c`, merged child grants and durable conversation baseline |
+| OpenJules | `7ca211ebb01d041827df5e480ad65c30cf7ba9ee`, initial child outcomes and durable control replay candidate |
+| Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The workflow's checked-out candidate revision, recorded in the report |
 
 All installed-stack jobs use this same three-repository candidate set. The HTTP

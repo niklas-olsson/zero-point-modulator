@@ -153,7 +153,7 @@ def _child_policy(value: Any, runtime: dict, root_seconds: float, root_capabilit
     required = {"max_children", "max_child_seconds", "max_child_turns", "capabilities"}
     defaults = {"uid_start": 60000, "command": ["python3", "-I", "-S", "/opt/openjules/managed_runner.py"],
                 "verify_argv": [], "max_result_bytes": 4_000_000}
-    data = defaults | _object(value, required | set(defaults), "child_policy", required)
+    data = defaults | _object(value, required | set(defaults) | {"outcome_protocol"}, "child_policy", required)
     count = _number(data["max_children"], "child max_children", 1, 64, integer=True)
     seconds = data["max_child_seconds"]
     if type(seconds) not in {int, float} or not 0 < seconds <= min(86400, root_seconds):
@@ -172,6 +172,9 @@ def _child_policy(value: Any, runtime: dict, root_seconds: float, root_capabilit
                 or any(not isinstance(item, str) or not item or "\x00" in item or len(item) > 4096 for item in command)):
             raise ConfigurationError("child " + name + " must be bounded explicit argv")
     _number(data["max_result_bytes"], "child max_result_bytes", 1024, 4_000_000, integer=True)
+    if "outcome_protocol" in data:
+        if data["outcome_protocol"] != "initial-v1" or data["command"] != defaults["command"]:
+            raise ConfigurationError("child outcome_protocol requires initial-v1 and the supported managed runner")
     return data
 
 
