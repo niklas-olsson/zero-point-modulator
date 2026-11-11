@@ -21,7 +21,7 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `3a77641e56055daa5c3a2b8b2a3c337ef9be5a2e`, merged owned cleanup, initial child outcomes and durable control replay |
+| OpenJules | `9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6`, merged owned cleanup, initial child outcomes and durable control replay |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 

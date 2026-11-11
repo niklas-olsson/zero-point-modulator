@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          ref: 3a77641e56055daa5c3a2b8b2a3c337ef9be5a2e
+          ref: 9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
