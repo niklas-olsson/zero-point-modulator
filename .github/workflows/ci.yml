@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
+          ref: 11842db8fc573b461121dc321a1537a9a148ad90
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -65,9 +65,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Merged initial child outcomes and durable replay, shared by every gate.
+          # Merged owned cleanup, child outcomes and durable replay, shared by every gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
+          ref: 11842db8fc573b461121dc321a1537a9a148ad90
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -117,7 +117,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Same merged runtime revision as every other integration gate.
           # Update this pin with docs/managed-isolation-stack-trial.md.
-          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
+          ref: 11842db8fc573b461121dc321a1537a9a148ad90
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -166,7 +166,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Same merged runtime revision as every other integration gate.
           # Update with docs/managed-multi-repository-stack-trial.md.
-          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
+          ref: 11842db8fc573b461121dc321a1537a9a148ad90
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -213,9 +213,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Merged initial child outcomes and durable replay, shared by every gate.
+          # Merged owned cleanup, child outcomes and durable replay, shared by every gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
+          ref: 11842db8fc573b461121dc321a1537a9a148ad90
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -276,9 +276,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Merged initial child outcomes and durable replay, shared by every gate.
+          # Merged owned cleanup, child outcomes and durable replay, shared by every gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
+          ref: 11842db8fc573b461121dc321a1537a9a148ad90
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4

@@ -21,7 +21,7 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `c85867c9a110f6c3ea00a53e6a721a15ce15782d`, merged initial child outcomes and durable control replay |
+| OpenJules | `11842db8fc573b461121dc321a1537a9a148ad90`, merged owned cleanup, initial child outcomes and durable control replay |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
@@ -30,6 +30,13 @@ and [Polyphony #122](https://github.com/niklas-olsson/keystone-polyphony/pull/12
 OpenJules #16 is merged; the Polyphony pin remains the authority candidate
 from Polyphony #122. The merged OpenJules revision also contains
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15).
+The current pin adds [explicit owned cleanup](https://github.com/niklas-olsson/OpenJules/pull/17)
+and [strict adapter and authentication checks](https://github.com/niklas-olsson/OpenJules/pull/18)
+for the qualified creation transport. [Versioned persisted proof](https://github.com/niklas-olsson/OpenJules/pull/20)
+keeps earlier unqualified creation markers ineligible after restart.
+Its component Docker tests cover process death between removal and journal
+acknowledgement with a fixture authority. This installed trial separately requires
+cleanup against the real retained Polyphony authority before the set is qualified.
 The previous integrated candidate could acknowledge a drain while its runtime
 lock was busy, then fail to close canonical child admission. The unchanged
 active-child trial exposed that race in
@@ -247,11 +254,55 @@ and container boundaries:
     installation preserves the root candidate, both child records, their
     captures and the ten inference reservations. No work or inference is
     replayed.
+11. While the owned bundle is stopped, the trial reopens only its original
+    installed Polyphony authority on the same database, credentials, policy and
+    port. The installed OpenJules host CLI cleans the original fully captured
+    worker. Exactly its container and workspace volume disappear; the existing
+    idle replacement's exact container and volume identities remain. The host
+    archive, all six local logical journal snapshots and real canonical root/child
+    records and artifact bytes remain unchanged, except for the intended runtime
+    cleanup progress. That progress must exactly bind the original worker, spec,
+    resources, archive and canonical root/child proof, with all completion flags
+    true; missing, malformed or changed progress cannot qualify. A second CLI invocation returns the identical completed
+    receipt. The temporary authority is stopped through its owned process handle
+    even if cleanup or verification fails.
+12. After the normal full-service restart, replaying the saved original ensure
+    payload returns the same retired worker with no active executions. Neither
+    resource is recreated, the non-target resources remain, retained journal
+    history and capture bytes are unchanged, and target/reservations stay zero.
+    Default and initial-outcome variants retain ten and twelve model calls.
 
 The success report records exact component revisions, the image ID, canonical
 identities, grant and artifact hashes, UID and allowance counts, the observed
 one-worker/two-child accounting and the active-child target-zero drain. It contains no raw model conversations, private
 instructions, provider credentials or workspace archives.
+Its `owned_cleanup` section records the exact scoped completion result,
+identical replay, retained archive hash/size, retained journal categories and
+the original-ensure no-resurrection result. It exports no journal rows or host
+capture paths.
+
+## Explicit cleanup boundary
+
+Cleanup uses OpenJules' existing host command with the generated private config
+and installed runtime environment. It does not add a ZPM cleanup API. The
+foreground bundle manager normally stops all three services together, so the
+trial reopens only the same generated authority while OpenJules and the
+controller remain stopped. It reuses the original environments and commands;
+there is no additional bootstrap, authority database, principal or worker.
+
+The supported first slice requires an executed, completely captured worker and
+exactly one durable create dispatch and acknowledgement for both resources,
+recorded through Docker SDK 7.2.0's stock Unix transport with retries and redirects
+disabled. Idle workers, legacy rows and uncertain or retried creation remain
+retained. Managed container and volume names remain permanently reserved after
+cleanup, including after a lost delete response. Never recycle those names or
+edit journals to make an ineligible worker qualify. Archives and receipts are
+retained; this operation does not implement archive expiry or automatic collection.
+
+This phase establishes installed CLI behavior against the real canonical
+authority when its actual Docker run passes. It does not repeat the separately
+qualified OpenJules subprocess-death experiment, prove arbitrary storage failure
+recovery, invoke a live provider or publish a forge candidate.
 
 ## Qualification limits and retained state
 

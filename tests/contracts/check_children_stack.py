@@ -17,6 +17,7 @@ import subprocess
 import sys
 import threading
 
+from check_cleanup import journal_paths, qualify_owned_cleanup, require_retained
 from check_model_stack import ModelFixture, TOKEN_SOURCE
 from check_stack import (
     Client, Processes, clean_environment, diagnostics, eventually, port,
@@ -536,6 +537,7 @@ def run(args):
             require(canonical_children["admission_closed"] is True and len(canonical_children["children"]) == 2,
                     "root completion did not close child admission or retain both grants")
             child_evidence, lineage, uids, child_policy_digests = [], [], set(), set()
+            child_artifacts = {}
             for permission in canonical_children["children"]:
                 child = permission["child"]
                 binding = child["binding"]
@@ -549,6 +551,7 @@ def run(args):
                         "canonical child binding changed its approved root, base or allowance")
                 captured_child = read_artifacts(authority, scope, child.get("captured_artifacts", {}), sensitive,
                                                 attempt_id=attempt["id"], child_id=child["id"])
+                child_artifacts[child["id"]] = captured_child
                 manifest = json.loads(captured_child["manifest"])
                 uid = 60000 if name == "left" else 60001
                 require(manifest.get("child_id") == child["id"] and manifest.get("root_attempt_id") == attempt["id"]
@@ -639,7 +642,11 @@ def run(args):
             require(released(worker_snapshot(runtime.request("GET", "/api/workers/" + worker, query=scope))),
                     "child worker lacks durable retirement evidence")
             checks.append("the drained root composes and captures normally; target zero releases the worker after all final canonical root/child receipts")
-            target(1, retired_worker_ids={worker})
+            replacement = target(1, retired_worker_ids={worker})
+            idle_workers = replacement["repositories"][0]["workers"]
+            require(len(idle_workers) == 1 and idle_workers[0]["worker_id"] != worker,
+                    "cleanup non-target control lacks the original idle replacement")
+            idle_worker = idle_workers[0]["worker_id"]
             container_ids = subprocess.check_output(["docker", "ps", "-aq", "--filter", "label=openjules.worker=" + worker],
                                                     text=True, timeout=10).split()
             require(len(container_ids) == 1, "root and children do not have exactly one worker Docker incarnation")
@@ -659,6 +666,32 @@ def run(args):
 
             target(0)
             processes.stop("installation")
+
+            def retained_canonical():
+                retained = snapshot()
+                require(all(retained[kind] == evidence[kind] for kind in ("task", "attempt", "candidate")),
+                        "cleanup changed or duplicated canonical root records")
+                retained_children = children(attempt["id"])
+                require(retained_children["admission_closed"] is True
+                        and {row["child"]["id"]: row["child"] for row in retained_children["children"]}
+                        == {row["child"]["id"]: row["child"] for row in canonical_children["children"]},
+                        "cleanup changed canonical child receipts or reopened admission")
+                require(read_artifacts(authority, scope, attempt["captured_artifacts"], sensitive) == artifacts,
+                        "cleanup changed canonical root artifact bytes")
+                for child in child_evidence:
+                    require(read_artifacts(authority, scope, child["artifacts"], sensitive,
+                                           attempt_id=attempt["id"], child_id=child["child_id"])
+                            == child_artifacts[child["child_id"]], "cleanup changed canonical child artifact bytes")
+                return True
+
+            cleanup = qualify_owned_cleanup(
+                bundle, paths, scope, worker, idle_worker, manager_environment,
+                processes, artifacts, retained_canonical,
+                canonical_proof={"binding": attempt["runtime_binding"],
+                                 "runtime_receipt": attempt["runtime_receipt"],
+                                 "child_lineage": attempt["child_lineage"]},
+            )
+            checks.append("installed OpenJules host cleanup removes only the fully captured root worker container and volume against the reopened real canonical authority; repeated cleanup retains all journals, archive bytes, canonical captures and the idle replacement")
             verify(bundle)
             processes.start("installation", manager + ["start"], bundle, manager_environment)
             eventually(installed_ready, processes, "child installation restart", 60)
@@ -679,6 +712,15 @@ def run(args):
             require(plan()["reserved"] == 0 and len(model.requests) == model.total_calls and not model.errors
                     and inference_reservations(runtime_config, worker, attempt["id"], model.total_calls) == allowance,
                     "restart allocated work or repeated root/child inference")
+            replayed = runtime.request("POST", "/api/workers/ensure", data=cleanup["spec"])
+            require(replayed.get("worker_id") == worker and released(worker_snapshot(replayed))
+                    and not replayed.get("active_executions"), "original ensure replay resurrected the cleaned execution")
+            require_retained(journal_paths(bundle, runtime_config), worker, cleanup)
+            require(retained_canonical(), "restart after cleanup changed canonical capture")
+            require(plan()["reserved"] == 0 and len(model.requests) == model.total_calls and not model.errors
+                    and inference_reservations(runtime_config, worker, attempt["id"], model.total_calls) == allowance,
+                    "cleanup or original ensure replay changed capacity or inference")
+            checks.append("full restart and exact original ensure replay return the same retired worker without recreating its resources, changing any retained journal history or repeating inference")
             checks.append("target zero releases all reservations; full installation restart preserves root and child captures without new model calls")
             if initial_outcomes:
                 require(all(summary not in json.dumps(durable, ensure_ascii=False) for summary in OUTCOME_SUMMARIES.values()),
@@ -692,6 +734,7 @@ def run(args):
                       "active_observation": {"top_level_target": 1, "reserved_workers": 1, "active_executions": 3, "children": 2},
                       "active_scale_to_zero_observation": draining_observation,
                       "inference_allowance": allowance, "model_fixture_calls": len(model.requests), "final_reserved": plan()["reserved"],
+                      "owned_cleanup": cleanup["report"] | {"original_ensure_replay": "same retired worker; no resurrection"},
                       "proof": "real generated installation, canonical grants, Docker root/children, private brokers and durable capture; deterministic localhost model replies",
                       "not_proven": ["live provider compatibility", "model reasoning quality", "financial spend bound",
                                      "forced cancellation during active children", "independent semantic review", "forge publication", "merge authorization",

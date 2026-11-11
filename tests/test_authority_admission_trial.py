@@ -56,7 +56,11 @@ COMPANION_DDL = {
         CREATE TABLE child_profiles(deployment_id TEXT NOT NULL,repository TEXT NOT NULL,name TEXT NOT NULL,fingerprint TEXT);
         CREATE TABLE workers(worker_id TEXT PRIMARY KEY,spec TEXT NOT NULL,profile_fingerprint TEXT NOT NULL,container_id TEXT,
             create_dispatched INTEGER NOT NULL DEFAULT 0,start_dispatched INTEGER NOT NULL DEFAULT 0,
-            start_confirmed INTEGER NOT NULL DEFAULT 0,retired INTEGER NOT NULL DEFAULT 0,receipt TEXT);
+            start_confirmed INTEGER NOT NULL DEFAULT 0,retired INTEGER NOT NULL DEFAULT 0,receipt TEXT,
+            creation_version INTEGER NOT NULL DEFAULT 0,volume_creates INTEGER NOT NULL DEFAULT 0,
+            volume_create_acks INTEGER NOT NULL DEFAULT 0,volume_transport TEXT,volume_identity TEXT,
+            container_creates INTEGER NOT NULL DEFAULT 0,container_create_acks INTEGER NOT NULL DEFAULT 0,
+            container_transport TEXT,cleanup TEXT);
         CREATE TABLE attempts(worker_id TEXT PRIMARY KEY,attempt_id TEXT UNIQUE NOT NULL,input_sha256 TEXT NOT NULL,
             seconds REAL NOT NULL,deadline REAL NOT NULL,exec_id TEXT,exec_dispatched INTEGER NOT NULL DEFAULT 0,
             cancelled INTEGER NOT NULL DEFAULT 0,exit_code INTEGER);
@@ -185,6 +189,7 @@ class GeneratedAdmissionFixture(unittest.TestCase):
         original.rename(saved)
         with self.assertRaises(AssertionError):
             self.histories()
+
         self.assertFalse(original.exists(), "witness must not create a missing journal")
         original.symlink_to(saved)
         with self.assertRaises(AssertionError):
@@ -195,6 +200,16 @@ class GeneratedAdmissionFixture(unittest.TestCase):
         config = json.loads(config_path.read_text())
         config["state_directory"] = str(self.bundle / "state/openjules")
         config_path.write_text(json.dumps(config))
+        with self.assertRaises(AssertionError):
+            self.histories()
+
+    def test_prior_runtime_schema_cannot_satisfy_the_new_pinned_witness(self):
+        runtime = self.connections["runtime"]
+        runtime.executescript("""
+            ALTER TABLE workers RENAME TO retained_workers;
+            CREATE TABLE workers AS SELECT worker_id,spec,profile_fingerprint,container_id,create_dispatched,
+                start_dispatched,start_confirmed,retired,receipt FROM retained_workers;
+        """)
         with self.assertRaises(AssertionError):
             self.histories()
 
