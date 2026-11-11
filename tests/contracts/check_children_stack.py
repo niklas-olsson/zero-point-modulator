@@ -37,6 +37,10 @@ ROOT_RULES = (
 )
 BASE_TOOLS = {"read_file", "write_file", "list_files", "run_command", "finish"}
 CHILD_TOOLS = {"spawn_child", "child_status", "child_result", "cancel_child", "close_children"}
+OUTCOME_SUMMARIES = {
+    "left": "Completed left; request root review",
+    "right": "I decline the right change. Preserve this private decision: b\u00e5de kritik och val.",
+}
 SECRET_NAMES = (
     "ZPM_TRIAL_PROVIDER_TOKEN", "ZPM_MODEL_PROVIDER_TOKEN", "POLYPHONY_RUNTIME_TOKEN",
     "OPENJULES_WORKER_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY",
@@ -90,14 +94,19 @@ def text_hash(content):
 
 
 class ChildrenFixture(ModelFixture):
-    """Ten real inference replies, with an observation gate after both grants."""
+    """Bounded inference replies, with an observation gate after both grants."""
 
-    def __init__(self):
+    def __init__(self, initial_outcomes=False):
         super().__init__()
+        self.initial_outcomes = initial_outcomes
+        self.root_limit = 8 if initial_outcomes else 6
+        self.total_calls = self.root_limit + 4
+        self.compose_turn = self.root_limit - 1
         self.root_turns = 0
         self.child_turns = {"left": 0, "right": 0}
         self.child_ids = {}
         self.patches = {}
+        self.outcomes = {}
         self.two_spawned = threading.Event()
         self.release_root = threading.Event()
 
@@ -116,6 +125,8 @@ class ChildrenFixture(ModelFixture):
         require(ROOT_RULES.strip() in initial, "repository instructions did not reach the agent")
         child_name = next((name for name in self.child_turns if initial.startswith("CHILD_" + name + ":")), None)
         expected_tools = BASE_TOOLS if child_name else BASE_TOOLS | CHILD_TOOLS
+        if child_name and self.initial_outcomes:
+            expected_tools = expected_tools | {"report_outcome"}
         require({item["function"]["name"] for item in payload.get("tools", [])} == expected_tools,
                 "fixture tool schema mismatch or child received root controls")
         if child_name is None:
@@ -133,12 +144,18 @@ class ChildrenFixture(ModelFixture):
             if child_name:
                 require(turn <= 2, "unexpected extra child model call")
                 self.child_turns[child_name] = turn
-                tool, arguments = (
-                    ("write_file", {"path": child_name + ".txt", "content": child_name + " implemented\n"})
-                    if turn == 1 else ("finish", {"summary": "Completed " + child_name + "; request root review"})
-                )
+                if self.initial_outcomes and child_name == "right":
+                    tool, arguments = (
+                        ("read_file", {"path": "right.txt"}) if turn == 1 else
+                        ("report_outcome", {"outcome": "declined", "summary": OUTCOME_SUMMARIES["right"]})
+                    )
+                else:
+                    tool, arguments = (
+                        ("write_file", {"path": child_name + ".txt", "content": child_name + " implemented\n"})
+                        if turn == 1 else ("finish", {"summary": "Completed " + child_name + "; request root review"})
+                    )
             else:
-                require(turn <= 6, "unexpected extra root model call")
+                require(turn <= self.root_limit, "unexpected extra root model call")
                 self.root_turns = turn
                 if turn in {2, 3}:
                     child_id = json.loads(results[-1]["content"])["child_id"]
@@ -154,10 +171,25 @@ class ChildrenFixture(ModelFixture):
                             and page.get("total_bytes") == len(content.encode())
                             and page.get("content_sha256") == page.get("artifact_sha256") == text_hash(content),
                             "child result was not a complete hashed provisional patch page")
-                    require(f"diff --git a/{name}.txt b/{name}.txt" in content
-                            and content.count("diff --git ") == 1 and "+" + name + " implemented" in content,
-                            "child provisional patch does not match its assigned file")
+                    if self.initial_outcomes and name == "right":
+                        require(content == "", "declining child unexpectedly changed its assigned file")
+                    else:
+                        require(f"diff --git a/{name}.txt b/{name}.txt" in content
+                                and content.count("diff --git ") == 1 and "+" + name + " implemented" in content,
+                                "child provisional patch does not match its assigned file")
                     self.patches[name] = content
+                if self.initial_outcomes and turn in {6, 7}:
+                    name = "left" if turn == 6 else "right"
+                    status = json.loads(results[-1]["content"])
+                    outcome = status.get("initial_outcome", {})
+                    report = outcome.get("report", {})
+                    require(status.get("child_id") == self.child_ids[name] and status.get("final") is False
+                            and outcome.get("canonical_committed") is False
+                            and outcome.get("release_authorized") is False
+                            and report.get("outcome") == ("completed" if name == "left" else "declined")
+                            and report.get("summary") == OUTCOME_SUMMARIES[name],
+                            "parent did not receive the child's distinct provisional semantic report")
+                    self.outcomes[name] = outcome
                 if turn <= 2:
                     name = "left" if turn == 1 else "right"
                     tool, arguments = "spawn_child", {
@@ -168,22 +200,35 @@ class ChildrenFixture(ModelFixture):
                     name = "left" if turn == 3 else "right"
                     tool, arguments = "child_result", {"child_id": self.child_ids[name], "kind": "patch"}
                     pause = turn == 3
-                elif turn == 5:
+                elif self.initial_outcomes and turn in {5, 6}:
+                    name = "left" if turn == 5 else "right"
+                    tool, arguments = "child_status", {"child_id": self.child_ids[name]}
+                elif turn == self.compose_turn:
                     script = "import json,os,pathlib,socket,struct,subprocess\n" + DENY_SOCKET
                     script += "subprocess.run(['git','apply','-'],input=" + repr(self.patches["left"] + self.patches["right"]) + ",text=True,check=True)\n"
+                    if self.initial_outcomes:
+                        script += "assert pathlib.Path('right.txt').read_text()=='old\\n'\n"
+                        script += "pathlib.Path('right.txt').write_text('right implemented\\n')\n"
+                        script += "print('ROOT_COMPLETED_DECLINED_RIGHT')\n"
                     script += "assert os.getuid()==65532 and not os.access('/workspace/children',os.W_OK)\n"
                     script += "for child in " + repr(list(self.child_ids.values())) + ":\n"
                     script += " assert not os.access('/workspace/children/'+child+'/run',os.R_OK)\n"
                     script += " deny_socket('/run/openjules-model/children/'+child+'/model.sock')\n"
+                    if self.initial_outcomes:
+                        script += " deny_socket('/run/openjules-model/children/'+child+'/outcome.sock')\n"
                     script += "subprocess.run(['python3','-m','unittest','discover','-v'],check=True)\n"
-                    script += "print('ROOT_COMPOSED_BOTH_CHILD_PATCHES')\n"
+                    marker = "ROOT_PRESERVED_DECLINE_AND_COMPLETED_WORK" if self.initial_outcomes else "ROOT_COMPOSED_BOTH_CHILD_PATCHES"
+                    script += "print(" + repr(marker) + ")\n"
                     tool, arguments = "run_command", {"argv": ["python3", "-I", "-c", script]}
                 else:
                     verification = json.loads(results[-1]["content"])
+                    marker = "ROOT_PRESERVED_DECLINE_AND_COMPLETED_WORK" if self.initial_outcomes else "ROOT_COMPOSED_BOTH_CHILD_PATCHES"
                     require(verification.get("state") == "exited" and verification.get("exit_code") == 0
-                            and "ROOT_COMPOSED_BOTH_CHILD_PATCHES" in verification.get("output", ""),
-                            "root did not compose and verify both returned child patches")
-                    tool, arguments = "finish", {"summary": "Composed both child patches and passed combined tests; request independent review"}
+                            and marker in verification.get("output", ""),
+                            "root did not compose and verify the declared contributions")
+                    summary = ("Preserved the right child's decline, composed left and completed right as root; passed combined tests; request independent review"
+                               if self.initial_outcomes else "Composed both child patches and passed combined tests; request independent review")
+                    tool, arguments = "finish", {"summary": summary}
             self.requests.append(payload)
         if pause:
             self.two_spawned.set()
@@ -210,7 +255,7 @@ def read_artifacts(authority, scope, mapping, sensitive, *, attempt_id=None, chi
     return artifacts
 
 
-def verify_root_log(content):
+def verify_root_log(content, compose_turn=5):
     """Match the runner's recorded events without requiring private tool output."""
     events = []
     for line in content.splitlines():
@@ -221,14 +266,14 @@ def verify_root_log(content):
         if isinstance(event, dict):
             events.append(event)
     require(any(event.get("event") == "tool" and event.get("name") == "run_command"
-                and event.get("turn") == 5 for event in events),
+                and event.get("turn") == compose_turn for event in events),
             "root capture lacks its composition command event")
     require(any(event.get("event") == "configured_verification" and event.get("state") == "exited"
                 and event.get("exit_code") == 0 and "CHILD_STACK_ROOT_VERIFIED" in event.get("output", "")
                 for event in events), "root capture lacks successful configured test and isolation verification")
 
 
-def inference_reservations(runtime_config, worker, attempt):
+def inference_reservations(runtime_config, worker, attempt, expected_calls=10):
     """Read only reservation metadata, never stored model inputs or responses."""
     database = Path(runtime_config["state_directory"]) / "models/inference.sqlite3"
     with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as connection:
@@ -236,8 +281,8 @@ def inference_reservations(runtime_config, worker, attempt):
             "SELECT request_id,reserved_tokens,status FROM calls WHERE worker_id=? AND attempt_id=?",
             (worker, attempt),
         ).fetchall()
-    require(len(rows) == 10 and all(tokens == 1024 and status == "complete" for _, tokens, status in rows),
-            "root and children did not share exactly ten completed inference reservations")
+    require(len(rows) == expected_calls and all(tokens == 1024 and status == "complete" for _, tokens, status in rows),
+            "root and children did not share the exact approved inference reservations")
     require(sum(request.startswith("/child/") for request, _, _ in rows) == 4,
             "child inference was not charged to the root allowance")
     return {"calls": len(rows), "child_calls": 4, "reserved_output_tokens": sum(row[1] for row in rows)}
@@ -277,7 +322,8 @@ def run(args):
     root.mkdir(mode=0o700)
     processes = Processes(root)
     checks, revisions, sensitive = [], {}, set()
-    with ChildrenFixture() as model:
+    initial_outcomes = bool(getattr(args, "initial_outcomes", False))
+    with ChildrenFixture(initial_outcomes) as model:
         sensitive.add(model.token)
         try:
             image = subprocess.check_output(["docker", "image", "inspect", "--format", "{{.Id}}", args.image],
@@ -303,7 +349,7 @@ def run(args):
                                                       text=True, timeout=15).strip() for name, path in paths.items()}
             scope = {"deployment_id": "children-trial-" + secrets.token_hex(8),
                      "repository": "github:github.com/managed-children-trial/repository"}
-            profile = "approved-children-agent-v1"
+            profile = "approved-child-outcomes-v1" if initial_outcomes else "approved-children-agent-v1"
             authority_port, runtime_port = port(), port()
             while authority_port == runtime_port:
                 runtime_port = port()
@@ -315,16 +361,17 @@ def run(args):
                 "source": {"checkout": str(source), "revision": base}, "image": image,
                 "command": ["python3", "-I", "-S", "/opt/openjules/managed_root_runner.py",
                             "--socket", "/run/openjules-model/model.sock", "--control-socket", "/run/openjules-model/control.sock",
-                            "--max-turns", "6", "--verify-json", json.dumps(VERIFY)],
+                            "--max-turns", str(model.root_limit), "--verify-json", json.dumps(VERIFY)],
                 "ports": {"polyphony": authority_port, "openjules": runtime_port},
                 "runtime": {"max_seconds": 240},
                 "policy": {"checks": ["repository-tests"], "reviewers": ["operator"], "max_attempts": 1,
                            "budget_seconds": 360, "attempt_seconds": 180, "capabilities": ["python"]},
                 "model_policy": {"endpoint": model.endpoint, "model": MODEL_NAME, "token_ref": "env:" + TOKEN_SOURCE,
-                                 "max_calls": 10, "max_output_tokens": 1024, "max_total_output_tokens": 10240,
+                                 "max_calls": model.total_calls, "max_output_tokens": 1024, "max_total_output_tokens": model.total_calls * 1024,
                                  "request_timeout_seconds": 30},
                 "child_policy": {"max_children": 2, "max_child_seconds": 90, "max_child_turns": 2,
-                                 "capabilities": ["python"], "uid_start": 60000, "verify_argv": CHILD_VERIFY},
+                                 "capabilities": ["python"], "uid_start": 60000, "verify_argv": CHILD_VERIFY,
+                                 **({"outcome_protocol": "initial-v1"} if initial_outcomes else {})},
             }, bundle)
             verify(bundle)
             environment_tokens = json.loads((bundle / "secrets/environment.json").read_text())
@@ -475,8 +522,8 @@ def run(args):
                 return (report, attempts[0], candidates[0]) if len(attempts) == len(candidates) == 1 and attempts[0].get("termination_confirmed") else None
 
             evidence, attempt, candidate = eventually(captured, processes, "root composition and canonical child capture", 100)
-            require(len(evidence["task"]) == len(evidence["attempt"]) == 1 and len(model.requests) == 10
-                    and model.root_turns == 6 and model.child_turns == {"left": 2, "right": 2},
+            require(len(evidence["task"]) == len(evidence["attempt"]) == 1 and len(model.requests) == model.total_calls
+                    and model.root_turns == model.root_limit and model.child_turns == {"left": 2, "right": 2},
                     "execution duplicated tasks, grants or model calls")
             require(attempt.get("launch_fenced") is True, "root capture lacks its final launch fence")
             artifacts = read_artifacts(authority, scope, attempt.get("captured_artifacts", {}), sensitive)
@@ -484,7 +531,7 @@ def run(args):
             require(root_manifest.get("worker_id") == worker and root_manifest.get("attempt_id") == attempt["id"]
                     and root_manifest.get("base_commit") == base and root_manifest.get("termination_confirmed") is True
                     and root_manifest.get("launch_fenced") is True, "root manifest is not bound to the terminated approved execution")
-            verify_root_log(artifacts["log"])
+            verify_root_log(artifacts["log"], model.compose_turn)
             canonical_children = children(attempt["id"])
             require(canonical_children["admission_closed"] is True and len(canonical_children["children"]) == 2,
                     "root completion did not close child admission or retain both grants")
@@ -518,24 +565,62 @@ def run(args):
                 require(type(manifest.get("armed_deadline_monotonic")) in {int, float}
                         and 0 < manifest["armed_deadline_monotonic"] <= manifest["deadline_monotonic"],
                         "child manifest lacks its monotonically bounded armed deadline")
-                require(captured_child["patch"] == model.patches[name]
-                        and "CHILD_STACK_BOUNDARY_VERIFIED uid=" + str(uid) in captured_child["log"]
-                        and '"event": "configured_verification"' in captured_child["log"],
-                        "final child artifact differs from its composed result or lacks UID and boundary verification")
+                require(captured_child["patch"] == model.patches[name],
+                        "final child artifact differs from its provisional result")
+                if initial_outcomes and name == "right":
+                    require(captured_child["patch"] == ""
+                            and '"event": "configured_verification"' not in captured_child["log"],
+                            "declined child was forced to implement or verify the requested change")
+                else:
+                    require("CHILD_STACK_BOUNDARY_VERIFIED uid=" + str(uid) in captured_child["log"]
+                            and '"event": "configured_verification"' in captured_child["log"],
+                            "completed child lacks UID and boundary verification")
+                if initial_outcomes:
+                    outcome = manifest.get("work_outcome")
+                    retained = {key: value for key, value in model.outcomes[name].items()
+                                if key not in {"canonical_committed", "release_authorized"}}
+                    require(outcome == retained and child.get("initial_outcome") == outcome | {
+                        "artifacts": child["captured_artifacts"], "canonical_committed": True, "release_authorized": False,
+                    }, "canonical outcome differs from the parent's retained report or final capture references")
+                    require(all(outcome[key] == binding[key] for key in (
+                        "child_id", "root_attempt_id", "parent_attempt_id", "task_id",
+                        "requirements_revision", "grant_digest", "instructions_digest",
+                    )), "initial outcome is not bound to the original canonical instruction")
+                    report = outcome["report"]
+                    payload = {key: report[key] for key in ("request_key", "outcome", "summary")}
+                    canonical = lambda value: json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+                    require(type(outcome["schema_version"]) is int and outcome["schema_version"] == 1
+                            and type(outcome["ordinal"]) is int and outcome["ordinal"] == 1
+                            and outcome["source"] == "child_report_via_bound_runtime"
+                            and outcome["work_turn_id"] == text_hash(canonical([
+                                "polyphony-child-work-v1", child["id"], binding["grant_digest"], 1,
+                            ])) and report["payload_digest"] == text_hash(canonical(payload)),
+                            "initial outcome changed its logical instruction or canonical payload digest")
+                else:
+                    require("work_outcome" not in manifest and "initial_outcome" not in child,
+                            "legacy child policy acquired an implicit outcome protocol")
                 uids.add(uid)
                 child_policy_digests.add(manifest["child_policy"])
                 lineage.append({"child_id": child["id"], "grant_digest": binding["grant_digest"], "artifacts": child["captured_artifacts"]})
                 child_evidence.append({"child_id": child["id"], "uid": uid, "turns": child["turns_allocated"],
                                        "grant_digest": binding["grant_digest"], "artifacts": child["captured_artifacts"]})
+                if initial_outcomes:
+                    child_evidence[-1]["semantic_outcome"] = outcome["report"]["outcome"]
+                    child_evidence[-1]["canonical_committed"] = True
             lineage.sort(key=lambda item: item["child_id"])
             require(uids == {60000, 60001} and attempt.get("child_lineage") == candidate.get("child_lineage") == lineage,
                     "root candidate does not bind both final child capture lineages")
             require(candidate["patch"] == attempt["captured_artifacts"]["patch"] and candidate["base"] == base
                     and evidence["task"][0]["status"] == "awaiting_review" and not evidence.get("admission"),
                     "root candidate changed its capture or self-authorized acceptance")
-            allowance = inference_reservations(runtime_config, worker, attempt["id"])
-            checks.append("six root and four child model calls share ten durable reservations; both final child manifests bind distinct UIDs, canonical grants and the fenced root archive")
-            checks.append("children cannot read root work or use root model/control sockets; root cannot read child work or use child model sockets; captured candidate binds both final child lineages and awaits review")
+            allowance = inference_reservations(runtime_config, worker, attempt["id"], model.total_calls)
+            checks.append(f"{model.root_limit} root and four child model calls share {model.total_calls} durable reservations; both final child manifests bind distinct UIDs, canonical grants and the fenced root archive")
+            checks.append("completed children cannot read root work or use root model/control sockets; root cannot read child work or use child model sockets; captured candidate binds both final child lineages and awaits review")
+            if initial_outcomes:
+                require(all(summary not in json.dumps(evidence, ensure_ascii=False) for summary in OUTCOME_SUMMARIES.values()),
+                        "private child summary leaked into the broad canonical snapshot")
+                checks.append("the parent receives completed and declined provisional outcomes; final canonical records preserve both reports and exact capture references without granting release authority")
+                checks.append("decline keeps an empty child patch and skips child verification; the root explicitly completes the remaining file and passes combined verification")
 
             verifier = root / "artifact-verification"
             subprocess.run(["git", "clone", "-q", "--no-hardlinks", str(source), str(verifier)], check=True, timeout=15)
@@ -577,6 +662,7 @@ def run(args):
             verify(bundle)
             processes.start("installation", manager + ["start"], bundle, manager_environment)
             eventually(installed_ready, processes, "child installation restart", 60)
+            authority = Client(authority_endpoint, environment_tokens["POLYPHONY_RUNTIME_TOKEN"])
             durable = snapshot()
             durable_children = children(attempt["id"])
             require(len(durable["attempt"]) == len(durable["candidate"]) == 1
@@ -590,10 +676,14 @@ def run(args):
             for child in child_evidence:
                 read_artifacts(authority, scope, child["artifacts"], sensitive,
                                attempt_id=attempt["id"], child_id=child["child_id"])
-            require(plan()["reserved"] == 0 and len(model.requests) == 10 and not model.errors
-                    and inference_reservations(runtime_config, worker, attempt["id"]) == allowance,
+            require(plan()["reserved"] == 0 and len(model.requests) == model.total_calls and not model.errors
+                    and inference_reservations(runtime_config, worker, attempt["id"], model.total_calls) == allowance,
                     "restart allocated work or repeated root/child inference")
             checks.append("target zero releases all reservations; full installation restart preserves root and child captures without new model calls")
+            if initial_outcomes:
+                require(all(summary not in json.dumps(durable, ensure_ascii=False) for summary in OUTCOME_SUMMARIES.values()),
+                        "restart exposed private child summaries in the broad snapshot")
+                checks.append("a fresh authorized runtime client reconnects after full service restart and retrieves identical committed private child outcomes; no child or inference is replayed")
 
             report = {"passed": True, "schema_version": 1, "deployment_id": scope["deployment_id"], "image": image,
                       "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed", "checks": checks,
@@ -604,7 +694,16 @@ def run(args):
                       "inference_allowance": allowance, "model_fixture_calls": len(model.requests), "final_reserved": plan()["reserved"],
                       "proof": "real generated installation, canonical grants, Docker root/children, private brokers and durable capture; deterministic localhost model replies",
                       "not_proven": ["live provider compatibility", "model reasoning quality", "financial spend bound",
-                                     "forced cancellation during active children", "independent semantic review", "forge publication", "merge authorization"]}
+                                     "forced cancellation during active children", "independent semantic review", "forge publication", "merge authorization",
+                                     "two-round live child conversation", "managed public conversation", "automatic root-agent process resumption"]}
+            if initial_outcomes:
+                report["initial_outcome_protocol"] = "initial-v1"
+                report["publication_compatibility"] = {
+                    "qualified": False,
+                    "reason": "root adds work beyond child patches; the publisher contract would reject candidate_tree_mismatch; publication is not invoked",
+                }
+                require(all(summary not in json.dumps(report, ensure_ascii=False) for summary in OUTCOME_SUMMARIES.values()),
+                        "shareable verification report contains a private child summary")
             require(all(token not in json.dumps(report) for token in sensitive), "verification report contains a credential")
             private_json(root / "report.json", report)
             return report
@@ -625,6 +724,7 @@ def main():
         parser.add_argument(f"--{name}-checkout", type=Path, required=True)
     parser.add_argument("--image", required=True, help="already-present full sha256 ID from the managed-agent Dockerfile")
     parser.add_argument("--work-dir", type=Path, required=True, help="new private directory, retained for recovery")
+    parser.add_argument("--initial-outcomes", action="store_true", help="qualify explicit completion, decline and durable private outcome recovery")
     args = parser.parse_args()
     args.polyphony_checkout = args.polyphony_checkout.resolve(strict=True)
     args.openjules_checkout = args.openjules_checkout.resolve(strict=True)

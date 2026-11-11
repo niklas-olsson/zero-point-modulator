@@ -21,11 +21,13 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `3f0575364cc4b8d96e703f161652ec6fdfc8a6a1`, durable control replay candidate |
-| Keystone Polyphony | `473df5a0406accfe5cb550877e7b28a602cb116c`, merged child grants and durable conversation baseline |
+| OpenJules | `7ca211ebb01d041827df5e480ad65c30cf7ba9ee`, initial child outcomes and durable control replay candidate |
+| Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
-The OpenJules candidate adds
+The paired initial-outcome changes are [OpenJules #16](https://github.com/niklas-olsson/OpenJules/pull/16)
+and [Polyphony #122](https://github.com/niklas-olsson/keystone-polyphony/pull/122).
+The OpenJules candidate also contains
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15).
 The previous integrated candidate could acknowledge a drain while its runtime
 lock was busy, then fail to close canonical child admission. The unchanged
@@ -88,9 +90,55 @@ uses a synthetic credential. The manager maps that credential into the trusted
 OpenJules process; neither guest environments nor command arguments contain it.
 There is no option to choose a remote model endpoint for this test.
 
+## Explicit initial outcomes
+
+The same CI job also runs a fresh installation with `--initial-outcomes` and a
+different work directory. This variant enables `outcome_protocol: "initial-v1"`
+on the approved child policy. The default run continues to check omitted-policy
+compatibility and two successfully contributed patches.
+
+In the outcome variant the left child changes its file and explicitly finishes.
+The right child reads its assigned file, then calls `report_outcome` with a
+private decline. It leaves an empty patch. The root retrieves both provisional
+patches, reads both typed reports, applies the left contribution and explicitly
+completes the right change itself. Combined verification still requires both
+files. The final record preserves the right child's refusal, separate from the
+root's successful work and from runtime termination.
+
+Because the root adds the right change itself, this variant is not compatible
+with the existing child-only composition publisher. That publisher requires the
+tree composed from child patches to equal the canonical root candidate and
+would reject this variant with `candidate_tree_mismatch`. That is an inference
+from the publisher contract; this trial does not invoke publication. The default two-patch trial
+continues to exercise that composition shape. Outcome recovery does not relax
+the publication boundary or force a declining child to accept the work.
+
+Eight root calls and four child calls share exactly twelve inference
+reservations and 12,288 reserved output tokens. Callback delivery, canonical
+capture, reconnect and idle waiting add no model calls. The child allocation,
+deadlines, one-worker capacity, active drain and whole-worker capture barriers
+remain the same as in the default scenario.
+
+The trial compares each provisional report with the exact final manifest and
+the canonical child projection, including the original grant/instruction
+binding, Unicode payload digest, logical initial-turn identity and final artifact
+references. It checks that private summaries are absent from broad snapshots and
+the shareable report. After every service restarts, a new authorized runtime
+client retrieves identical child records and artifact bytes without re-executing
+the children or inference. Local reports explicitly lack canonical commitment;
+the final records remain `release_authorized: false`.
+
+This is a deterministic initial-instruction demonstration. It does not prove
+live-provider reasoning, independent semantic review, two rounds with a live
+child, a managed public conversation bridge or automatic resumption of a dead
+parent agent loop. The provider fixtures choose the completion and decline;
+actual processes, UID-bound callbacks, service journals and captures execute
+the protocol. The actual root process also attempts both children's outcome
+sockets and must receive UID-based authorization denial.
+
 ## Bounded execution and accounting
 
-The installed trial uses the following deliberately explicit allowances:
+The default scenario uses the following deliberately explicit allowances:
 
 | Allowance | Trial value |
 | --- | --- |
@@ -145,7 +193,7 @@ extended by model or control retries.
 
 ## Required evidence
 
-The trial fails unless all of these assertions pass through the actual service
+The default scenario fails unless all of these assertions pass through the actual service
 and container boundaries:
 
 1. The generated installation has matching Polyphony and OpenJules child

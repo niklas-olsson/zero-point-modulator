@@ -220,6 +220,7 @@ the command, UID, provider, credentials or execution identity.
 | `command` | Operator-approved child runner argv; defaults to the ordinary managed runner |
 | `verify_argv` | Optional operator-approved child verification argv; defaults to no extra command |
 | `max_result_bytes` | Bound per child patch/log result, 1,024–4,000,000 bytes; default 4,000,000 |
+| `outcome_protocol` | Optional `initial-v1`, only with the default managed child runner; requires canonical `child_initial_outcome: 1` support |
 
 These capability names describe the approved runner bundle. Removing a model
 tool does not establish a new operating-system privilege boundary. Each child
@@ -245,6 +246,22 @@ Changing child policy requires a new approved profile and worker incarnation;
 an existing root-only watchdog cannot acquire children through a config edit.
 Omitting `child_policy` preserves the existing root-only profile and behavior.
 
+With `child_policy.outcome_protocol: "initial-v1"`, a child explicitly reports
+`completed`, `declined`, `needs_clarification` or `failed` through its own
+authenticated host callback. The root can inspect the provisional report with
+`child_status`. The final canonical child record retains that report and its
+exact captured artifacts for authorized retrieval after service restart.
+Completion remains a self-report, separate from verification, termination and
+independent acceptance. Decline and clarification preserve partial work and do
+not compel another child execution. A child that never reports stays unreported.
+
+The setting is omitted from legacy child policy serialization. Enabling it
+changes the runtime policy fingerprint and requires a new approved profile and
+worker incarnation. A missing authority capability blocks readiness, even if
+the authority responds successfully. This first outcome refers to the initial
+instruction only. It does not add a second live instruction, public conversation
+or automatic replay of a parent agent process.
+
 The [child installation trial](managed-children-stack-trial.md) records the
 candidate component pins and required qualification gates. It exercises graceful
 target-zero draining while the root and both children remain active. It retains the worker reservation until
@@ -253,7 +270,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/3f0575364cc4b8d96e703f161652ec6fdfc8a6a1/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/7ca211ebb01d041827df5e480ad65c30cf7ba9ee/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature

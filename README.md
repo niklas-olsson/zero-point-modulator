@@ -275,6 +275,10 @@ binds bounded children to that profile and its canonical task budget. It uses a
 new child-enabled worker incarnation, distinct child UIDs and the same root
 model allowance. Child expiry or cancellation retires the whole worker; final
 capture precedes root finalization. Children do not increase the ZPM target.
+An optional `child_policy.outcome_protocol: "initial-v1"` retains each child's
+explicit completion, decline, clarification or failure through final capture
+and service restart. The supporting authority capability is required; an
+outcome never substitutes for verification, termination or independent review.
 
 ```sh
 python -m unittest discover -v

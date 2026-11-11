@@ -19,14 +19,17 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`3f0575364cc4b8d96e703f161652ec6fdfc8a6a1`](https://github.com/niklas-olsson/OpenJules/commit/3f0575364cc4b8d96e703f161652ec6fdfc8a6a1) |
+| OpenJules | [`7ca211ebb01d041827df5e480ad65c30cf7ba9ee`](https://github.com/niklas-olsson/OpenJules/commit/7ca211ebb01d041827df5e480ad65c30cf7ba9ee) |
 
 This is the same candidate OpenJules revision used by all three installed-stack
-jobs. Their common Polyphony pin is `473df5a0406accfe5cb550877e7b28a602cb116c`;
-this HTTP-only trial does not run Polyphony. The OpenJules candidate adds
+jobs. Their common Polyphony pin is `653c0a71a921c0d23b8e0171277524125e929e66`;
+this HTTP-only trial does not run Polyphony. The OpenJules candidate includes
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15)
 after an accepted drain or stop encounters a busy runtime lock. The deterministic
 regression below requires that replay without another client control request.
+The same pins also pair OpenJules' opt-in initial child outcomes with Polyphony's
+final-manifest validation. The separate installed child variant exercises that
+callback/capture contract; this HTTP lifecycle trial does not.
 The candidate requires OpenJules' full repository CI and the changed ZPM
 revision's unit/package checks and all four integration jobs before promotion.
 Record exact ZPM and component revisions,
