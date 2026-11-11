@@ -29,15 +29,14 @@ pair. This harness still prepares separate schema-1 bundles. Its evidence does
 not qualify shared-service runtime isolation; the separate
 [two-repository shared-service trial](managed-multi-repository-stack-trial.md)
 requires its own actual Docker result. This report names its tested topology
-explicitly and must
-not close that remaining acceptance criterion in
+explicitly and cannot supply the shared-service acceptance evidence in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
 ## Exact candidate set
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `7ca211ebb01d041827df5e480ad65c30cf7ba9ee`, initial child outcomes and durable control replay candidate |
+| OpenJules | `c85867c9a110f6c3ea00a53e6a721a15ce15782d`, merged initial child outcomes and durable control replay |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial outcome authority candidate |
 | ZPM | The workflow's checked-out revision, recorded in the report |
 

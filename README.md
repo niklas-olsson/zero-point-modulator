@@ -278,7 +278,12 @@ targets, pause/removal, credentials and history. Schema-1 bundles keep their
 existing shape; adding repositories or converting a live bundle is an
 unsupported upgrade. Configuration tests do not replace the
 [actual shared-service isolation trial](docs/managed-multi-repository-stack-trial.md),
-whose exact passing revision set remains required by
+whose qualification is tied to an explicit revision set. The
+[retained shared-service result](docs/managed-multi-repository-stack-trial.md#retained-qualification)
+passed all eight jobs and demonstrated B's original execution continuing through
+A's source failure, quota limit, pause and removal, with both captures preserved
+through restart. The refreshed merged OpenJules pin has its own required
+eight-job qualification, tracked in
 [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 The [model deployment example](examples/deployment-model.json) adds an explicit
 provider policy and uses the managed agent image. Its provider token resolves

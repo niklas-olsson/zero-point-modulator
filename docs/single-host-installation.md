@@ -56,7 +56,8 @@ deployment IDs, private directories and service ports. The
 [installed isolation trial](managed-isolation-stack-trial.md) exercises that
 schema-1 topology, including one installation's outage and removal while the
 other task continues. Its result does not establish the new shared-service
-topology. Schema-2 runtime isolation requires a separate installed trial.
+topology. The separate [schema-2 trial](managed-multi-repository-stack-trial.md)
+records shared-service qualification for its exact tested revision set.
 Neither topology supports multiple deployments behind one OpenJules API.
 Trusted services sharing Docker access are not mutually isolated host tenants.
 
@@ -242,7 +243,10 @@ size, secret resolution and retained state. The separate
 [shared-service installed trial](managed-multi-repository-stack-trial.md) exercises
 two schema-2 repositories with one controller and one service pair. Its dedicated
 Docker job must pass on the intended revision set before claiming this topology;
-the other installed trials exercise schema 1.
+the other installed trials exercise schema 1. Its
+[retained qualification](managed-multi-repository-stack-trial.md#retained-qualification)
+records the first passing eight-job revision set, including both canonical
+captures after restart. Refreshing a component pin requires a new complete run.
 Its source-failure evidence must stay scoped: a shared service, authority or
 Docker outage affects both repositories, and broker readiness can couple model
 profiles when an endpoint is unavailable. An already-running B task may continue
@@ -423,7 +427,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/7ca211ebb01d041827df5e480ad65c30cf7ba9ee/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/c85867c9a110f6c3ea00a53e6a721a15ce15782d/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature

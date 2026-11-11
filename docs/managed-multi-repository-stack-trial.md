@@ -21,7 +21,7 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `7ca211ebb01d041827df5e480ad65c30cf7ba9ee` |
+| OpenJules | `c85867c9a110f6c3ea00a53e6a721a15ce15782d` |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66` |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
@@ -32,6 +32,38 @@ merge status. A component test result does not qualify a different set.
 Installed service Python versions are recorded; dependency-resolution files
 remain in the private bundle. This is not a complete dependency lock or a
 reproducible-image-build claim.
+
+
+## Retained qualification
+
+The controlled shared-service topology passed all eight jobs on 2026-11-11 for
+this exact historical set:
+
+| Component | Qualified revision |
+| --- | --- |
+| ZPM | `f54775a4930a7911938b890f59ed38e39c809580` |
+| OpenJules | `7ca211ebb01d041827df5e480ad65c30cf7ba9ee` |
+| Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66` |
+
+The [push run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43057098768)
+tested that exact ZPM head. The
+[PR run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43057117792)
+tested merge `a6d825d59d68cab65a167cfd058e4767dfccda1d`, whose tree
+`b54d828b25d415966964bd376586a3776ef839b6` equals the head's tree.
+All four unit jobs passed 106 tests. Both actual shared-service jobs demonstrated
+two completed controller passes for each source-failure and quota window, nine
+fresh B progress checkpoints, an unchanged single B worker, both canonical
+captures through restart and zero final reservations. The complete exact-head
+aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
+
+The workflow now selects the merged OpenJules revision
+`c85867c9a110f6c3ea00a53e6a721a15ce15782d` from
+[OpenJules #16](https://github.com/niklas-olsson/OpenJules/pull/16), with the
+Polyphony pin unchanged. That refreshed set requires its own complete eight-job
+ZPM qualification and current component CI. The historical results above remain
+bound to their recorded revisions; they are not results for the new pin.
+Record the refreshed set's actual outcome in
+[ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
 ## Scene and evidence
 

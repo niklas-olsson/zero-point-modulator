@@ -19,20 +19,21 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`7ca211ebb01d041827df5e480ad65c30cf7ba9ee`](https://github.com/niklas-olsson/OpenJules/commit/7ca211ebb01d041827df5e480ad65c30cf7ba9ee) |
+| OpenJules | [`c85867c9a110f6c3ea00a53e6a721a15ce15782d`](https://github.com/niklas-olsson/OpenJules/commit/c85867c9a110f6c3ea00a53e6a721a15ce15782d) |
 
-This is the same candidate OpenJules revision used by all three installed-stack
+This is the same merged OpenJules revision used by all five installed-stack
 jobs. Their common Polyphony pin is `653c0a71a921c0d23b8e0171277524125e929e66`;
-this HTTP-only trial does not run Polyphony. The OpenJules candidate includes
+this HTTP-only trial does not run Polyphony. The merged OpenJules revision includes
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15)
 after an accepted drain or stop encounters a busy runtime lock. The deterministic
 regression below requires that replay without another client control request.
 The same pins also pair OpenJules' opt-in initial child outcomes with Polyphony's
 final-manifest validation. The separate installed child variant exercises that
 callback/capture contract; this HTTP lifecycle trial does not.
-The candidate requires OpenJules' full repository CI and the changed ZPM
-revision's unit/package checks and all five integration jobs before promotion.
-Record exact ZPM and component revisions,
+The refreshed set requires OpenJules' full repository CI and all eight jobs on
+the changed ZPM revision: unit/package/CLI checks on both Python versions, this
+HTTP lifecycle job and all five Docker installation jobs. Historical runs do
+not qualify a different revision set. Record exact ZPM and component revisions,
 CI links and remaining acceptance in [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
 Both revisions are printed in the job log. The contract job runs on Python 3.12,
