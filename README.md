@@ -331,7 +331,10 @@ agent and broker against a deterministic localhost provider fixture, including
 canonical ingress, captured hashes and independent patch verification. The
 [child trial](docs/managed-children-stack-trial.md) runs two real children inside
 one worker, composes their returned patches, drains to zero during active work,
-and verifies final capture and restart without repeated inference. The
+and verifies final capture and restart without repeated inference. It also
+invokes the installed OpenJules host cleanup against the real retained authority,
+then checks identical replay, preserved journals and artifacts, untouched idle
+replacement resources and original ensure replay without resurrection. The
 [isolation trial](docs/managed-isolation-stack-trial.md) installs two independent
 single-repository deployments on one Docker Engine and requires one deployment's
 original task to keep progressing while the other scales, drains, loses service,

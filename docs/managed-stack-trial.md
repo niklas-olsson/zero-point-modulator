@@ -32,7 +32,7 @@ The CI job currently pins:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `c85867c9a110f6c3ea00a53e6a721a15ce15782d`, merged initial child outcomes and durable control replay |
+| OpenJules | `3e62230b8cfca02b4aaae19ec7a194f919fa822c`, merged owned cleanup, initial child outcomes and durable control replay |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The workflow's checked-out candidate revision, recorded in the report |
 

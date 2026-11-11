@@ -424,10 +424,28 @@ candidate component pins and required qualification gates. It exercises graceful
 target-zero draining while the root and both children remain active. It retains the worker reservation until
 final canonical captures exist, then verifies restart without new inference.
 
+## Clean a captured worker's runtime resources
+
+The pinned OpenJules runtime provides an
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/3e62230b8cfca02b4aaae19ec7a194f919fa822c/docs/managed-docker-runtime.md#explicit-host-cleanup).
+Use its installed environment, generated `config/openjules.json`, and original
+deployment/repository/worker scope. Stop the OpenJules service through its
+supervisor first and retain access to the original canonical authority. The
+generated foreground manager stops services together; the
+[child trial's cleanup phase](managed-children-stack-trial.md#explicit-cleanup-boundary)
+reopens that same installed authority on its original private database and port
+while cleanup runs, then resumes the normal full-service restart.
+
+Only proven executed captures qualify. Idle, legacy or ambiguous resource
+creation remains retained. Host archives, journals and canonical artifacts stay
+available, and managed resource names must never be manually recycled. Removal
+and target zero continue to preserve runtime resources unless this separate
+OpenJules operation is explicitly invoked.
+
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/c85867c9a110f6c3ea00a53e6a721a15ce15782d/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/3e62230b8cfca02b4aaae19ec7a194f919fa822c/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature

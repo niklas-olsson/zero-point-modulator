@@ -21,7 +21,7 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `c85867c9a110f6c3ea00a53e6a721a15ce15782d` |
+| OpenJules | `3e62230b8cfca02b4aaae19ec7a194f919fa822c` |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66` |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
@@ -57,8 +57,10 @@ captures through restart and zero final reservations. The complete exact-head
 aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
 
 The workflow now selects the merged OpenJules revision
-`c85867c9a110f6c3ea00a53e6a721a15ce15782d` from
-[OpenJules #16](https://github.com/niklas-olsson/OpenJules/pull/16), with the
+`3e62230b8cfca02b4aaae19ec7a194f919fa822c` from
+[OpenJules #18](https://github.com/niklas-olsson/OpenJules/pull/18), including
+strict cleanup transport checks and explicit owned cleanup alongside the earlier
+child outcomes and durable replay, with the
 Polyphony pin unchanged. That refreshed set requires its own complete eight-job
 ZPM qualification and current component CI. The historical results above remain
 bound to their recorded revisions; they are not results for the new pin.
