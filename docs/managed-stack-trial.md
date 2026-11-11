@@ -29,12 +29,21 @@ below, deliberately uses two explicit OpenJules service configurations after the
 generated installation has stopped.
 It repeats preparation and bootstrap and requires the original credentials,
 sealed manifest and completed-environment records to remain unchanged.
+The dedicated OpenJules interpreter also proves the fixed managed-context
+contract during bootstrap, repeated bootstrap, start and doctor. Before any
+service starts, the harness invokes a syntactically valid legacy `src.cli run`
+command with no credentials, requires the explicit managed-installation refusal,
+and compares retained state hashes and the entire Docker container/volume
+inventory. It preserves the selector bytes and then runs the normal canonical
+execution and recovery scene. This proves the installed refusal boundary for
+the tested source set, without treating an offline protocol fixture as an
+actual legacy entry-point result.
 
 The CI job currently pins:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6`, merged owned cleanup, initial child outcomes and durable control replay |
+| OpenJules | `d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177`, managed-installation context and scoped UI candidate over the merged runtime |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The workflow's checked-out candidate revision, recorded in the report |
 

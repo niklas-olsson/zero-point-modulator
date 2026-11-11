@@ -36,7 +36,7 @@ explicitly and cannot supply the shared-service acceptance evidence in
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6`, merged owned cleanup, initial child outcomes and durable control replay |
+| OpenJules | `d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177`, managed-installation context and scoped UI candidate over the merged runtime |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial outcome authority candidate |
 | ZPM | The workflow's checked-out revision, recorded in the report |
 

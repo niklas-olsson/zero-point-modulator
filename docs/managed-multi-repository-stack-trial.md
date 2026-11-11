@@ -21,7 +21,7 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6` |
+| OpenJules | `d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177` |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66` |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
@@ -56,20 +56,29 @@ fresh B progress checkpoints, an unchanged single B worker, both canonical
 captures through restart and zero final reservations. The complete exact-head
 aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
 
-The workflow now selects the merged OpenJules revision
-`9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6` from
-[OpenJules #23](https://github.com/niklas-olsson/OpenJules/pull/23). It refuses
-legacy PR-conversation run commands before task construction or background
-dispatch. The generated managed service still exposes no legacy webhook route.
-This adds no public conversation or canonical webhook adapter. The pin retains
-the component claim-versus-drain regressions, actual Docker
+The workflow now selects the reviewed OpenJules context implementation
+[`d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177`](https://github.com/niklas-olsson/OpenJules/commit/d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177).
+Its dedicated-interpreter selector refuses legacy execution before owned effects,
+while canonical service, publication and cleanup retain their authority checks.
+It also contains the repository-qualified opaque UI routing correction. Bootstrap,
+start and doctor require the companion's exact offline context probe; the separate
+command trial exercises a real installed legacy CLI refusal before normal canonical
+work. This shared-service scene still requires its own actual runtime result.
+
+The previous operative pin `9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6` from
+[OpenJules #23](https://github.com/niklas-olsson/OpenJules/pull/23) added the legacy
+PR-conversation run refusal before task construction or background dispatch.
+That guard remains in the new candidate, and the generated managed service still
+exposes no legacy webhook route. Neither change adds a public conversation or
+canonical webhook adapter. The candidate also retains the component
+claim-versus-drain regressions, actual Docker
 [combined-verification failure case](https://github.com/niklas-olsson/OpenJules/pull/21),
 [versioned creation proof](https://github.com/niklas-olsson/OpenJules/pull/20),
 strict cleanup transport checks, explicit owned cleanup, child outcomes and
-durable replay. The Polyphony pin is unchanged. This refreshed set requires its
-own complete eight-job ZPM qualification and current component CI. The historical
-results above remain bound to their recorded revisions; they are not results
-for the new pin.
+durable replay. The Polyphony pin is unchanged. The new candidate requires its
+own complete eight-job ZPM qualification and component CI. Historical reports,
+including those for the previous operative pin, remain bound to their recorded
+revisions; they do not qualify this changed set.
 Record the refreshed set's actual outcome in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 

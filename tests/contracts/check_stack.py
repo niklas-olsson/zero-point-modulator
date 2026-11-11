@@ -84,7 +84,7 @@ def diagnostics(root, error, checks, revisions, sensitive):
                   "component_revisions": revisions, "logs": {}}
     allowance = max((len(token) for token in sensitive), default=0)
     for name in ("bootstrap", "bootstrap-repeat", "bootstrap-retained", "installation",
-                 "polyphony", "openjules", "zpm", "remove", "reenroll"):
+                 "polyphony", "openjules", "zpm", "remove", "reenroll", "legacy-refusal"):
         path = root / (name + ".log")
         if path.is_file():
             with path.open("rb") as stream:
@@ -186,6 +186,54 @@ def wait_for_capacity(read_plan, processes, count, *, retired_worker_ids=()):
     return eventually(converged, processes, f"capacity {count} with completed workers retired")
 
 
+
+def installed_legacy_refusal(bundle, checkout, processes, data):
+    """Exercise a real legacy CLI before any service or protected work starts."""
+    from zpm.deployment import _environment
+    from zpm.installation_context import selector_path, validate_selector
+
+    def inventory():
+        containers = subprocess.run(["docker", "ps", "--all", "--quiet", "--no-trunc"],
+                                    check=True, capture_output=True, text=True, timeout=15).stdout.splitlines()
+        volumes = subprocess.run(["docker", "volume", "ls", "--quiet"],
+                                 check=True, capture_output=True, text=True, timeout=15).stdout.splitlines()
+        return {"containers": sorted(containers), "volumes": sorted(volumes)}
+
+    def state_files():
+        result = {}
+        for path in sorted((bundle / "state").rglob("*")):
+            require(not path.is_symlink(), "installed refusal state contains a symlink")
+            if path.is_dir():
+                continue
+            require(path.is_file() and path.stat().st_size <= 1_000_000,
+                    "installed refusal state is not a bounded regular file")
+            result[str(path.relative_to(bundle))] = hashlib.sha256(path.read_bytes()).hexdigest()
+        return result
+
+    selector = validate_selector(bundle)
+    histories, resources = state_files(), inventory()
+    command = [str(bundle / "environments/openjules/bin/python"), "-m", "src.cli", "run",
+               "managed-installation-refusal-check", "--repo", "openjules/installation-refusal-check"]
+    process = processes.start("legacy-refusal", command, checkout, _environment(bundle, "bootstrap", data))
+    try:
+        returncode = process.wait(timeout=10)
+    finally:
+        processes.stop("legacy-refusal")
+    path = processes.root / "legacy-refusal.log"
+    require(path.stat().st_size <= 4096, "installed legacy refusal output exceeded its bound")
+    lines = path.read_text(encoding="utf-8").strip().splitlines()
+    reason = "managed_installation_requires_canonical_ingress"
+    require(returncode == 2 and bool(lines) and lines[-1].endswith(": error: " + reason),
+            "installed legacy CLI did not return the explicit managed-context refusal")
+    require(histories == state_files() and resources == inventory(),
+            "installed legacy refusal changed retained state or Docker resources")
+    require(selector == validate_selector(bundle), "installed legacy refusal changed the selector")
+    return {"entrypoint": "src.cli run", "returncode": returncode, "reason": reason,
+            "selector_sha256": hashlib.sha256(selector_path(bundle).read_bytes()).hexdigest(),
+            "state_files_unchanged": len(histories),
+            "docker_inventory_counts": {name: len(rows) for name, rows in resources.items()},
+            "retained_state_and_resources_unchanged": True}
+
 def run(args):
     zpm = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(zpm))
@@ -275,9 +323,14 @@ def run(args):
         require(sealed_before == {name: (bundle / name).read_bytes() for name in sealed_before}, "repeat preparation changed credentials or configuration")
         processes.run_once("bootstrap", [sys.executable, str(bundle / "manage.py"), "bootstrap"], bundle, clean_environment(), 900)
         bootstrapped = {name: (bundle / "environments" / name / "bootstrap-complete.json").read_bytes() for name in source_paths}
+        from zpm.installation_context import selector_path
+        original_context = selector_path(bundle).read_bytes()
         processes.run_once("bootstrap-repeat", [sys.executable, str(bundle / "manage.py"), "bootstrap"], bundle, clean_environment(), 60)
         require(bootstrapped == {name: (bundle / "environments" / name / "bootstrap-complete.json").read_bytes() for name in source_paths}, "repeated bootstrap replaced completed environments")
+        require(selector_path(bundle).read_bytes() == original_context, "repeated bootstrap changed the managed installation context")
         checks.append("repeat preparation and bootstrap reuse the verified private bundle, credentials and completed environments")
+        legacy_refusal = installed_legacy_refusal(bundle, args.openjules_checkout, processes, data)
+        checks.append("the installed OpenJules legacy CLI explicitly refuses before services start, preserving retained state, its selector and the complete Docker inventory")
         # Exercise the documented user-facing manager before the destructive
         # crash scenarios, which then reuse these exact configs and interpreters.
         processes.start("installation", [sys.executable, str(bundle / "manage.py"), "start"], bundle, clean_environment())
@@ -470,6 +523,7 @@ def run(args):
 
         report = {"passed": True, "schema_version": 1, "deployment_id": deployment, "image": image,
                   "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed",
+                  "managed_installation_legacy_refusal": legacy_refusal,
                   "checks": checks, "canonical_task": first["task"]["id"], "candidate": candidate["id"],
                   "captured_artifacts": attempt["captured_artifacts"], "final_reserved": final_reserved,
                   "two_runtime_contention": contention,

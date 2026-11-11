@@ -21,14 +21,14 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `9f67a17ca7c04f9cd2d8b7b8f5b1e699a543bfa6`, merged owned cleanup, initial child outcomes and durable control replay |
+| OpenJules | `d3d50b32d7527d0c2b7fa6f2c14202a4d9ef8177`, managed-installation context and scoped UI candidate over the merged runtime |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
 The paired initial-outcome changes are [OpenJules #16](https://github.com/niklas-olsson/OpenJules/pull/16)
 and [Polyphony #122](https://github.com/niklas-olsson/keystone-polyphony/pull/122).
 OpenJules #16 is merged; the Polyphony pin remains the authority candidate
-from Polyphony #122. The merged OpenJules revision also contains
+from Polyphony #122. The OpenJules ancestry also contains
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15).
 The current pin adds [explicit owned cleanup](https://github.com/niklas-olsson/OpenJules/pull/17)
 and [strict adapter and authentication checks](https://github.com/niklas-olsson/OpenJules/pull/18)
