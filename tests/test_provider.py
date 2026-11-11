@@ -353,6 +353,229 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(next(row for row in runtime.calls if row[0] == "drain")[-1], drained["action_key"])
         self.assertEqual(next(row for row in runtime.calls if row[0] == "stop")[-1], stopped["action_key"])
 
+    def runtime_http(self, runtime, reject):
+        """Real HTTP transport around a deterministic lifecycle fixture."""
+        def exchange(handler, request):
+            status = reject(request)
+            if status is not None:
+                payload = b"fixture-secret untrusted runtime diagnostics"
+            else:
+                operation = request["url"].path.rsplit("/", 1)[-1]
+                query = {key: values[0] for key, values in parse_qs(request["url"].query).items()}
+                if operation == "capabilities":
+                    response = runtime.capabilities(**query)
+                elif operation == "workers":
+                    response = {"schema_version": 1, "workers": runtime.discover(**query)}
+                elif operation == "ensure":
+                    response = runtime.ensure(request["body"])
+                elif operation in {"drain", "stop"}:
+                    body = {key: value for key, value in request["body"].items() if key != "schema_version"}
+                    body["worker_id"] = request["url"].path.split("/")[-2]
+                    response = getattr(runtime, operation)(**body)
+                else:
+                    response = runtime.observe(**query, worker_id=operation)
+                status, payload = 200, json.dumps(response).encode()
+            handler.send_response(status)
+            handler.send_header("Content-Length", str(len(payload)))
+            handler.end_headers()
+            handler.wfile.write(payload)
+
+        self.exchange = exchange
+
+    def bounded_tick(self, controller, expected_routes):
+        before = len(self.requests)
+        report = controller.tick(max_actions=1)
+        requests = self.requests[before:]
+        self.assertEqual([(row["method"], row["url"].path.rsplit("/", 1)[-1]) for row in requests],
+                         expected_routes)
+        self.assertLessEqual(sum(row["method"] == "POST" for row in requests), 1)
+        return report
+
+    def test_revoked_token_and_scope_keep_original_control_keys_until_access_recovers(self):
+        runtime = FixtureProvider()
+        access = {"token": True, "scope": True, "revoke_at_stop": False}
+
+        def authorize(request):
+            if request["authorization"] != "Bearer fixture-secret" or not access["token"]:
+                return 401
+            # Exercise revocation between successful preflight/observation and
+            # the first stop. Every subsequent request then loses this scope.
+            if access["revoke_at_stop"] and request["url"].path.endswith("/stop"):
+                access.update(scope=False, revoke_at_stop=False)
+            return None if access["scope"] else 403
+
+        self.runtime_http(runtime, authorize)
+        provider = self.timed_provider()
+        capabilities = ("GET", "capabilities")
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "state.sqlite3"
+            with Store(state, "deployment-a") as store:
+                store.enroll({"schema_version": 1, "repository": "owner/project",
+                              "profile": "fixture", "desired_workers": 1})
+                controller = Controller(store, provider, 2)
+                initial = self.bounded_tick(controller, [capabilities, ("POST", "ensure")])
+                self.assertEqual((initial["reserved"], initial["repositories"][0]["healthy"]), (1, 1))
+                original = store.workers()[0]
+                worker = original["snapshot"]["worker_id"]
+                self.assertTrue(worker)
+                owned = {key: original[key] for key in ("launch_key", "repository", "slot_id", "generation", "profile")}
+                observe = ("GET", worker)
+
+                def retained_denial(store, report, status, pending):
+                    rows = store.workers()
+                    self.assertEqual(len(rows), 1)
+                    row = rows[0]
+                    self.assertEqual({key: row[key] for key in owned}, owned)
+                    self.assertEqual(row["snapshot"]["worker_id"], worker)
+                    self.assertEqual(row["pending_action"], pending)
+                    self.assertEqual(row["snapshot"]["state"], "unknown")
+                    self.assertEqual(row["snapshot"]["reason"], f"OpenJules returned HTTP {status}")
+                    self.assertFalse(row["snapshot"]["termination_confirmed"])
+                    self.assertFalse(row["snapshot"]["artifacts_captured"])
+                    self.assertFalse(row["snapshot"]["admission_open"])
+                    self.assertEqual(report["reserved"], 1)
+                    self.assertIn(f"OpenJules returned HTTP {status}", report["repositories"][0]["reasons"])
+                    rendered = json.dumps(report)
+                    self.assertNotIn("fixture-secret", rendered)
+                    self.assertNotIn("untrusted runtime diagnostics", rendered)
+                    self.assertEqual(len(runtime.records), 1)
+                    return row
+
+                # A formerly successful token is revoked. Even an unmet
+                # positive target cannot allocate a second incarnation.
+                access["token"] = False
+                store.change("owner/project", "target", 2)
+                denied = self.bounded_tick(controller, [capabilities, observe])
+                retained_denial(store, denied, 401, None)
+                unavailable = denied["repositories"][0]
+                self.assertEqual((unavailable["desired_workers"], unavailable["healthy"],
+                                  unavailable["reserved"], unavailable["shortfall"]), (2, 0, 1, 2))
+                self.assertEqual(unavailable["validation"],
+                                 {"ready": False, "reason": "OpenJules returned HTTP 401"})
+                self.assertNotIn("deployment capacity ceiling", unavailable["reasons"])
+                store.change("owner/project", "target", 0)
+                denied = self.bounded_tick(controller, [capabilities, observe, ("POST", "drain")])
+                drain_key = retained_denial(store, denied, 401, "drain")["action_key"]
+                self.assertTrue(drain_key)
+
+            with Store(state, "deployment-a") as store:
+                controller = Controller(store, provider, 2)
+                denied = self.bounded_tick(controller, [capabilities, observe, ("POST", "drain")])
+                self.assertEqual(retained_denial(store, denied, 401, "drain")["action_key"], drain_key)
+                self.assertEqual(len([call for call in runtime.calls if call[0] == "ensure"]), 1)
+                self.assertFalse(any(call[0] in {"drain", "stop"} for call in runtime.calls))
+                access["token"] = True
+                recovered = self.bounded_tick(controller, [capabilities, observe, ("POST", "drain")])
+                self.assertEqual(recovered["reserved"], 1)
+                self.assertEqual(store.workers()[0]["snapshot"]["state"], "draining")
+                self.assertIsNone(store.workers()[0]["pending_action"])
+                # max_actions=1 keeps the acknowledged drain and stop in
+                # separate completed passes, even when execution is idle.
+                self.assertFalse(any(call[0] == "stop" for call in runtime.calls))
+                self.assertEqual([call[-1] for call in runtime.calls if call[0] == "drain"], [drain_key])
+
+                access["revoke_at_stop"] = True
+                denied = self.bounded_tick(controller, [capabilities, observe, ("POST", "stop")])
+                stop_key = retained_denial(store, denied, 403, "stop")["action_key"]
+                self.assertTrue(stop_key)
+                self.assertNotEqual(stop_key, drain_key)
+
+            with Store(state, "deployment-a") as store:
+                controller = Controller(store, provider, 2)
+                denied = self.bounded_tick(controller, [capabilities, observe, ("POST", "stop")])
+                self.assertEqual(retained_denial(store, denied, 403, "stop")["action_key"], stop_key)
+                self.assertEqual(denied["repositories"][0]["validation"],
+                                 {"ready": False, "reason": "OpenJules returned HTTP 403"})
+                self.assertFalse(any(call[0] == "stop" for call in runtime.calls))
+                access["scope"] = True
+                recovered = self.bounded_tick(controller, [capabilities, observe, ("POST", "stop")])
+                self.assertEqual(recovered["reserved"], 0)
+                final = store.workers()[0]
+                self.assertEqual({key: final[key] for key in owned}, owned)
+                self.assertEqual(final["snapshot"]["worker_id"], worker)
+                self.assertTrue(final["snapshot"]["termination_confirmed"])
+                self.assertTrue(final["snapshot"]["artifacts_captured"])
+                self.assertIsNone(final["pending_action"])
+                self.assertEqual(store.binding("owner/project")["desired_workers"], 0)
+
+            with Store(state, "deployment-a") as store:
+                retained = Controller(store).plan()
+                self.assertEqual(retained["reserved"], 0)
+                self.assertEqual(len(store.workers()), 1)
+                self.assertEqual(store.workers()[0]["snapshot"]["worker_id"], worker)
+            self.assertEqual(len(runtime.records), 1)
+            self.assertEqual(len([call for call in runtime.calls if call[0] == "ensure"]), 1)
+            self.assertEqual([call[-1] for call in runtime.calls if call[0] == "stop"], [stop_key])
+            for operation, key in (("drain", drain_key), ("stop", stop_key)):
+                sent = [row["body"] for row in self.requests if row["url"].path.endswith("/" + operation)]
+                self.assertEqual(len(sent), 3)
+                self.assertTrue(all(body == sent[0] and body["request_key"] == key for body in sent))
+            self.assertTrue(all(row["authorization"] == "Bearer fixture-secret" for row in self.requests))
+
+    def test_quota_rejection_after_preflight_retries_the_original_uncertain_ensure(self):
+        runtime = FixtureProvider()
+        quota = {"blocked": True}
+
+        def reject(request):
+            if quota["blocked"] and request["url"].path.endswith("/ensure"):
+                return 429
+            return None
+
+        self.runtime_http(runtime, reject)
+        provider = self.timed_provider()
+        capabilities = ("GET", "capabilities")
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "state.sqlite3"
+            original = None
+            for attempt in range(3):
+                with Store(state, "deployment-a") as store:
+                    if attempt == 0:
+                        store.enroll({"schema_version": 1, "repository": "owner/project",
+                                      "profile": "fixture", "desired_workers": 1})
+                    expected = [capabilities] + ([] if attempt == 0 else [("GET", "workers")]) + [("POST", "ensure")]
+                    report = self.bounded_tick(Controller(store, provider, 1), expected)
+                    row = store.workers()[0]
+                    identity = {key: row[key] for key in ("launch_key", "repository", "slot_id", "generation", "profile")}
+                    if original is None:
+                        original = identity
+                    self.assertEqual(identity, original)
+                    self.assertEqual((report["reserved"], len(store.workers()), len(runtime.records)), (1, 1, 0))
+                    self.assertEqual(row["pending_action"], "ensure")
+                    self.assertEqual(row["snapshot"]["worker_id"], "")
+                    self.assertEqual(row["snapshot"]["state"], "unknown")
+                    self.assertEqual(row["snapshot"]["reason"], "OpenJules returned HTTP 429")
+                    self.assertFalse(row["snapshot"]["termination_confirmed"])
+                    self.assertFalse(row["snapshot"]["artifacts_captured"])
+                    selected = report["repositories"][0]
+                    self.assertTrue(selected["validation"]["ready"])
+                    self.assertEqual((selected["desired_workers"], selected["healthy"], selected["shortfall"]), (1, 0, 1))
+                    self.assertIn("OpenJules returned HTTP 429", selected["reasons"])
+                    self.assertNotIn("fixture-secret", json.dumps(report))
+                    self.assertNotIn("untrusted runtime diagnostics", json.dumps(report))
+                    self.assertFalse(any(call[0] == "ensure" for call in runtime.calls))
+            quota["blocked"] = False
+            with Store(state, "deployment-a") as store:
+                controller = Controller(store, provider, 1)
+                recovered = self.bounded_tick(controller, [capabilities, ("GET", "workers"), ("POST", "ensure")])
+                self.assertEqual((recovered["reserved"], recovered["repositories"][0]["healthy"]), (1, 1))
+                row = store.workers()[0]
+                self.assertEqual({key: row[key] for key in original}, original)
+                self.assertIsNone(row["pending_action"])
+                worker = row["snapshot"]["worker_id"]
+                self.assertTrue(worker)
+                self.bounded_tick(controller, [capabilities, ("GET", worker)])
+                self.assertEqual(len(runtime.records), 1)
+                self.assertEqual(len([call for call in runtime.calls if call[0] == "ensure"]), 1)
+                store.change("owner/project", "target", 0)
+                self.assertEqual(self.bounded_tick(controller, [capabilities, ("GET", worker), ("POST", "drain")])["reserved"], 1)
+                self.assertEqual(self.bounded_tick(controller, [capabilities, ("GET", worker), ("POST", "stop")])["reserved"], 0)
+            ensures = [row["body"] for row in self.requests if row["url"].path.endswith("/ensure")]
+            self.assertEqual(len(ensures), 4)
+            self.assertTrue(all(value == ensures[0] for value in ensures))
+            discoveries = [row for row in self.requests if row["url"].path.endswith("/workers")]
+            self.assertEqual(len(discoveries), 3)
+            self.assertTrue(all(parse_qs(row["url"].query)["launch_key"] == [original["launch_key"]] for row in discoveries))
+
 
 if __name__ == "__main__":
     unittest.main()
