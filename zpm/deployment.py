@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import argparse
 from contextlib import closing, contextmanager
+import ctypes
+import errno
+import fcntl
 import hashlib
 import json
 import os
@@ -17,8 +20,10 @@ import re
 import secrets
 import signal
 import sqlite3
+import stat
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any
 from urllib.parse import urlsplit
@@ -267,6 +272,60 @@ def _write(path: Path, value: Any, executable: bool = False) -> None:
         os.fsync(stream.fileno())
 
 
+def _atomic_rename():
+    # Plain rename can replace an empty foreign destination. Require the
+    # supported Linux primitive instead of falling back to check-then-rename.
+    if sys.platform != "linux":
+        raise ConfigurationError("atomic deployment preparation requires Linux renameat2")
+    try:
+        function = ctypes.CDLL(None, use_errno=True).renameat2
+    except (AttributeError, OSError):
+        raise ConfigurationError("Linux libc must provide renameat2 for atomic preparation") from None
+    function.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+    function.restype = ctypes.c_int
+    return function
+
+
+def _publish_stage(parent: int, stage: str, destination: str) -> None:
+    if _atomic_rename()(parent, os.fsencode(stage), parent, os.fsencode(destination), 1) == 0:
+        return  # RENAME_NOREPLACE = 1
+    failure = ctypes.get_errno()
+    if failure == errno.EEXIST:
+        raise ConfigurationError("deployment destination appeared before publication; it was not replaced")
+    if failure in {errno.ENOSYS, errno.EINVAL, errno.ENOTSUP}:
+        raise ConfigurationError("atomic no-replace publication is unavailable on this Linux filesystem")
+    raise ConfigurationError(f"atomic deployment publication failed (errno {failure})")
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_stage(root: Path) -> None:
+    # SQLite has closed its writer before this point. Flush all regular files,
+    # including its journal, then directory entries from the leaves upward.
+    def inaccessible(error):
+        raise error
+
+    for directory, folders, files in os.walk(root, topdown=False, followlinks=False, onerror=inaccessible):
+        for name in files:
+            descriptor = os.open(Path(directory) / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                    raise ConfigurationError("preparation contains a nonregular file")
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        for name in folders:
+            if (Path(directory) / name).is_symlink():
+                raise ConfigurationError("preparation contains a directory symlink")
+        _fsync_directory(Path(directory))
+
+
 def prepare(configuration: Any, directory: str | Path) -> dict:
     data = parse_configuration(configuration)
     root = Path(directory).absolute()
@@ -277,17 +336,50 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
         source = Path(item["checkout"])
         if root == source or source in root.parents or root in source.parents:
             raise ConfigurationError("deployment data must be outside all source checkouts")
-    if root.exists():
-        if not root.is_dir() or not (root / "manifest.json").is_file():
-            raise ConfigurationError("existing destination is not a complete deployment; retain its data and use a new directory")
-        verify(root)
-        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-        if manifest["configuration"] != data:
-            raise ConfigurationError("existing deployment has different configuration; preparation cannot upgrade or replace it")
-        # Reuse only a verified complete bundle. Do not rotate credentials,
-        # initialize a second journal, or undo later pause/removal/target edits.
-        return _prepared_report(root, data, reused=True)
-    root.mkdir(mode=0o700)
+    parent = os.open(root.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        # Serialize cooperating preparers without creating a lock file that
+        # could collide with existing data. No-replace publication also guards
+        # destination races from writers that do not take this advisory lock.
+        fcntl.flock(parent, fcntl.LOCK_EX)
+        if root.is_symlink():
+            raise ConfigurationError("deployment directory must not be a symlink")
+        if root.exists():
+            if not root.is_dir() or not (root / "manifest.json").is_file():
+                raise ConfigurationError("existing destination is not a complete deployment; retain its data and use a new directory")
+            verify(root)
+            manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+            if manifest["configuration"] != data:
+                raise ConfigurationError("existing deployment has different configuration; preparation cannot upgrade or replace it")
+            # Reuse only a verified complete bundle. Do not rotate credentials,
+            # initialize a second journal, or undo later pause/removal/target edits.
+            return _prepared_report(root, data, reused=True)
+        _atomic_rename()  # Refuse unsupported platforms before writing a stage.
+        stage = Path(tempfile.mkdtemp(prefix=".zpm-prepare-", dir=root.parent))
+        try:
+            _write(stage / "preparation.json", {
+                "schema_version": 1, "kind": "zpm-private-preparation", "directory": str(root),
+                "deployment_id": data["deployment_id"], "preparation_id": stage.name,
+                "configuration_sha256": hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(),
+            })
+            _fsync_directory(stage)
+            os.fsync(parent)
+            _prepare_files(data, stage, root)
+            _fsync_stage(stage)
+            _publish_stage(parent, stage.name, root.name)
+            os.fsync(parent)
+        except (OSError, sqlite3.Error, ConfigurationError) as error:
+            reason = str(error) if isinstance(error, ConfigurationError) else "preparation or durable publication failed"
+            raise ConfigurationError(
+                f"{reason}; retain any private stage at {stage} and destination at {root}; "
+                "retry with the same configuration"
+            ) from None
+        return _prepared_report(root, data, reused=False)
+    finally:
+        os.close(parent)
+
+
+def _prepare_files(data: dict, root: Path, final: Path) -> None:
     for name in ("config", "secrets", "state", "state/openjules", "state/polyphony", "environments"):
         (root / name).mkdir(mode=0o700)
     deployment = data["deployment_id"]
@@ -321,9 +413,9 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
     })
     openjules = {
         "schema_version": 1, "host": "127.0.0.1", "port": data["ports"]["openjules"], "poll_interval_seconds": 1,
-        "state_directory": str(root / "state/openjules/runtime"),
-        "lifecycle_database": str(root / "state/openjules/lifecycle.sqlite3"),
-        "credentials_file": str(root / "secrets/openjules.json"),
+        "state_directory": str(final / "state/openjules/runtime"),
+        "lifecycle_database": str(final / "state/openjules/lifecycle.sqlite3"),
+        "credentials_file": str(final / "secrets/openjules.json"),
         "authority": {"endpoint": f"http://127.0.0.1:{data['ports']['polyphony']}", "token_ref": "env:" + SECRET_ENV["openjules"]},
         "profiles": [{"name": profile, **scope, "source_path": data["source"]["checkout"],
                       "base_commit": data["source"]["revision"], "image": data["image"], "command": data["command"],
@@ -359,11 +451,10 @@ raise SystemExit(manage(root, sys.argv[1:]))
     _write(root / "manage.py", manager, executable=True)
     _write(root / "README.txt", _BUNDLE_README)
     sealed = [str(path.relative_to(root)) for folder in ("config", "secrets") for path in sorted((root / folder).iterdir())]
-    sealed.extend(["manage.py", "README.txt"])
-    manifest = {"schema_version": 1, "configuration": data, "directory": str(root),
+    sealed.extend(["manage.py", "README.txt", "preparation.json"])
+    manifest = {"schema_version": 1, "configuration": data, "directory": str(final),
                 "files": {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in sealed}}
     _write(root / "manifest.json", manifest)
-    return _prepared_report(root, data, reused=False)
 
 
 def _prepared_report(root: Path, data: dict, *, reused: bool) -> dict:
@@ -585,6 +676,10 @@ In a second terminal:
   python3 manage.py doctor
 
 Prepare and verify are offline integrity checks. They do not prove readiness.
+New preparation publishes a private stage atomically on supported Linux storage.
+Retry the same preparation command after interruption. Complete bundles retain
+their credentials and current enrollment; abandoned private stages are retained.
+An unpublished stage cannot be bootstrapped or started as an installation.
 Bootstrap explicitly installs dependencies into three separate environments.
 Start runs all services in the foreground and stops them together on Ctrl-C.
 Doctor checks real authenticated repository-scoped OpenJules capabilities.
