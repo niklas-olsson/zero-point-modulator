@@ -168,11 +168,29 @@ def eventually(predicate, processes, description, seconds=90):
     raise AssertionError("deadline waiting for " + description)
 
 
+def wait_for_capacity(read_plan, processes, count, *, retired_worker_ids=()):
+    retired = frozenset(retired_worker_ids)
+
+    def converged():
+        report = read_plan()
+        row = report["repositories"][0]
+        live_ids = {worker["worker_id"] for worker in row["workers"]}
+        # Counts can still match in ZPM's cached view after a task finishes.
+        # Retirement must be observed before an equal-size replacement counts
+        # as convergence; the controller's next tick supplies that evidence.
+        if row["healthy"] == count and row["reserved"] == count and retired.isdisjoint(live_ids):
+            return report
+        return None
+
+    return eventually(converged, processes, f"capacity {count} with completed workers retired")
+
+
 def run(args):
     zpm = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(zpm))
     from zpm.controller import Controller
     from zpm.deployment import _command, _environment, prepare, verify
+    from zpm.models import released, snapshot as worker_snapshot
     from zpm.store import Store
 
     root = args.work_dir.absolute()
@@ -241,14 +259,10 @@ def run(args):
         with Store(state, deployment) as store:
             return Controller(store).plan()
 
-    def target(count):
+    def target(count, *, retired_worker_ids=()):
         with Store(state, deployment) as store:
             store.change(repository, "target", count)
-        def converged():
-            report = plan()
-            row = report["repositories"][0]
-            return report if row["healthy"] == count and row["reserved"] == count else None
-        return eventually(converged, processes, f"capacity {count}")
+        return wait_for_capacity(plan, processes, count, retired_worker_ids=retired_worker_ids)
 
     def snapshot():
         return authority.request("GET", "/managed/snapshot", query=scope)
@@ -334,9 +348,14 @@ def run(args):
         subprocess.run([sys.executable, "-c", "import runpy; assert runpy.run_path('answer.py')['answer']() == 42"], cwd=verifier, check=True, timeout=10)
         checks.append("captured patch applies to the approved base and independently passes the controlled assertion")
 
-        replacement = target(2)
+        completed_worker = attempt["runtime_binding"]["worker_id"]
+        replacement = target(2, retired_worker_ids={completed_worker})
         live_ids = {worker["worker_id"] for worker in replacement["repositories"][0]["workers"]}
-        require(attempt["runtime_binding"]["worker_id"] not in live_ids, "completed worker incarnation was reused for a second root")
+        require(completed_worker not in live_ids and len(live_ids) == 2, "completed worker incarnation was reused for a second root")
+        retired = runtime.request("GET", "/api/workers/" + completed_worker, query=scope)
+        require(retired["worker_id"] == completed_worker and released(worker_snapshot(retired)),
+                "completed worker retirement lacks termination, capture or closed admission")
+        checks.append("ZPM observes completed-worker retirement and restores capacity with a new incarnation while OpenJules retains terminal evidence")
 
         deadline_request = request | {"source": "github:issue:2", "request_key": "explicit-deadline-run-1",
                                       "title": "Controlled deadline recovery", "requirements": "DEADLINE_TRIAL: preserve the changed file when the service disappears."}

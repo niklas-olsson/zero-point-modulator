@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from zpm.deployment import MANAGED_ENTRYPOINTS, SOURCE_FILES, _bootstrap, _command, _doctor, _environment, prepare, verify
 from zpm.models import ConfigurationError
@@ -193,6 +193,27 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("[redacted]", result["error"])
         self.assertLessEqual(len(result["logs"]["openjules"]), 20000)
         self.assertEqual((self.root / "diagnostics.json").stat().st_mode & 0o777, 0o600)
+
+    def test_trial_waits_for_retirement_when_cached_capacity_still_matches(self):
+        path = Path(__file__).parent / "contracts/check_stack.py"
+        specification = importlib.util.spec_from_file_location("managed_stack_trial", path)
+        module = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(module)
+
+        def plan(healthy, reserved, *identities):
+            return {"repositories": [{"healthy": healthy, "reserved": reserved,
+                                       "workers": [{"worker_id": identity} for identity in identities]}]}
+
+        stale = plan(2, 2, "completed", "idle")
+        starting_replacement = plan(1, 2, "replacement", "idle")
+        converged = plan(2, 2, "replacement", "idle")
+        read_plan = Mock(side_effect=[stale, starting_replacement, converged])
+        processes = Mock()
+        with patch.object(module.time, "sleep"):
+            result = module.wait_for_capacity(read_plan, processes, 2, retired_worker_ids={"completed"})
+        self.assertIs(result, converged)
+        self.assertEqual(read_plan.call_count, 3)
+        self.assertEqual(processes.check.call_count, 3)
 
     def test_manager_sigterm_stops_all_real_service_processes(self):
         pid_paths = []
