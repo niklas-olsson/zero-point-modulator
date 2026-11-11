@@ -8,7 +8,7 @@ separate interpreters and working directories for the two ``src`` packages.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 import hashlib
 import json
 import os
@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import secrets
 import signal
+import sqlite3
 import subprocess
 import sys
 import time
@@ -269,13 +270,23 @@ def _write(path: Path, value: Any, executable: bool = False) -> None:
 def prepare(configuration: Any, directory: str | Path) -> dict:
     data = parse_configuration(configuration)
     root = Path(directory).absolute()
-    if root.exists() or root.is_symlink():
-        raise ConfigurationError("deployment directory must not already exist")
+    if root.is_symlink():
+        raise ConfigurationError("deployment directory must not be a symlink")
     root = root.parent.resolve(strict=True) / root.name
     for item in [*data["sources"].values(), data["source"]]:
         source = Path(item["checkout"])
         if root == source or source in root.parents or root in source.parents:
             raise ConfigurationError("deployment data must be outside all source checkouts")
+    if root.exists():
+        if not root.is_dir() or not (root / "manifest.json").is_file():
+            raise ConfigurationError("existing destination is not a complete deployment; retain its data and use a new directory")
+        verify(root)
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        if manifest["configuration"] != data:
+            raise ConfigurationError("existing deployment has different configuration; preparation cannot upgrade or replace it")
+        # Reuse only a verified complete bundle. Do not rotate credentials,
+        # initialize a second journal, or undo later pause/removal/target edits.
+        return _prepared_report(root, data, reused=True)
     root.mkdir(mode=0o700)
     for name in ("config", "secrets", "state", "state/openjules", "state/polyphony", "environments"):
         (root / name).mkdir(mode=0o700)
@@ -352,8 +363,12 @@ raise SystemExit(manage(root, sys.argv[1:]))
     manifest = {"schema_version": 1, "configuration": data, "directory": str(root),
                 "files": {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in sealed}}
     _write(root / "manifest.json", manifest)
-    return {"prepared": True, "directory": str(root), "deployment_id": deployment,
-            "repository": repository, "services_started": False, "remote_access_checked": False,
+    return _prepared_report(root, data, reused=False)
+
+
+def _prepared_report(root: Path, data: dict, *, reused: bool) -> dict:
+    return {"prepared": True, "reused": reused, "directory": str(root), "deployment_id": data["deployment_id"],
+            "repository": data["binding"]["repository"], "services_started": False, "remote_access_checked": False,
             "next": ["python3 manage.py bootstrap", "python3 manage.py start", "python3 manage.py doctor"]}
 
 
@@ -389,6 +404,20 @@ def verify(directory: str | Path) -> dict:
             raise ConfigurationError("bundle files must be private regular files")
         if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             raise ConfigurationError("deployment configuration integrity mismatch")
+    journal = root / "state/zpm.sqlite3"
+    if journal.is_symlink() or not journal.is_file() or journal.stat().st_mode & 0o077:
+        raise ConfigurationError("deployment journal must remain a private regular file; restore retained state before continuing")
+    try:
+        # Never use Store here: its constructor creates missing state. Read the
+        # existing WAL-aware journal without initializing or re-enrolling it.
+        with closing(sqlite3.connect(journal.as_uri() + "?mode=ro", uri=True, timeout=1)) as database:
+            identity = database.execute("SELECT value FROM metadata WHERE key='deployment_id'").fetchone()
+            enrolled = database.execute("SELECT 1 FROM bindings WHERE repository=?", (data["binding"]["repository"],)).fetchone()
+            database.execute("SELECT launch_key FROM workers LIMIT 0")
+        if identity != (data["deployment_id"],) or enrolled is None:
+            raise ConfigurationError("deployment journal identity or retained enrollment does not match the bundle")
+    except sqlite3.Error:
+        raise ConfigurationError("cannot read the retained deployment journal; restore state before continuing") from None
     return {"valid": True, "deployment_id": data["deployment_id"], "directory": str(root),
             "remote_access_checked": False, "runtime_readiness": "not_checked"}
 

@@ -61,8 +61,20 @@ zpm deployment prepare /absolute/operator-deployment.json \
 zpm deployment verify /absolute/private/zpm-installation
 ```
 
-The destination must be new and outside all source checkouts. Preparation will
-not overwrite an existing deployment. It writes the following private layout:
+The destination must be outside all source checkouts. A new destination receives
+the private layout below. Repeating preparation with the same normalized
+configuration verifies and reuses a complete installation, returning
+`reused: true`. It retains credentials, environments, artifacts and the current
+enrollment state, including later target, pause or removal changes. It does not
+start services or re-enable a removed repository.
+
+Different configuration, a symlink, an incomplete destination or modified sealed
+files are rejected. Verification reads the existing ZPM journal without creating
+it and requires its original deployment identity and retained enrollment. A
+missing or unreadable journal must be restored before restart. This is not a
+version-upgrade or interrupted-preparation recovery operation. Keep an incomplete
+directory for diagnosis; use a new destination for a fresh preparation. No
+existing resources are overwritten or deleted.
 
 | Path | Purpose |
 | --- | --- |
@@ -301,6 +313,36 @@ Before backing up the deployment, stop the services cleanly or use a
 SQLite-aware backup procedure. Never copy a live database without its WAL and
 call that a complete recovery image. Preserve the deployment identity and
 credential files along with durable state.
+
+### Remove enrollment and reconnect retained work
+
+Run removal through the installed CLI while the controller remains running:
+
+```sh
+environments/zpm/bin/zpm --state state/zpm.sqlite3 remove owner/project
+environments/zpm/bin/zpm --state state/zpm.sqlite3 status
+```
+
+Removal disables enrollment. The controller drains its owned workers and keeps
+reservations until termination and capture are confirmed. Wait for zero reserved
+workers before stopping the services. Authority data, worker history, captured
+artifacts, configuration and credentials remain in the installation directory.
+There is no implicit destructive removal or uninstall operation.
+
+To reconnect the retained installation, use the same source pins and directory,
+run `python3 manage.py verify`, then `bootstrap` and `start`. Completed
+environments are reused. Repeating preparation is optional and leaves the
+removed binding disabled. Explicitly re-enroll it before selecting new capacity:
+
+```sh
+environments/zpm/bin/zpm --state state/zpm.sqlite3 enroll config/repository.json
+environments/zpm/bin/zpm --state state/zpm.sqlite3 target owner/project 2
+environments/zpm/bin/zpm --state state/zpm.sqlite3 status
+```
+
+The installed command trial checks this path after real execution and capture,
+including a full service restart and byte-identical retained canonical artifacts.
+It does not qualify recovery of a partially prepared bundle or a version upgrade.
 
 The [command-based contract trial](managed-stack-trial.md) is separate from installation preparation. It must
 run the actual authority and OpenJules services in separate processes, use a

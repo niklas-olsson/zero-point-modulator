@@ -83,7 +83,8 @@ def diagnostics(root, error, checks, revisions, sensitive):
     diagnostic = {"passed": False, "error": error, "completed_checks": checks,
                   "component_revisions": revisions, "logs": {}}
     allowance = max((len(token) for token in sensitive), default=0)
-    for name in ("bootstrap", "installation", "polyphony", "openjules", "zpm"):
+    for name in ("bootstrap", "bootstrap-repeat", "bootstrap-retained", "installation",
+                 "polyphony", "openjules", "zpm", "remove", "reenroll"):
         path = root / (name + ".log")
         if path.is_file():
             with path.open("rb") as stream:
@@ -268,7 +269,15 @@ def run(args):
         return authority.request("GET", "/managed/snapshot", query=scope)
 
     try:
+        sealed_before = {name: (bundle / name).read_bytes() for name in
+                         ("manifest.json", "secrets/environment.json", "secrets/operator.json")}
+        require(prepare(data, bundle)["reused"] is True, "identical preparation did not reuse the installation")
+        require(sealed_before == {name: (bundle / name).read_bytes() for name in sealed_before}, "repeat preparation changed credentials or configuration")
         processes.run_once("bootstrap", [sys.executable, str(bundle / "manage.py"), "bootstrap"], bundle, clean_environment(), 900)
+        bootstrapped = {name: (bundle / "environments" / name / "bootstrap-complete.json").read_bytes() for name in source_paths}
+        processes.run_once("bootstrap-repeat", [sys.executable, str(bundle / "manage.py"), "bootstrap"], bundle, clean_environment(), 60)
+        require(bootstrapped == {name: (bundle / "environments" / name / "bootstrap-complete.json").read_bytes() for name in source_paths}, "repeated bootstrap replaced completed environments")
+        checks.append("repeat preparation and bootstrap reuse the verified private bundle, credentials and completed environments")
         # Exercise the documented user-facing manager before the destructive
         # crash scenarios, which then reuse these exact configs and interpreters.
         processes.start("installation", [sys.executable, str(bundle / "manage.py"), "start"], bundle, clean_environment())
@@ -415,12 +424,49 @@ def run(args):
         require(durable["candidate"][0]["id"] == candidate["id"] and len(durable["attempt"]) == 2, "authority restart lost or duplicated captured work")
         checks.append("completed workers retire, capacity reaches three then one then zero, and authority artifacts survive service restart")
 
+        # Exercise the documented removal and explicit re-enrollment through
+        # the installed CLI while the actual controller and services run.
+        before_removal = target(2)
+        removal_ids = {worker["worker_id"] for worker in before_removal["repositories"][0]["workers"]}
+        installed_cli = [str(bundle / "environments/zpm/bin/python"), "-m", "zpm", "--state", str(state)]
+        processes.run_once("remove", installed_cli + ["remove", repository], zpm, clean_environment(), 30)
+        wait_for_capacity(plan, processes, 0)
+        with Store(state, deployment) as store:
+            removed = store.binding(repository)
+            require(removed["enabled"] is False and removed["desired_workers"] == 2, "removal lost the selected target or did not disable enrollment")
+        require(prepare(data, bundle)["reused"] is True, "retained installation cannot be reused after removal")
+        with Store(state, deployment) as store:
+            require(store.binding(repository) == removed, "repeat preparation silently re-enabled removed enrollment")
+        processes.stop("zpm")
+        processes.stop("openjules")
+        processes.stop("polyphony")
+        processes.run_once("bootstrap-retained", [sys.executable, str(bundle / "manage.py"), "bootstrap"], bundle, clean_environment(), 60)
+        processes.start("polyphony", commands["polyphony"], args.polyphony_checkout, environments["polyphony"])
+        eventually(snapshot, processes, "retained authority restart", 15)
+        start_runtime()
+        eventually(lambda: runtime.request("GET", "/api/workers/capabilities", query=scope | {"profile": profile}).get("managed_dispatch"), processes, "retained runtime readiness", 30)
+        start_zpm()
+        processes.run_once("reenroll", installed_cli + ["enroll", str(bundle / "config/repository.json")], zpm, clean_environment(), 30)
+        resumed = target(1, retired_worker_ids=removal_ids)
+        require(resumed["reserved"] == 1, "retained installation did not resume bounded capacity")
+        retained_snapshot = snapshot()
+        require(len(retained_snapshot["task"]) == 2 and len(retained_snapshot["attempt"]) == 2,
+                "removal and resume lost or repeated canonical work")
+        require(retained_snapshot["candidate"][0]["id"] == candidate["id"], "removal and resume lost the candidate")
+        for kind, digest in attempt["captured_artifacts"].items():
+            require(authority.request("GET", "/managed/artifacts/" + digest, query=scope, text=True) == artifacts[kind],
+                    "removal and resume changed a retained canonical artifact")
+        require(sealed_before == {name: (bundle / name).read_bytes() for name in sealed_before}, "removal and resume rotated credentials or configuration")
+        target(0)
+        checks.append("installed removal drains owned workers, retains authority and artifacts, and explicit re-enrollment resumes with the same identity and credentials")
+
         report = {"passed": True, "schema_version": 1, "deployment_id": deployment, "image": image,
                   "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed",
                   "checks": checks, "canonical_task": first["task"]["id"], "candidate": candidate["id"],
                   "captured_artifacts": attempt["captured_artifacts"], "final_reserved": plan()["reserved"],
                   "proof": "real Docker, real HTTP, separate services, controlled code change",
-                  "not_proven": ["live model inference", "child delegation", "independent semantic review", "forge publication", "merge authorization"]}
+                  "not_proven": ["live model inference", "child delegation", "independent semantic review", "forge publication", "merge authorization",
+                                 "interrupted preparation recovery", "version upgrade", "destructive removal"]}
         private_json(root / "report.json", report)
         return report
     except Exception as exc:

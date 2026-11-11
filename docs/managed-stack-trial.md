@@ -25,6 +25,8 @@ and requires its actual `doctor` capability check to pass. It then stops that
 manager and reuses the bundle's exact configuration, credentials, interpreters
 and service commands for the recovery scenarios below. It does not maintain a
 separate fixture configuration schema.
+It repeats preparation and bootstrap and requires the original credentials,
+sealed manifest and completed-environment records to remain unchanged.
 
 The CI job currently pins:
 
@@ -103,6 +105,15 @@ doctor succeed, and it observes all of these through the real boundaries:
    successful candidate.
 9. Completed worker incarnations retire. Capacity reaches three, then one, then
    zero. An authority service restart preserves both attempts and the candidate.
+10. With two workers running, the installed CLI removes enrollment and the actual
+    controller drains both to zero. Repeated preparation keeps enrollment
+    disabled. A full service restart, repeated bootstrap and explicit
+    re-enrollment resume capacity with new worker incarnations and the original
+    credentials, tasks, attempts, candidate and canonical artifact contents.
+
+The repeat/removal scenario qualifies reuse of a complete retained installation.
+Interrupted preparation recovery, version upgrades and destructive deletion are
+separate remaining acceptance cases.
 
 The harness intentionally does not remove retained container and volume
 tombstones. On a disposable CI runner the host is discarded after the job. On a

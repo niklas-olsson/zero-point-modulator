@@ -252,6 +252,12 @@ prepares private credentials, durable state, pinned source references and
 separate service environments. `zpm deployment prepare` and `verify` are offline;
 the generated `doctor` command checks actual scoped provider capabilities.
 Preparation does not establish managed-runtime readiness or run a coding agent.
+Repeating preparation with identical normalized configuration reuses a verified
+complete bundle without rotating credentials or resetting current enrollment.
+Verification rejects a missing or mismatched ownership journal without creating
+replacement state. The installed command trial also checks removal, complete
+service restart and explicit re-enrollment while retaining canonical artifacts.
+Incomplete preparation and version upgrades remain separate acceptance cases.
 The bundle requires OpenJules and Polyphony revisions containing their managed
 service entry points; it rejects older checkouts instead of falling back to the
 legacy execution path.
