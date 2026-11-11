@@ -17,17 +17,18 @@ runtime admission, or replace canonical execution and capture.
 | Topology or outcome | What this trial establishes when it passes |
 | --- | --- |
 | Two generated single-repository deployments sharing Docker | Actual installation, API scope separation, independent capacity and recovery, isolated task inputs and canonical capture |
-| Two repositories in one generated installation | Not established; the preparer accepts one binding/source/profile |
+| Two repositories in one generated installation | Not exercised; this harness prepares two separate schema-1 bundles |
 | One controller managing two repositories | Not exercised; this trial uses one controller per deployment |
 | Two deployments behind one OpenJules API | Not supported by this trial; each OpenJules service has its own authority endpoint |
 | Mutually hostile host services with Docker access | Not established; the trusted services have host-control authority |
 | Live model behavior, independent review or forge publication | Separate acceptance gates |
 
-OpenJules service configuration can describe several repository profiles and
-Polyphony can authorize several repositories within one deployment. Those
-component capabilities do not turn the generated single-repository bundle into
-a multi-repository installation. The report names the tested topology explicitly;
-it must not close the distinct installation and shared-API gaps in
+The [schema-2 installer](single-host-installation.md) can generate multiple
+repository profiles and canonical policies within one deployment and service
+pair. This harness still prepares separate schema-1 bundles. Its evidence does
+not qualify shared-service runtime isolation; that requires a distinct actual
+two-repository trial. The report names the tested topology explicitly and must
+not close that remaining acceptance criterion in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
 ## Exact candidate set

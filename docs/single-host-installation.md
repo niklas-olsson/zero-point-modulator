@@ -17,7 +17,7 @@ that the services are ready. `verify` is also an offline integrity check.
   `renameat2(RENAME_NOREPLACE)`, plus directory `fsync`. Unsupported atomic
   publication fails closed. The destination's existing parent directory must
   be trusted by the operator.
-- The three application checkouts and enrolled source checkout must be clean
+- The three application checkouts and every enrolled source checkout must be clean
   and fixed at the full Git revisions declared in configuration.
 - Keep all databases and lock files on local storage. A copied SQLite database
   is not a second active deployment or a cross-host failover mechanism.
@@ -45,19 +45,26 @@ manager installs each service in a separate virtual environment and starts each
 from its own pinned checkout. Do not combine their source directories into one
 `PYTHONPATH`.
 
-The generated bundle enrolls one repository with one approved profile. Two
-bundles can use the same Docker Engine with distinct deployment IDs, private
-directories and service ports. The
+Configuration schema 1 enrolls one repository with one approved profile.
+Schema 2 prepares 2–100 repository entries within one deployment, sharing one
+ZPM controller, one OpenJules API and one Polyphony authority. It keeps one
+approved profile per repository. The generated component configurations retain
+their existing schema version 1.
+
+Two independent bundles can also share the same Docker Engine with distinct
+deployment IDs, private directories and service ports. The
 [installed isolation trial](managed-isolation-stack-trial.md) exercises that
-topology, including one installation's outage and removal while the other task
-continues. Each bundle retains its own OpenJules API and Polyphony authority.
-This does not provide a generated multi-repository installation or multiple
-deployments behind one OpenJules API. Trusted services sharing Docker access
-are not mutually isolated host tenants.
+schema-1 topology, including one installation's outage and removal while the
+other task continues. Its result does not establish the new shared-service
+topology. Schema-2 runtime isolation requires a separate installed trial.
+Neither topology supports multiple deployments behind one OpenJules API.
+Trusted services sharing Docker access are not mutually isolated host tenants.
 
 ## Prepare an installation
 
-Start from [the operator configuration example](../examples/deployment.json).
+For one repository, start from [the schema-1 example](../examples/deployment.json).
+For several repositories, use [the schema-2 example](../examples/deployment-multiple.json)
+and the configuration contract below.
 Replace every placeholder with your actual absolute checkout paths, exact
 revisions, immutable image ID, approved command and acceptance policy. The
 enrolled source repository's declared revision is also the immutable execution
@@ -97,7 +104,8 @@ existing resources are overwritten or deleted.
 | `config/polyphony.json` | Canonical repository, profile, base, attempt and acceptance policy |
 | `config/openjules.json` | Approved Docker profile, lifecycle state, authority endpoint and secret references |
 | `config/provider.json` | ZPM's scoped OpenJules provider configuration |
-| `config/repository.json` | Initial ZPM repository enrollment |
+| `config/repository.json` | Schema-1 initial ZPM enrollment |
+| `config/repository-<repository-sha256>.json` | Schema-2 initial enrollment for one canonical repository; the prepare report and generated instructions list each exact path |
 | `secrets/` | Separate owner, reviewer, ingress, runtime and ZPM credentials |
 | `state/` | Durable ZPM, authority and runtime journals and artifacts |
 | `environments/` | Three isolated Python environments created by bootstrap |
@@ -105,13 +113,146 @@ existing resources are overwritten or deleted.
 
 The root and configuration directories use mode `0700`; secret files use mode
 `0600`. No credential values appear in the manifest, normal configuration or
-command arguments. Tokens are scoped to their relevant service and, for ingress
-and runtime operations, to the declared deployment and canonical repository.
+command arguments. Ingress and reviewer tokens are scoped to one repository.
+The trusted controller and runtime credentials cover the deployment's entire
+configured repository set so the shared services can perform their owned work.
 The owner and reviewer credentials identify the same `operator` principal.
 They do not create two independent reviewers. The runtime is a separate
 principal and cannot use its credential to accept its own work.
 
-### Retry interrupted preparation
+
+## Prepare several repositories in one deployment
+
+Schema 2 keeps deployment settings at the top level and places execution and
+enrollment settings in its `repositories` list:
+
+| Location | Fields |
+| --- | --- |
+| Shared deployment | `schema_version: 2`, `deployment_id`, `max_workers`, `sources`, optional `ports` |
+| Each repository entry | `binding`, `source`, `image`, `command`, `policy` |
+| Optional per-entry settings | `runtime`, `environment_refs`, `model_policy`, `child_policy` |
+
+The binding remains schema 1 and uses the same canonical GitHub identity and
+capacity fields as the existing CLI. Duplicate canonical identities and
+unexpected fields fail before publication. A profile name can be reused in
+different repositories because its full scope includes the repository. Each
+source checkout and immutable revision remain explicit. An approved checkout
+may also be reused, including a component checkout; the installation directory
+must remain outside every source checkout. Isolation evidence must describe
+the actual sources used in its trial.
+
+Preparation normalizes and sorts entries by canonical repository identity.
+Reordering equivalent input therefore reuses the same complete installation.
+Shared application checkouts are verified once per configuration parse; each
+repository's source and policy are still validated. The schema-1 normalized
+shape, paths and environment aliases remain unchanged.
+
+The 100-repository upper bound comes from the single Polyphony runtime
+credential's scope-list limit. The exact serialized OpenJules configuration and
+credential files must each fit 1,000,000 UTF-8 bytes, including formatting and the
+final newline. Oversized output fails before atomic publication. These are
+configuration/parser limits, not a claim that a 100-repository workload has been
+qualified. Existing dispatcher concurrency and resource limits still apply.
+
+The prepare report has a `repositories` list containing each canonical
+`repository` and its relative `binding_file`. Those flat configuration files use
+the full lowercase SHA-256 of the canonical identity in their filenames.
+The generated `README.txt` repeats the mapping for use with `zpm enroll`.
+There is one ZPM ownership journal and one authority journal for the deployment.
+
+### Credentials and environment references
+
+Schema-2 `secrets/operator.json` contains `schema_version: 2`, one `owner` token,
+and a `repositories` object keyed by canonical repository identity. Each entry
+contains its own `ingress` and `reviewer` tokens and a nonsecret
+`request_key_prefix`. The prefix is operator metadata; the server does not
+automatically apply or enforce it. Prefix ingress and review request keys with
+that value, then append a stable unique operation identifier. A review retry is
+identified from the reviewer identity and full request key, so its suffix must
+distinguish the candidate, check and evidence observation. After an uncertain
+response, retry the exact full key with the unchanged payload. Changed evidence
+or a new operation requires a new key.
+
+The generated prefix occupies 76 UTF-8 bytes. Managed ingress permits a total
+request key of 512 UTF-8 bytes, leaving at most 436 for its suffix. Different
+reviewer tokens still identify the same operator and do not establish independent
+review.
+
+The controller token intentionally authorizes every configured lifecycle scope;
+the runtime token intentionally authorizes every configured canonical scope.
+Using either trusted host credential with a correctly bound second repository
+is authorized. Repository-specific ingress/reviewer credentials remain scoped,
+and a worker, attempt or artifact must still match the scope in its request.
+
+Each guest credential reference resolves through an alias derived from its
+canonical repository and approved target:
+`ZPM_REPOSITORY_<UPPERCASE_REPOSITORY_SHA256>_GUEST_<TARGET>`. The approved guest
+target names, such as `OPENAI_API_KEY`, remain unchanged. Each host-brokered model
+policy instead uses
+`ZPM_REPOSITORY_<UPPERCASE_REPOSITORY_SHA256>_PROVIDER_TOKEN`. Aliases do not depend
+on input order, secret values or the source environment variable's name.
+Collisions fail closed. The operator's referenced values resolve only when
+starting OpenJules; they are never stored in the manifest or generated config.
+ZPM and Polyphony do not receive those values or unrelated host secrets.
+
+The example uses separate `PROJECT_A_OPENAI_KEY` and `PROJECT_B_OPENAI_KEY`
+references. Supply them through the host's secret mechanism before starting the
+manager. A model-backed repository still rejects guest credential injection and
+keeps its provider token in the trusted broker. Model and child policies remain
+bound to the exact repository/profile entry.
+
+### Capacity, removal and qualification
+
+Use the same installed CLI and shared state file for each repository:
+
+```sh
+environments/zpm/bin/zpm --state state/zpm.sqlite3 target owner/project-a 1
+environments/zpm/bin/zpm --state state/zpm.sqlite3 target owner/project-b 1
+environments/zpm/bin/zpm --state state/zpm.sqlite3 status
+python3 manage.py doctor
+environments/zpm/bin/zpm --state state/zpm.sqlite3 pause owner/project-a
+environments/zpm/bin/zpm --state state/zpm.sqlite3 remove owner/project-a
+```
+
+Local `status` and `plan` read retained journal observations without loading the
+provider configuration. Their deployment `max_workers` is therefore `null`, and
+they do not compute the configured deployment-ceiling reason. The generated
+`doctor` command supplies the provider credentials and configuration, performs
+authenticated scoped capability checks, and includes that ceiling with the
+journalled capacity report. Its `ready` flag describes capability validation;
+it does not prove that every desired worker target has converged.
+
+The deployment ceiling counts all unreleased reservations across repositories,
+including uncertain or draining workers. Per-repository desired targets remain
+visible when a ceiling prevents admission. Existing rotating mutation credits
+remain in place; this change does not introduce a scheduler or promise a
+wall-clock fairness bound. Children do not add top-level reservations.
+
+Pause and removal change capacity admission while keeping canonical policy,
+credentials, task history and artifacts. Repeated preparation checks that every
+original enrollment row and the deployment identity remain present; it never
+recreates a missing journal or resets current targets, pause or removed state.
+Explicitly re-enroll a removed repository using its reported binding file.
+Schema-2 configuration is for fresh installations. Adding a repository, changing
+the repository set or approved pins/profile, or converting a schema-1 bundle
+remains an unsupported upgrade and cannot overwrite an existing bundle.
+
+The new generator tests cover configuration, scoped credentials, exact output
+size, secret resolution and retained state. The existing installed trials still
+exercise schema 1. An actual two-repository trial with one controller and one
+service pair remains required before claiming shared-service runtime isolation.
+Its source-failure evidence must stay scoped: a shared service, authority or
+Docker outage affects both repositories, and broker readiness can couple model
+profiles when an endpoint is unavailable. An already-running B task may continue
+while A's source is unavailable. However, verify, bootstrap, start and doctor
+revalidate every approved checkout; verifying or restarting the whole bundle
+fails closed until A's source and exact pin are restored. Source-failure evidence
+must not imply cold restart or general service isolation during that fault.
+Live provider behavior and actual
+forge review/publication remain separate acceptance gates in
+[ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
+
+## Retry interrupted preparation
 
 New preparation writes a private `.zpm-prepare-*` sibling directory. Its marker
 records the intended final destination, and generated state and credential paths
@@ -152,10 +293,10 @@ credential exclusively in the trusted OpenJules process.
 
 Start from [the model deployment example](../examples/deployment-model.json).
 Choose and review the model endpoint, model identifier, limits and credential
-reference explicitly. The optional top-level `model_policy` is bound to the
-same deployment, canonical repository and profile as the approved Docker
-configuration. Omitting it keeps the command-only path and does not create a
-model broker or choose a provider.
+reference explicitly. The optional `model_policy` is at the top level in schema 1
+and inside the repository entry in schema 2. It is bound to the same deployment,
+canonical repository and profile as the approved Docker configuration. Omitting
+it keeps that repository's command-only path and does not choose a provider.
 
 The image must contain OpenJules' managed runner. Build the approved OpenJules
 revision's `docker/Dockerfile.managed-agent` with an explicitly chosen Python
@@ -351,8 +492,9 @@ that the requested transition completed. Confirm that reservations reach zero
 before treating scale-down as complete.
 
 The service's managed ingress uses the dedicated ingress credential in
-`secrets/operator.json`, not the owner credential. Submit public task
-requirements with a stable source and explicit execution-request key. Repeating
+`secrets/operator.json`. For schema 2, select the token under the matching canonical
+repository and use its request-key prefix. Submit public task requirements with
+a stable source and explicit execution-request key. Repeating
 the same request returns the same canonical task; changed retries conflict.
 Task budgets and acceptance policy come from the installed authority policy.
 
@@ -400,6 +542,11 @@ environments/zpm/bin/zpm --state state/zpm.sqlite3 enroll config/repository.json
 environments/zpm/bin/zpm --state state/zpm.sqlite3 target owner/project 2
 environments/zpm/bin/zpm --state state/zpm.sqlite3 status
 ```
+
+For schema 2, use that repository's `binding_file` from the prepare report or
+generated instructions in place of `config/repository.json`. Removal leaves all
+configured repositories in the sealed policy and credential files so retained
+canonical work remains accessible.
 
 The installed command trial checks this path after real execution and capture,
 including a full service restart and byte-identical retained canonical artifacts.

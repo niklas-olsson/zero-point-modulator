@@ -266,6 +266,18 @@ restoration. Version upgrades remain a separate acceptance case.
 The bundle requires OpenJules and Polyphony revisions containing their managed
 service entry points; it rejects older checkouts instead of falling back to the
 legacy execution path.
+The [multiple-repository example](examples/deployment-multiple.json) uses
+configuration schema 2 to prepare 2–100 repositories in one deployment, with one
+controller, one OpenJules API and one Polyphony authority. Each entry retains an
+explicit binding, source, profile and execution policy. Repository-specific
+ingress/reviewer tokens and secret aliases remain separate; trusted host
+controller/runtime credentials intentionally cover the configured set. The
+serialized OpenJules files must each fit its 1,000,000-byte parser limit.
+Equivalent reordered input reuses the same installation and preserves current
+targets, pause/removal, credentials and history. Schema-1 bundles keep their
+existing shape; adding repositories or converting a live bundle is an
+unsupported upgrade. Configuration tests do not replace the separate actual
+shared-service isolation trial still required by [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 The [model deployment example](examples/deployment-model.json) adds an explicit
 provider policy and uses the managed agent image. Its provider token resolves
 only into OpenJules; the worker retains disabled networking and uses its own
