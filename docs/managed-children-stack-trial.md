@@ -21,7 +21,7 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `11842db8fc573b461121dc321a1537a9a148ad90`, merged owned cleanup, initial child outcomes and durable control replay |
+| OpenJules | `3a77641e56055daa5c3a2b8b2a3c337ef9be5a2e`, merged owned cleanup, initial child outcomes and durable control replay |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
@@ -34,6 +34,10 @@ The current pin adds [explicit owned cleanup](https://github.com/niklas-olsson/O
 and [strict adapter and authentication checks](https://github.com/niklas-olsson/OpenJules/pull/18)
 for the qualified creation transport. [Versioned persisted proof](https://github.com/niklas-olsson/OpenJules/pull/20)
 keeps earlier unqualified creation markers ineligible after restart.
+The operative OpenJules revision also includes the actual Docker
+[combined-verification failure case](https://github.com/niklas-olsson/OpenJules/pull/21)
+and component [claim-versus-drain regressions](https://github.com/niklas-olsson/OpenJules/pull/22).
+Those component results do not replace this installed trial's exact-set qualification.
 Its component Docker tests cover process death between removal and journal
 acknowledgement with a fixture authority. This installed trial separately requires
 cleanup against the real retained Polyphony authority before the set is qualified.
@@ -143,6 +147,74 @@ parent agent loop. The provider fixtures choose the completion and decline;
 actual processes, UID-bound callbacks, service journals and captures execute
 the protocol. The actual root process also attempts both children's outcome
 sockets and must receive UID-based authorization denial.
+
+### Admission against a genuine prior authority revision
+
+Before any root enrollment or worker allocation in this variant, the trial also
+runs Polyphony `473df5a0406accfe5cb550877e7b28a602cb116c` from a separate clean
+checkout. This is the actual direct parent of the positive authority pin
+`653c0a71a921c0d23b8e0171277524125e929e66`. Its tree is
+`389ec80cb6a99edf2993d59e4540f6bdeaaa5f18`. The additional checkout is negative
+compatibility evidence; it does not replace the operative revision in the
+component table.
+
+The historical coordinator accepts the original generated configuration,
+credentials and empty canonical database. Its authenticated
+`/managed/capabilities` returns HTTP 200 with the same repository, approved
+base, profile digest, root dispatch and child-grant policy. It lacks
+`child_initial_outcome`, which the selected `initial-v1` OpenJules profile
+requires. The trial compares the entire old response to the actual current
+response with exactly that field removed. It does not require old root
+enrollment to fail, manufacture a capability response, or substitute a
+health-only HTTP server.
+
+The phase uses the installed Polyphony interpreter and unchanged generated
+command and environment. Only the owned authority process's working directory
+changes. Git revision/tree/cleanliness checks and module-origin/hash probes
+under that same interpreter, environment and working directory verify both
+source selections. Each probed module must match its pinned Git blob bytes
+before and after the import probe, even if special Git index flags make a
+changed worktree appear clean. Neither the sealed current checkout nor the
+generated installation is rewritten.
+
+One actual OpenJules process spans current-authority readiness, the historical
+denial and restored current-authority readiness. Actual source/image/Docker and
+child-transport preflight must first pass at target zero. With the old authority
+running, two completed installed controller passes at target one and two
+identical fresh ensure requests must remain unready. OpenJules reports
+`Canonical managed authority is unavailable`; the controller reports
+`repository_access unavailable`. Every observation must preserve empty
+all-scope protected/runtime/child/model histories across seven read-only
+journals, an empty capture directory, unchanged policy fingerprints and Docker
+inventory, and zero accepted or rejected model requests.
+
+Target zero is restored before the old authority is stopped and reaped. The
+current authority must recover the original capability object, a completed
+target-zero controller result and the unchanged empty state. Both helper-owned
+services then stop; the normal generated manager starts the unchanged
+twelve-call positive outcome scene described above. Cleanup attempts target
+reset and both owned service shutdowns even after a failed assertion, preserving
+the original failure. Only aggregate source hashes, capability/status facts and
+history digests enter the shareable report.
+
+For a manual initial-outcome run, supply the separate verified checkout:
+
+```sh
+python tests/contracts/check_children_stack.py \
+  --initial-outcomes \
+  --historical-polyphony-checkout /absolute/checkouts/polyphony-historical-473df5a \
+  --polyphony-checkout /absolute/checkouts/keystone-polyphony \
+  --openjules-checkout /absolute/checkouts/OpenJules \
+  --image "$(cat /absolute/private/managed-children-image-id)" \
+  --work-dir /absolute/private/managed-child-outcomes-trial
+```
+
+This establishes required-feature admission against actual older code once the
+new exact-set CI passes. It does not establish populated-state downgrade
+compatibility, absence of the core managed protocol, a literal `/health`
+contract or live-provider behavior. The separate current-no-policy model trial
+and old-shaped HTTP fixtures retain their narrower labels. No additional
+inference allowance, worker, child grant, job or timeout extension is introduced.
 
 ## Bounded execution and accounting
 

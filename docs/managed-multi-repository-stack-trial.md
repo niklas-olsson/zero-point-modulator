@@ -21,7 +21,7 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `11842db8fc573b461121dc321a1537a9a148ad90` |
+| OpenJules | `3a77641e56055daa5c3a2b8b2a3c337ef9be5a2e` |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66` |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
@@ -57,11 +57,14 @@ captures through restart and zero final reservations. The complete exact-head
 aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
 
 The workflow now selects the merged OpenJules revision
-`11842db8fc573b461121dc321a1537a9a148ad90` from
-[OpenJules #20](https://github.com/niklas-olsson/OpenJules/pull/20), including
-versioned creation proof, strict cleanup transport checks and explicit owned cleanup alongside the earlier
-child outcomes and durable replay, with the
-Polyphony pin unchanged. That refreshed set requires its own complete eight-job
+`3a77641e56055daa5c3a2b8b2a3c337ef9be5a2e` from
+[OpenJules #22](https://github.com/niklas-olsson/OpenJules/pull/22). It adds component
+claim-versus-drain regressions and the actual Docker
+[combined-verification failure case](https://github.com/niklas-olsson/OpenJules/pull/21)
+over the [versioned creation proof](https://github.com/niklas-olsson/OpenJules/pull/20),
+strict cleanup transport checks, explicit owned cleanup, child outcomes and
+durable replay already in the previous pin. The production runtime is unchanged
+by those two test slices, and the Polyphony pin is unchanged. That refreshed set requires its own complete eight-job
 ZPM qualification and current component CI. The historical results above remain
 bound to their recorded revisions; they are not results for the new pin.
 Record the refreshed set's actual outcome in

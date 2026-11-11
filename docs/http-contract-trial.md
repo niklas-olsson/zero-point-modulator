@@ -19,7 +19,7 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`11842db8fc573b461121dc321a1537a9a148ad90`](https://github.com/niklas-olsson/OpenJules/commit/11842db8fc573b461121dc321a1537a9a148ad90) |
+| OpenJules | [`3a77641e56055daa5c3a2b8b2a3c337ef9be5a2e`](https://github.com/niklas-olsson/OpenJules/commit/3a77641e56055daa5c3a2b8b2a3c337ef9be5a2e) |
 
 This is the same merged OpenJules revision used by all five installed-stack
 jobs. Their common Polyphony pin is `653c0a71a921c0d23b8e0171277524125e929e66`;
@@ -47,10 +47,14 @@ To update the shared component pins:
 
 1. Select an immutable OpenJules commit whose full repository CI passes. Use a
    clean checkout of that commit for the local trial below.
-2. Change all corresponding checkout `ref` values in `.github/workflows/ci.yml`
-   and the revision tables in the HTTP, command, model, child and isolation trial guides
-   together. Keep one explicit three-repository revision set. Do not substitute
-   a moving branch or tag.
+2. Change all operative checkout `ref` values in `.github/workflows/ci.yml` and
+   `.github/workflows/managed-publication.yml`, the matching revision constant in
+   `tests/contracts/check_publication_stack.py`, and the current HTTP, command,
+   model, child, isolation, shared-service and installation guide references
+   together. Keep one explicit three-repository delivery set. The separately
+   labelled historical-authority negative checkout remains frozen at its own
+   revision; retained historical results also keep their original revisions.
+   Do not substitute a moving branch or tag.
 3. Run the HTTP trial locally, then require the ZPM unit, package, CLI and all
    five integration jobs to pass for the proposed update before merging it.
 

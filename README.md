@@ -334,7 +334,11 @@ one worker, composes their returned patches, drains to zero during active work,
 and verifies final capture and restart without repeated inference. It also
 invokes the installed OpenJules host cleanup against the real retained authority,
 then checks identical replay, preserved journals and artifacts, untouched idle
-replacement resources and original ensure replay without resurrection. The
+replacement resources and original ensure replay without resurrection. Its explicit-outcome
+variant also requires admission to remain closed against a genuine prior Polyphony
+revision missing the required outcome capability, with no protected work or
+inference, before restoring current-authority readiness and executing the normal
+positive scene. The
 [isolation trial](docs/managed-isolation-stack-trial.md) installs two independent
 single-repository deployments on one Docker Engine and requires one deployment's
 original task to keep progressing while the other scales, drains, loses service,
