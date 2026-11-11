@@ -14,7 +14,7 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from zpm.deployment import MANAGED_ENTRYPOINTS, SOURCE_FILES, _bootstrap, _command, _doctor, _environment, prepare, verify
+from zpm.deployment import MANAGED_ENTRYPOINTS, MODEL_ENTRYPOINTS, MODEL_TOKEN_ENV, SOURCE_FILES, _bootstrap, _command, _doctor, _environment, prepare, verify
 from zpm.models import ConfigurationError
 from zpm.store import Store
 
@@ -51,6 +51,23 @@ class DeploymentTests(unittest.TestCase):
 
     def read(self, name):
         return json.loads((self.bundle / name).read_text())
+
+    def model_configuration(self, token_ref="env:TEST_PROVIDER_KEY"):
+        checkout = Path(self.sources["openjules"]["checkout"])
+        for entrypoint in MODEL_ENTRYPOINTS:
+            path = checkout / entrypoint
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fixture model entry point\n")
+        subprocess.run(["git", "-C", str(checkout), "add", "."], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(checkout), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                        "commit", "-qm", "model fixture"], check=True, capture_output=True)
+        self.config["sources"]["openjules"]["revision"] = subprocess.check_output(
+            ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True).strip()
+        return deepcopy(self.config) | {"model_policy": {
+            "endpoint": "https://provider.example/v1/chat/completions", "model": "operator-approved-model",
+            "token_ref": token_ref, "max_calls": 4, "max_output_tokens": 1024, "max_total_output_tokens": 4096,
+            "request_timeout_seconds": 5, "token_parameter": "max_completion_tokens",
+        }}
 
     def test_prepare_is_private_offline_and_scopes_all_three_services(self):
         with patch("urllib.request.OpenerDirector.open", side_effect=AssertionError("offline operation contacted network")):
@@ -153,6 +170,90 @@ class DeploymentTests(unittest.TestCase):
         commands = [_command(self.bundle, name, data) for name in SOURCE_FILES]
         self.assertEqual(len({command[0] for command in commands}), 3)
         self.assertTrue(all("model-secret" not in " ".join(command) for command in commands))
+
+    def test_model_policy_is_scoped_and_resolves_only_in_the_openjules_environment(self):
+        configuration = self.model_configuration(token_ref="env:PYTHONPATH")
+        synthetic_secret = "synthetic-provider-secret-only-for-this-test"
+        with patch.dict(os.environ, {"PYTHONPATH": synthetic_secret, "UNRELATED_SECRET": "do-not-inherit"}):
+            with patch("urllib.request.OpenerDirector.open", side_effect=AssertionError("preparation contacted a provider")):
+                prepare(configuration, self.bundle)
+                verify(self.bundle)
+            data = self.read("manifest.json")["configuration"]
+            environments = {name: _environment(self.bundle, name, data) for name in (*SOURCE_FILES, "bootstrap")}
+        runtime = self.read("config/openjules.json")
+        self.assertEqual(runtime["profiles"][0]["environment_refs"], {})
+        self.assertEqual(runtime["models"], [{
+            "deployment_id": "installation-test", "repository": "github:github.com/owner/project", "profile": "approved",
+            "policy": data["model_policy"] | {"token_ref": "env:" + MODEL_TOKEN_ENV},
+        }])
+        self.assertEqual(data["model_policy"]["token_ref"], "env:PYTHONPATH")
+        self.assertEqual(environments["openjules"][MODEL_TOKEN_ENV], synthetic_secret)
+        self.assertTrue(all("PYTHONPATH" not in env and "UNRELATED_SECRET" not in env for env in environments.values()))
+        for service in ("zpm", "polyphony", "bootstrap"):
+            self.assertNotIn(MODEL_TOKEN_ENV, environments[service])
+            self.assertNotIn(synthetic_secret, environments[service].values())
+        for path in self.bundle.rglob("*"):
+            if path.is_file():
+                self.assertNotIn(synthetic_secret.encode(), path.read_bytes())
+
+    def test_model_preparation_is_offline_but_start_requires_the_explicit_provider_reference(self):
+        configuration = self.model_configuration()
+        with patch.dict(os.environ, {}, clear=True):
+            # Retain PATH only for local Git validation, without provider secrets.
+            with patch.dict(os.environ, {"PATH": os.defpath}):
+                prepare(configuration, self.bundle)
+                data = self.read("manifest.json")["configuration"]
+                verify(self.bundle)
+                for service in ("zpm", "polyphony", "bootstrap"):
+                    _environment(self.bundle, service, data)
+                with self.assertRaisesRegex(ConfigurationError, "provider reference is unavailable"):
+                    _environment(self.bundle, "openjules", data)
+                with patch.dict(os.environ, {"TEST_PROVIDER_KEY": "invalid whitespace credential"}):
+                    with self.assertRaisesRegex(ConfigurationError, "provider reference is unavailable"):
+                        _environment(self.bundle, "openjules", data)
+
+    def test_model_policy_rejects_invalid_or_guest_credential_configuration_before_writing(self):
+        configuration = self.model_configuration()
+        variants = [
+            {"endpoint": "http://provider.example/v1/chat/completions"},
+            {"endpoint": "https://user:password@provider.example/v1/chat/completions"},
+            {"endpoint": "https://provider.example/v1/chat/completions?token=secret"},
+            {"endpoint": "https://provider.example/v1/chat/completions#secret"},
+            {"endpoint": "https://provider.example:invalid/v1/chat/completions"},
+            {"endpoint": "https://provider.example/v1/models"}, {"endpoint": None},
+            {"model": ""}, {"model": "unapproved model"}, {"token_ref": "inline-secret"},
+            {"token_ref": "env:OPENJULES_WORKER_TOKEN"}, {"token_ref": "env:POLYPHONY_RUNTIME_TOKEN"},
+            {"max_calls": True}, {"max_calls": 0}, {"max_calls": 1001},
+            {"max_output_tokens": 32769}, {"max_total_output_tokens": 10_000_001},
+            {"request_timeout_seconds": 0}, {"request_timeout_seconds": float("nan")},
+            {"request_timeout_seconds": float("inf")}, {"max_request_bytes": 1023},
+            {"max_response_bytes": 2097153}, {"token_parameter": "arbitrary"}, {"token_parameter": []},
+            {"fallback_model": "unapproved"},
+        ]
+        for variant in variants:
+            with self.subTest(variant=variant), self.assertRaises(ConfigurationError):
+                prepare(configuration | {"model_policy": configuration["model_policy"] | variant}, self.bundle)
+            self.assertFalse(self.bundle.exists())
+        for invalid in (None, {}, []):
+            with self.subTest(model_policy=invalid), self.assertRaises(ConfigurationError):
+                prepare(configuration | {"model_policy": invalid}, self.bundle)
+            self.assertFalse(self.bundle.exists())
+        with self.assertRaisesRegex(ConfigurationError, "cannot inject guest"):
+            prepare(configuration | {"environment_refs": {"OPENAI_API_KEY": "env:TEST_PROVIDER_KEY"}}, self.bundle)
+        self.assertFalse(self.bundle.exists())
+
+    def test_model_entrypoints_are_required_only_when_the_operator_opts_in(self):
+        configuration = deepcopy(self.config) | {"model_policy": {
+            "endpoint": "http://127.0.0.1:12345/v1/chat/completions", "model": "local-fixture",
+            "token_ref": "env:TEST_PROVIDER_KEY",
+        }}
+        with self.assertRaisesRegex(ConfigurationError, "model entry points"):
+            prepare(configuration, self.bundle)
+        self.assertFalse(self.bundle.exists())
+        prepare(self.config, self.bundle)
+        self.assertNotIn("model_policy", self.read("manifest.json")["configuration"])
+        self.assertNotIn("models", self.read("config/openjules.json"))
+        self.assertTrue(verify(self.bundle)["valid"])
 
     def test_doctor_requires_ready_validation_for_every_repository(self):
         prepare(self.config, self.bundle)

@@ -101,3 +101,55 @@ jobs:
             ${{ runner.temp }}/managed-stack-trial/diagnostics.json
           if-no-files-found: warn
           retention-days: 14
+
+  managed-model-stack:
+    name: Install and verify the model-backed root agent
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: zpm
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/OpenJules
+          # Exact tested PR10 head, retained in main's ancestry.
+          # Update this pin with docs/managed-model-stack-trial.md.
+          ref: 5dadee74e824e3fa3f19c6a45a44374e2467e0d1
+          path: openjules
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/keystone-polyphony
+          ref: f90c97416f6bc81abcb7835598d09d7954437542
+          path: polyphony
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the local Docker Engine
+        run: docker info
+      - name: Build the real managed coding-agent image
+        run: |
+          docker build --build-arg PYTHON_BASE=python:3.12-slim \
+            --iidfile "$RUNNER_TEMP/managed-model-image.id" \
+            -f openjules/docker/Dockerfile.managed-agent openjules
+      - name: Install and exercise canonical model-backed root coding
+        run: |
+          python zpm/tests/contracts/check_model_stack.py \
+            --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/managed-model-image.id")" \
+            --work-dir "$RUNNER_TEMP/managed-model-stack-trial"
+      - name: Retain only the credential-free model trial report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-model-stack-evidence
+          path: |
+            ${{ runner.temp }}/managed-model-stack-trial/report.json
+            ${{ runner.temp }}/managed-model-stack-trial/diagnostics.json
+          if-no-files-found: warn
+          retention-days: 14

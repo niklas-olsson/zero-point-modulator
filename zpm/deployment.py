@@ -20,6 +20,7 @@ import subprocess
 import sys
 import time
 from typing import Any
+from urllib.parse import urlsplit
 
 from .models import Binding, ConfigurationError, ProviderConfig, identifier
 from .store import Store
@@ -36,6 +37,8 @@ MANAGED_ENTRYPOINTS = {
     "polyphony": ("src/liminal_bridge/coordinator_service.py", "src/liminal_bridge/managed_service.py"),
 }
 SECRET_ENV = {"zpm": "OPENJULES_WORKER_TOKEN", "openjules": "POLYPHONY_RUNTIME_TOKEN"}
+MODEL_TOKEN_ENV = "ZPM_MODEL_PROVIDER_TOKEN"
+MODEL_ENTRYPOINTS = ("src/worker/model_broker.py", "src/agent/managed_runner.py")
 _SHA = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
 _ENV = re.compile(r"[A-Z_][A-Z0-9_]*")
 _MODEL_ENV = {"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "AZURE_OPENAI_API_KEY"}
@@ -94,9 +97,50 @@ def _checkout(value: Any, name: str) -> dict:
     return {"checkout": str(path), "revision": revision}
 
 
+def _model_policy(value: Any) -> dict:
+    required = {"endpoint", "model", "token_ref"}
+    defaults = {"max_calls": 25, "max_output_tokens": 2048, "max_total_output_tokens": 32768,
+                "request_timeout_seconds": 30, "max_request_bytes": 524288,
+                "max_response_bytes": 2097152, "token_parameter": "max_tokens"}
+    data = defaults | _object(value, required | set(defaults), "model_policy", required)
+    endpoint = data["endpoint"]
+    if not isinstance(endpoint, str) or not endpoint or any(character.isspace() for character in endpoint) or "\x00" in endpoint:
+        raise ConfigurationError("model endpoint must be an explicit completions URL")
+    try:
+        parts = urlsplit(endpoint)
+        valid = (parts.scheme in {"https", "http"} and parts.hostname
+                 and parts.username is None and parts.password is None and not parts.query and not parts.fragment
+                 and parts.path.endswith("/chat/completions")
+                 and (parts.scheme == "https" or parts.hostname in {"127.0.0.1", "::1", "localhost"}))
+        parts.port
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ConfigurationError("model endpoint requires HTTPS or loopback HTTP without URL credentials")
+    model = data["model"]
+    if not isinstance(model, str) or not model or len(model) > 256 or "\x00" in model or any(character.isspace() for character in model):
+        raise ConfigurationError("model_policy requires an explicit bounded model identifier")
+    reference = data["token_ref"]
+    if (not isinstance(reference, str) or not reference.startswith("env:") or not _ENV.fullmatch(reference[4:])
+            or reference[4:] in SECRET_ENV.values()):
+        raise ConfigurationError("model token_ref must name a provider environment reference, not a control credential")
+    for name, minimum, maximum in (
+        ("max_calls", 1, 1000), ("max_output_tokens", 1, 32768),
+        ("max_total_output_tokens", 1, 10_000_000), ("max_request_bytes", 1024, 524288),
+        ("max_response_bytes", 1024, 2097152),
+    ):
+        _number(data[name], "model " + name, minimum, maximum, integer=True)
+    timeout = data["request_timeout_seconds"]
+    if type(timeout) not in {int, float} or not 0 < timeout <= 120:
+        raise ConfigurationError("model request_timeout_seconds must be positive and at most 120")
+    if not isinstance(data["token_parameter"], str) or data["token_parameter"] not in {"max_tokens", "max_completion_tokens"}:
+        raise ConfigurationError("model token_parameter is unsupported")
+    return data
+
+
 def parse_configuration(value: Any) -> dict:
     required = {"schema_version", "deployment_id", "binding", "max_workers", "sources", "source", "image", "command", "policy"}
-    data = _object(value, required | {"ports", "runtime", "environment_refs"}, "deployment configuration", required)
+    data = _object(value, required | {"ports", "runtime", "environment_refs", "model_policy"}, "deployment configuration", required)
     if type(data["schema_version"]) is not int or data["schema_version"] != 1:
         raise ConfigurationError("deployment schema_version must be 1")
     deployment = identifier(data["deployment_id"], "deployment_id")
@@ -161,9 +205,16 @@ def parse_configuration(value: Any) -> dict:
         for key, ref in environment.items()
     ):
         raise ConfigurationError("environment_refs must map approved model variables to environment references")
+    model = {}
+    if "model_policy" in data:
+        model["model_policy"] = _model_policy(data["model_policy"])
+        if environment:
+            raise ConfigurationError("model-backed profiles cannot inject guest environment_refs")
+        if any(not (Path(sources["openjules"]["checkout"]) / name).is_file() for name in MODEL_ENTRYPOINTS):
+            raise ConfigurationError("OpenJules revision lacks the required managed model entry points")
     return {"schema_version": 1, "deployment_id": deployment, "binding": binding.to_dict(), "max_workers": maximum,
             "sources": sources, "source": source, "image": image, "command": command, "ports": ports,
-            "runtime": runtime, "environment_refs": environment,
+            "runtime": runtime, "environment_refs": environment, **model,
             "policy": {"checks": checks, "reviewers": reviewers, "max_attempts": attempts,
                        "budget_seconds": budget, "attempt_seconds": seconds, "capabilities": capabilities}}
 
@@ -214,7 +265,7 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
             }},
         }},
     })
-    _write(root / "config/openjules.json", {
+    openjules = {
         "schema_version": 1, "host": "127.0.0.1", "port": data["ports"]["openjules"], "poll_interval_seconds": 1,
         "state_directory": str(root / "state/openjules/runtime"),
         "lifecycle_database": str(root / "state/openjules/lifecycle.sqlite3"),
@@ -225,7 +276,12 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
                       **data["runtime"], "environment_refs": {
                           name: "env:ZPM_MODEL_" + name for name in data["environment_refs"]
                       }}],
-    })
+    }
+    if "model_policy" in data:
+        openjules["models"] = [{**scope, "profile": profile, "policy": {
+            **data["model_policy"], "token_ref": "env:" + MODEL_TOKEN_ENV,
+        }}]
+    _write(root / "config/openjules.json", openjules)
     _write(root / "config/provider.json", ProviderConfig.parse({
         "schema_version": 1, "endpoint": f"http://127.0.0.1:{data['ports']['openjules']}",
         "token_ref": "env:" + SECRET_ENV["zpm"], "max_workers": data["max_workers"], "timeout_seconds": 10,
@@ -308,6 +364,12 @@ def _environment(root: Path, service: str, data: dict) -> dict[str, str]:
             # Source reference names must not reintroduce PYTHONPATH,
             # LD_PRELOAD or other process controls into the trusted service.
             result["ZPM_MODEL_" + target] = os.environ[name]
+        if "model_policy" in data:
+            name = data["model_policy"]["token_ref"].removeprefix("env:")
+            token = os.environ.get(name, "")
+            if not token or any(character.isspace() for character in token):
+                raise ConfigurationError("the configured model provider reference is unavailable or invalid")
+            result[MODEL_TOKEN_ENV] = token
     return result
 
 
@@ -458,8 +520,12 @@ The host requires a local Docker Engine accessible to the trusted OpenJules
 service account, and the explicitly pinned image must already be present.
 The Docker socket is host-control authority. Never give it to worker containers.
 The approved command runs without network access. Model credentials referenced
-in configuration must be supplied to the start command's environment; control
-credentials are never passed to the task container.
+in configuration must be supplied to the start command's environment. Optional
+model_policy credentials resolve only in the trusted OpenJules service, which
+brokers inference through a worker-owned Unix socket. Model-backed profiles
+reject guest environment_refs. Control credentials never enter task containers.
+The model socket requires rootful Linux Docker with the approved task UID mapping.
+Doctor does not contact the provider or prove model compatibility or quality.
 
 All listeners bind loopback. Runtime, ingress, owner, reviewer and ZPM tokens
 are separate private files under secrets/. Do not commit or publish this bundle.

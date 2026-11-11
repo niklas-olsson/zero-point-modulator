@@ -24,10 +24,15 @@ that the services are ready. `verify` is also an offline integrity check.
 - The approved task image must already exist locally and be identified by its
   full image ID or repository digest. Preparation and startup do not implicitly
   pull a mutable image tag.
-- The first managed profile runs one root attempt per worker incarnation, with
-  no network access. It does not yet enable child delegation or connections to
-  external model providers. A container running a controlled code-change trial
-  is not evidence of live model inference or forge publication.
+- A managed profile runs one root attempt per worker incarnation, with no
+  container networking. An optional explicit model policy enables host-brokered
+  inference over the worker's private Unix socket. The model path requires
+  rootful Docker with the approved task UID mapping; rootless Docker and user
+  namespace remapping need separate qualification.
+- This installation supports root execution. It does not enable child
+  delegation, independent semantic review or forge publication. Deterministic
+  model fixture results do not establish a live provider's compatibility or
+  model quality.
 
 Polyphony and OpenJules both use Python packages named `src`. The generated
 manager installs each service in a separate virtual environment and starts each
@@ -79,10 +84,68 @@ principal and cannot use its credential to accept its own work.
 
 Do not publish, commit or copy the generated directory to a public location.
 The input configuration contains secret references only. Keep actual model
-credentials in the host's secret mechanism. The baseline accepts only explicit
-model environment references and does not inherit unrelated environment
-credentials or `PYTHONPATH` into the services. Model references do not add a
-network route to an otherwise network-isolated worker.
+credentials in the host's secret mechanism. The manager does not inherit
+unrelated environment credentials or `PYTHONPATH` into the services. Existing
+command-only profiles retain their explicit `environment_refs` behavior.
+Model-backed profiles reject guest environment references and keep the provider
+credential exclusively in the trusted OpenJules process.
+
+## Enable a model-backed root agent
+
+Start from [the model deployment example](../examples/deployment-model.json).
+Choose and review the model endpoint, model identifier, limits and credential
+reference explicitly. The optional top-level `model_policy` is bound to the
+same deployment, canonical repository and profile as the approved Docker
+configuration. Omitting it keeps the command-only path and does not create a
+model broker or choose a provider.
+
+The image must contain OpenJules' managed runner. Build the approved OpenJules
+revision's `docker/Dockerfile.managed-agent` with an explicitly chosen Python
+base digest, install any repository test dependencies into that image, and
+approve its resulting immutable image ID. Task execution cannot download
+dependencies. The example command invokes the runner with its fixed socket
+path, a turn limit and operator-selected verification argv. Repository task
+input cannot replace the image, command or model policy.
+
+| Model policy field | Meaning and accepted bounds |
+| --- | --- |
+| `endpoint` | Complete HTTPS URL ending in `/chat/completions`; loopback HTTP is allowed for a local provider or fixture. URL credentials, queries and fragments are rejected. |
+| `model` | Explicit nonempty model identifier, at most 256 characters, without whitespace |
+| `token_ref` | An uppercase `env:NAME` reference supplied to the start command by the host secret mechanism; control-token references are rejected |
+| `max_calls` | Reserved calls per attempt, 1–1000; default 25 |
+| `max_output_tokens` | Requested output-token allowance per call, 1–32768; default 2048 |
+| `max_total_output_tokens` | Total reserved output-token allowance per attempt, 1–10000000; default 32768 |
+| `request_timeout_seconds` | Positive timeout up to 120 seconds, also constrained by canonical permission; default 30 |
+| `max_request_bytes` | Bounded broker request size, 1024–524288; default 524288 |
+| `max_response_bytes` | Bounded provider response size, 1024–2097152; default 2097152 |
+| `token_parameter` | `max_tokens` or `max_completion_tokens`, according to the selected provider; default `max_tokens` |
+
+The generated OpenJules configuration contains a scoped `models` entry whose
+credential reference is `env:ZPM_MODEL_PROVIDER_TOKEN`. The manager resolves the
+operator's source reference into that internal alias only for OpenJules. The
+actual value is absent from generated files, command argv, ZPM, Polyphony,
+bootstrap processes and the worker environment. The container receives only
+its own read-only model directory with a Unix socket. It keeps disabled
+networking and receives neither the Docker socket nor control credentials.
+
+Supply the named provider reference through the host's secret mechanism before
+running `python3 manage.py start`. Preparation, offline verification and
+dependency bootstrap do not require that secret. Startup and model readiness
+fail closed when it is missing. Doctor checks the scoped dispatch and local
+model transport without making an inference call; a ready result does not prove
+that the remote provider accepts the selected API or model.
+
+Changing the endpoint, model, limits or runtime UID requires a new approved
+profile name and configuration. Provider credential value rotation can retain
+its existing reference. Preserve the model journal across restarts: completed
+identical requests are cached, while uncertain requests retain their reserved
+budget and are not automatically sent again. Canonical permission is checked
+before inference and before delivering output.
+
+The limits bound calls and reserved output tokens per attempt. They do not
+guarantee a monetary ceiling: input tokens, provider-specific reasoning behavior
+and already dispatched requests have separate billing implications. Multiple
+workers and deliberate new attempts have distinct budgets.
 
 ## Install dependencies and start
 
@@ -165,10 +228,16 @@ SQLite-aware backup procedure. Never copy a live database without its WAL and
 call that a complete recovery image. Preserve the deployment identity and
 credential files along with durable state.
 
-The [combined contract trial](managed-stack-trial.md) is separate from installation preparation. It must
+The [command-based contract trial](managed-stack-trial.md) is separate from installation preparation. It must
 run the actual authority and OpenJules services in separate processes, use a
 real Docker container, validate canonical captured artifacts and exercise
 capacity changes through ZPM's HTTP provider. Its controlled command does not
 claim live model inference, delegated children, independent semantic review,
 GitHub PR creation or merge authorization. Those remaining product capabilities
 stay in their owning repositories' work packages.
+
+The separate [model-backed installation trial](managed-model-stack-trial.md)
+uses the real generated bundle, canonical authority, managed agent image and
+broker with a deterministic localhost model fixture. It verifies a real code
+change, independent patch testing, credential isolation and durable restart
+without a live provider account.
