@@ -32,14 +32,14 @@ The CI job currently pins:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `7ca211ebb01d041827df5e480ad65c30cf7ba9ee`, initial child outcomes and durable control replay candidate |
+| OpenJules | `c85867c9a110f6c3ea00a53e6a721a15ce15782d`, merged initial child outcomes and durable control replay |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The workflow's checked-out candidate revision, recorded in the report |
 
 All installed-stack jobs use this same three-repository candidate set. The HTTP
 fixture and component CI do not qualify the changed installation: all ZPM jobs,
-including the command, model, child and isolation Docker trials, must pass on the exact
-candidate revision. Qualification and CI evidence remain tracked in
+including the command, model, child, two-installation isolation and shared-service
+Docker trials, must pass on the exact candidate revision. Qualification and CI evidence remain tracked in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 Update all component pins and trial guides together with the workflow, then
 rerun all integration gates.
