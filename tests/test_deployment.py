@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -128,6 +129,79 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(marker.read_text(), "retained")
         with self.assertRaises(ConfigurationError):
             prepare(self.config, Path(self.sources["source"]["checkout"]) / "installation")
+
+    def test_repeated_prepare_reuses_credentials_without_reenrolling_removed_state(self):
+        self.assertFalse(prepare(self.config, self.bundle)["reused"])
+        retained = {name: (self.bundle / name).read_bytes() for name in
+                    ("manifest.json", "secrets/environment.json", "secrets/operator.json", "secrets/polyphony.json", "secrets/openjules.json")}
+        with Store(self.bundle / "state/zpm.sqlite3") as store:
+            store.change("owner/project", "target", 2)
+            store.change("owner/project", "remove")
+            expected = store.bindings()
+        artifact = self.bundle / "state/openjules/retained-capture"
+        artifact.write_bytes(b"retained task evidence")
+        normalized = self.config | {"binding": self.config["binding"] | {"repository": "github:github.com/owner/project"}}
+        with patch("zpm.deployment.secrets.token_urlsafe", side_effect=AssertionError("credential rotation")), \
+                patch("zpm.deployment.Store", side_effect=AssertionError("state mutation")):
+            repeated = prepare(normalized, self.bundle)
+        self.assertTrue(repeated["reused"])
+        self.assertFalse(repeated["services_started"])
+        self.assertFalse(repeated["remote_access_checked"])
+        self.assertEqual(retained, {name: (self.bundle / name).read_bytes() for name in retained})
+        self.assertEqual(artifact.read_bytes(), b"retained task evidence")
+        with Store(self.bundle / "state/zpm.sqlite3") as store:
+            self.assertEqual(store.bindings(), expected)
+            self.assertFalse(store.bindings()[0]["enabled"])
+
+    def test_repeat_rejects_different_configuration_incomplete_bundle_and_symlink(self):
+        prepare(self.config, self.bundle)
+        manifest = (self.bundle / "manifest.json").read_bytes()
+        with self.assertRaisesRegex(ConfigurationError, "different configuration"):
+            prepare(self.config | {"max_workers": 7}, self.bundle)
+        self.assertEqual((self.bundle / "manifest.json").read_bytes(), manifest)
+        linked = self.root / "linked-installation"
+        linked.symlink_to(self.bundle, target_is_directory=True)
+        with self.assertRaisesRegex(ConfigurationError, "symlink"):
+            prepare(self.config, linked)
+        (self.bundle / "manifest.json").unlink()
+        retained = (self.bundle / "secrets/environment.json").read_bytes()
+        with self.assertRaisesRegex(ConfigurationError, "not a complete deployment"):
+            prepare(self.config, self.bundle)
+        self.assertEqual((self.bundle / "secrets/environment.json").read_bytes(), retained)
+        self.assertFalse((self.bundle / "manifest.json").exists())
+
+    def test_repeat_verifies_sealed_files_before_reusing(self):
+        prepare(self.config, self.bundle)
+        path = self.bundle / "config/provider.json"
+        path.write_text("{}")
+        with self.assertRaisesRegex(ConfigurationError, "integrity"):
+            prepare(self.config, self.bundle)
+        self.assertEqual(path.read_text(), "{}")
+
+    def test_repeat_and_verify_never_recreate_a_missing_or_replaced_journal(self):
+        prepare(self.config, self.bundle)
+        journal = self.bundle / "state/zpm.sqlite3"
+        retained = self.root / "retained.sqlite3"
+        journal.rename(retained)
+        for operation in (lambda: prepare(self.config, self.bundle), lambda: verify(self.bundle)):
+            with self.assertRaisesRegex(ConfigurationError, "journal must remain"):
+                operation()
+            self.assertFalse(journal.exists())
+        journal.symlink_to(retained)
+        with self.assertRaisesRegex(ConfigurationError, "journal must remain"):
+            prepare(self.config, self.bundle)
+        journal.unlink()
+        journal.write_text("not a database")
+        journal.chmod(0o600)
+        with self.assertRaisesRegex(ConfigurationError, "cannot read the retained"):
+            prepare(self.config, self.bundle)
+        self.assertEqual(journal.read_text(), "not a database")
+        journal.unlink()
+        retained.rename(journal)
+        with sqlite3.connect(journal) as database:
+            database.execute("UPDATE metadata SET value='other-deployment' WHERE key='deployment_id'")
+        with self.assertRaisesRegex(ConfigurationError, "journal identity"):
+            prepare(self.config, self.bundle)
 
     def test_changed_pins_dirty_checkouts_and_unsafe_inputs_fail_before_writing(self):
         variants = [
