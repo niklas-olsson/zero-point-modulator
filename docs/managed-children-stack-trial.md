@@ -107,8 +107,14 @@ After both spawn replies, the fixture pauses the third root model response for
 at most 20 seconds. While the response is paused, the harness reads the real
 Polyphony child API and OpenJules worker API, then checks ZPM's journal. It
 requires two live canonical grants, three active executions under the same
-worker and exactly one top-level target and reservation. It then sets ZPM's
-desired target to zero without waiting for reservation release. While the root
+worker and exactly one top-level target and reservation. Before draining, it
+also waits for both exact child IDs to have a nonempty Docker exec ID, dispatched
+exec start and a running or exec-returned phase in the private runtime journal.
+This reads launch metadata only. A grant or admitted lifecycle reference can
+precede actual exec launch when the worker lock is busy, so those references
+alone do not establish the intended active-child scenario.
+
+It then sets ZPM's desired target to zero without waiting for reservation release. While the root
 response remains paused, it requires the same worker to enter draining, close
 worker admission and receive Polyphony's acknowledgement that child admission
 is closed. The root and both children must retain their execution references,
@@ -154,6 +160,10 @@ and container boundaries:
 5. Child result pages are explicitly provisional. The fixture checks their
    child identities, byte bounds, complete patch contents and page and artifact
    hashes. The root applies those returned bytes and runs the combined tests.
+   The fixture checks the composition command's actual tool result before its
+   finish reply. The captured root log records the command's tool event at turn
+   five and the configured verification's successful exit and boundary marker.
+   Ordinary tool output is intentionally omitted from that log.
 6. Polyphony retains all three content-hashed child captures for both children:
    patch, log and manifest. Their final manifests identify their distinct UIDs,
    dispatched Docker execs, immutable grants, armed deadlines and the same

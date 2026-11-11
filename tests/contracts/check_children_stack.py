@@ -210,6 +210,24 @@ def read_artifacts(authority, scope, mapping, sensitive, *, attempt_id=None, chi
     return artifacts
 
 
+def verify_root_log(content):
+    """Match the runner's recorded events without requiring private tool output."""
+    events = []
+    for line in content.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    require(any(event.get("event") == "tool" and event.get("name") == "run_command"
+                and event.get("turn") == 5 for event in events),
+            "root capture lacks its composition command event")
+    require(any(event.get("event") == "configured_verification" and event.get("state") == "exited"
+                and event.get("exit_code") == 0 and "CHILD_STACK_ROOT_VERIFIED" in event.get("output", "")
+                for event in events), "root capture lacks successful configured test and isolation verification")
+
+
 def inference_reservations(runtime_config, worker, attempt):
     """Read only reservation metadata, never stored model inputs or responses."""
     database = Path(runtime_config["state_directory"]) / "models/inference.sqlite3"
@@ -223,6 +241,27 @@ def inference_reservations(runtime_config, worker, attempt):
     require(sum(request.startswith("/child/") for request, _, _ in rows) == 4,
             "child inference was not charged to the root allowance")
     return {"calls": len(rows), "child_calls": 4, "reserved_output_tokens": sum(row[1] for row in rows)}
+
+
+def child_execs_started(runtime_config, worker, child_ids):
+    """Read launch metadata only; an admitted lifecycle reference is not an exec.
+
+    The runtime writes running only after Docker exec_start returns, and writes
+    exec_returned after inspection. Pending or uncertain launch intent cannot
+    satisfy this pre-drain observation. Instructions and captures are not read.
+    """
+    database = Path(runtime_config["state_directory"]) / "children/children.sqlite3"
+    connection = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=0.5)
+    try:
+        rows = connection.execute(
+            "SELECT child_id,exec_id,exec_dispatched,phase FROM children WHERE worker_id=?",
+            (worker,),
+        ).fetchall()
+    finally:
+        connection.close()
+    return ({row[0] for row in rows} == set(child_ids) and len(rows) == 2 and all(
+        isinstance(exec_id, str) and bool(exec_id) and dispatched == 1 and phase in {"running", "exec_returned"}
+        for _, exec_id, dispatched, phase in rows))
 
 
 def run(args):
@@ -370,6 +409,11 @@ def run(args):
                         and [item["worker_id"] for item in row["workers"]] == [worker],
                         "two children changed ZPM's one-worker target or reservation")
                 require(active["task"][0]["allocated_seconds"] == 360, "child time was not charged to the root task budget")
+                # A contended worker lock can leave a spawn reply at admitted,
+                # before the reconciler dispatches its original child exec.
+                # Drain only after both exec starts are durably confirmed.
+                eventually(lambda: child_execs_started(runtime_config, worker, model.child_ids.values()),
+                           processes, "both child execs started before scale-down", 5)
                 # Request a graceful scale-down without waiting for release:
                 # the provider response stays paused while all three execution
                 # references must continue to retain the worker reservation.
@@ -440,8 +484,7 @@ def run(args):
             require(root_manifest.get("worker_id") == worker and root_manifest.get("attempt_id") == attempt["id"]
                     and root_manifest.get("base_commit") == base and root_manifest.get("termination_confirmed") is True
                     and root_manifest.get("launch_fenced") is True, "root manifest is not bound to the terminated approved execution")
-            require("ROOT_COMPOSED_BOTH_CHILD_PATCHES" in artifacts["log"] and "CHILD_STACK_ROOT_VERIFIED" in artifacts["log"]
-                    and '"event": "configured_verification"' in artifacts["log"], "root capture lacks combined test and isolation verification")
+            verify_root_log(artifacts["log"])
             canonical_children = children(attempt["id"])
             require(canonical_children["admission_closed"] is True and len(canonical_children["children"]) == 2,
                     "root completion did not close child admission or retain both grants")
