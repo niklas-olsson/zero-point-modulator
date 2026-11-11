@@ -280,7 +280,8 @@ Python 3.11 and 3.12.
 
 An optional [OpenJules HTTP contract trial](docs/http-contract-trial.md) exercises
 the actual client and lifecycle API together, including lost replies, recovery
-before dispatch, cancellation, and five real subprocess fixtures. It is separate
+before dispatch, accepted drain recovery after runtime lock contention and
+dispatcher restart, cancellation, and five real subprocess fixtures. It is separate
 from the unit suite and does not establish production agent or confinement proof.
 
 Three additional CI jobs install the generated three-service bundle and use real

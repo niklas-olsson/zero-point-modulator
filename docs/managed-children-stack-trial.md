@@ -21,16 +21,20 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `cf079b90ee081e84b29b6179ad1aaebdb8156365`, merged final-composition and publication implementation |
+| OpenJules | `3f0575364cc4b8d96e703f161652ec6fdfc8a6a1`, durable control replay candidate |
 | Keystone Polyphony | `473df5a0406accfe5cb550877e7b28a602cb116c`, merged child grants and durable conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
-The pinned OpenJules revision passed
-[its post-merge CI](https://github.com/niklas-olsson/OpenJules/actions/runs/42987159785).
-Its Git tree matches the previously qualified PR12 head
-`8a40e04478ef25c128364b6c989a77735cca21eb`. This historical component evidence
-does not qualify the changed ZPM revision: all required ZPM jobs must pass for
-the current candidate set before it is promoted. Record the exact revisions
+The OpenJules candidate adds
+[durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15).
+The previous integrated candidate could acknowledge a drain while its runtime
+lock was busy, then fail to close canonical child admission. The unchanged
+active-child trial exposed that race in
+[this CI job](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43021172587/job/130524660321).
+The new deterministic HTTP regression covers accepted-intent recovery, while
+this Docker trial must still establish actual canonical closure and capture.
+OpenJules' full repository CI and all required ZPM jobs must pass for the current
+candidate set before promotion. Record the exact revisions
 and successful CI run in [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 The publication CLI is present in this installation; this trial does not invoke
 forge publication. Update all workflow pins and corresponding trial guides

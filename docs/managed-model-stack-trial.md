@@ -17,7 +17,7 @@ The separate `managed-model-stack` CI job pins these revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `cf079b90ee081e84b29b6179ad1aaebdb8156365`, merged final-composition and publication implementation |
+| OpenJules | `3f0575364cc4b8d96e703f161652ec6fdfc8a6a1`, durable control replay candidate |
 | Keystone Polyphony | `473df5a0406accfe5cb550877e7b28a602cb116c`, merged child grants and durable conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
