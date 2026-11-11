@@ -6,13 +6,13 @@ and bounded child agents. Keystone Polyphony owns collaboration and protected
 task authority. ZPM does not assign tasks, supervise children, or maintain a
 second task ledger.
 
-This first implementation supplies a Python CLI, durable enrollment and
+This implementation supplies a Python CLI, durable enrollment and
 operation journal, a conservative single-host controller, and an OpenJules HTTP
-adapter. The controller can be exercised against deterministic fixtures. A
-production coding swarm still requires the authenticated managed-dispatch
-contract and a real capable OpenJules driver. Missing capabilities block worker
-creation. An HTTP health response or a passing fixture test does not establish
-production readiness.
+adapter. The single-host deployment path connects the actual authenticated
+Polyphony authority and OpenJules Docker runtime. An explicit optional model
+policy enables a root coding agent through OpenJules' host-owned inference
+broker. Missing capabilities block worker creation. Provider qualification,
+child execution, independent review and publication have their own boundaries.
 
 ## Install and inspect
 
@@ -79,8 +79,9 @@ Profile definitions and execution settings stay in OpenJules. The profile name
 must resolve to an approved immutable configuration there; arbitrary commands,
 images, authority URLs, or secret values are not launch input supplied by ZPM.
 Enrollment itself creates no execution profile. The optional single-host
-installer writes an approved offline root profile from explicit operator choices
-of source revision, image, command and limits.
+installer writes an approved root profile from explicit operator choices of
+source revision, image, command and limits. An optional model policy stays in
+the trusted OpenJules service and supplies no credentials to the container.
 
 The shared provider configuration is separate from individual enrollments:
 
@@ -246,6 +247,10 @@ Preparation does not establish managed-runtime readiness or run a coding agent.
 The bundle requires OpenJules and Polyphony revisions containing their managed
 service entry points; it rejects older checkouts instead of falling back to the
 legacy execution path.
+The [model deployment example](examples/deployment-model.json) adds an explicit
+provider policy and uses the managed agent image. Its provider token resolves
+only into OpenJules; the worker retains disabled networking and uses its own
+private model socket.
 
 ```sh
 python -m unittest discover -v
@@ -262,6 +267,14 @@ An optional [OpenJules HTTP contract trial](docs/http-contract-trial.md) exercis
 the actual client and lifecycle API together, including lost replies, recovery
 before dispatch, cancellation, and five real subprocess fixtures. It is separate
 from the unit suite and does not establish production agent or confinement proof.
+
+Two additional CI jobs install the generated three-service bundle and use real
+Docker. The [command-based trial](docs/managed-stack-trial.md) exercises capacity,
+crashes, watchdog termination and durable capture. The
+[model-backed trial](docs/managed-model-stack-trial.md) exercises the real coding
+agent and broker against a deterministic localhost provider fixture, including
+canonical ingress, captured hashes and independent patch verification. Neither
+trial makes a live model call or treats runtime output as independent review.
 
 This implementation advances [enrollment #1](https://github.com/niklas-olsson/zero-point-modulator/issues/1)
 and [reconciliation #2](https://github.com/niklas-olsson/zero-point-modulator/issues/2).
