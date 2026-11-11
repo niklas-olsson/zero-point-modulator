@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import platform
 import secrets
+import select
 import subprocess
 import sys
 import time
@@ -54,8 +55,73 @@ SHARED_TASK_PROGRAM = (
     + TASK_PROGRAM
 )
 
+# Synchronize real CLI invocations only. Authentication, HTTP, retry semantics
+# and receipt validation remain in the installed production module.
+GATED_INGRESS = '''import json, os, sys
+from src.liminal_bridge.managed_cli import main
+print(json.dumps({"ready_pid": os.getpid()}), flush=True)
+if sys.stdin.readline() != "deliver\\n":
+    raise SystemExit(2)
+raise SystemExit(main(sys.argv[1:]))
+'''
 
-def require_shared_plan(plan, deployment, repositories, maximum=2):
+
+def concurrent_ingress(python, arguments, cwd, environment, root, name, processes):
+    """Observe both initialized CLI processes at the gate before releasing either."""
+    children, logs, receipts = [], [], []
+    started = time.monotonic()
+    try:
+        for index in range(2):
+            log = (root / (name + "-" + str(index) + ".log")).open("xb")
+            logs.append(log)
+            children.append(subprocess.Popen([str(python), "-c", GATED_INGRESS, *arguments], cwd=cwd, env=environment,
+                                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, text=True))
+        deadline = time.monotonic() + 20
+        ready = []
+        for child in children:
+            processes.check()
+            require(select.select([child.stdout], [], [], max(0, deadline - time.monotonic()))[0],
+                    "production ingress process did not reach its launch gate")
+            marker = json.loads(child.stdout.readline(256))
+            require(type(marker.get("ready_pid")) is int and marker["ready_pid"] == child.pid,
+                    "production ingress gate changed its process identity")
+            ready.append(child.pid)
+        require(len(set(ready)) == 2 and all(child.poll() is None for child in children),
+                "both production ingress processes were not alive before release")
+        # Both production modules are initialized, and neither can submit until
+        # this gate opens. This does not assert TCP packet simultaneity.
+        for child in children:
+            child.stdin.write("deliver\n")
+            child.stdin.flush()
+            child.stdin.close()
+            child.stdin = None
+        for index, child in enumerate(children):
+            output, _ = child.communicate(timeout=max(0.1, deadline - time.monotonic()))
+            require(child.returncode == 0 and len(output.encode()) <= 2_000_000,
+                    "production ingress CLI failed or returned oversized output")
+            logs[index].write(output.encode())
+            receipts.append(json.loads(output))
+        processes.check()
+        return receipts, {"process_ids": ready, "both_alive_before_release": True,
+                          "production_module": "src.liminal_bridge.managed_cli", "observed_seconds": elapsed(started),
+                          "gate": "stdin release after both initialized production CLI processes report ready"}
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.terminate()
+                try:
+                    child.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait(timeout=3)
+            for stream in (child.stdin, child.stdout):
+                if stream is not None:
+                    stream.close()
+        for log in logs:
+            log.close()
+
+
+def require_shared_plan(plan, deployment, repositories, maximum=2, profiles=None):
     """Validate the complete topology before selecting a repository view."""
     require(type(plan.get("schema_version")) is int and plan["schema_version"] == 1,
             "shared plan has an invalid schema")
@@ -72,7 +138,10 @@ def require_shared_plan(plan, deployment, repositories, maximum=2):
     names = [row.get("repository") for row in rows]
     require(len(set(names)) == len(names) and set(names) == set(repositories),
             "shared plan contains a duplicate or foreign repository")
-    known_workers = []
+    if profiles is not None:
+        require({row["repository"]: row.get("profile") for row in rows} == profiles,
+                "shared plan changed an approved repository profile")
+    known_workers, launches, incarnations = [], set(), set()
     for row in rows:
         for name in ("desired_workers", "effective_target", "permitted_target", "healthy",
                      "reserved", "shortfall", "launch_deficit"):
@@ -84,11 +153,26 @@ def require_shared_plan(plan, deployment, repositories, maximum=2):
         require(row["healthy"] <= row["reserved"], "healthy count exceeds reservations")
         for worker in workers:
             require(worker.get("deployment_id") == deployment
-                    and worker.get("repository") == row["repository"],
+                    and worker.get("repository") == row["repository"] and worker.get("profile") == row["profile"],
                     "shared plan contains a foreign worker scope")
+            launch = worker.get("launch_key")
+            incarnation = (row["repository"], worker.get("slot_id"), worker.get("generation"))
+            require(type(worker.get("schema_version")) is int and worker["schema_version"] == 1
+                    and isinstance(worker.get("slot_id"), str) and worker["slot_id"]
+                    and type(worker.get("generation")) is int and worker["generation"] > 0
+                    and isinstance(launch, str) and launch and launch not in launches and incarnation not in incarnations,
+                    "shared plan reused a launch key or worker incarnation")
+            launches.add(launch)
+            incarnations.add(incarnation)
             identity = worker.get("worker_id")
-            if identity:
-                require(isinstance(identity, str), "shared worker identity is invalid")
+            if identity == "":
+                require(worker.get("pending_operation") in {"reserve", "ensure"}
+                        and worker.get("state") in {"starting", "unknown"}
+                        and worker.get("termination_confirmed") is False and worker.get("artifacts_captured") is False
+                        and worker.get("admission_open") is False and worker.get("active_executions") == [],
+                        "empty worker identity lacks its pending launch fence")
+            else:
+                require(isinstance(identity, str) and identity, "shared worker identity is invalid")
                 known_workers.append(identity)
     require(len(known_workers) == len(set(known_workers)), "repositories share a worker identity")
     require(sum(row["reserved"] for row in rows) == plan["reserved"],
@@ -102,6 +186,35 @@ def repository_view(plan, deployment, repositories, repository):
     # Internal adapter for the existing strict one-repository witnesses. The
     # original full plan was checked above; this view is never a public report.
     return {**plan, "repositories": [rows[repository]], "reserved": rows[repository]["reserved"]}
+
+
+def require_private_workspaces(containers):
+    require(len(containers) == 2 and len({row["Id"] for row in containers}) == 2
+            and all(row["State"]["Running"] for row in containers), "workers are not distinct running containers")
+    volumes, sources = [], []
+    for container in containers:
+        require(all(row["Type"] != "tmpfs" or row["Destination"] in {"/tmp", "/control"} for row in container["Mounts"]),
+                "command worker mounted an unexpected temporary path")
+        mounts = [row for row in container["Mounts"] if row["Type"] != "tmpfs"]
+        require(len(mounts) == 2 and {row["Destination"] for row in mounts} == {"/source", "/workspace"},
+                "command worker mounted an unexpected host or sibling path")
+        workspace = next(row for row in mounts if row["Destination"] == "/workspace")
+        source = next(row for row in mounts if row["Destination"] == "/source")
+        require(workspace["Type"] == "volume" and workspace["RW"] is True
+                and source["Type"] == "bind" and source["RW"] is False,
+                "worker lacks a private workspace or read-only source mount")
+        volumes.append(workspace["Name"])
+        sources.append(source["Source"])
+    require(len(set(volumes)) == len(set(sources)) == 2, "repositories share a workspace volume or source snapshot")
+
+
+def require_retained_workers(history, expected, exact=False):
+    require(bool(expected), "retained history lacks an observed worker baseline")
+    for kind in ("zpm", "lifecycle", "runtime"):
+        identities = [row["worker_id"] for row in history[kind] if row["worker_id"]]
+        require(len(identities) == len(set(identities)) and expected <= set(identities)
+                and (not exact or (set(identities) == expected and len(history[kind]) == len(expected))),
+                "retained history lost, duplicated or replaced an observed worker")
 
 
 def require_scope_capability(value, scope, profile, *, source_available=True, authority=False):
@@ -236,15 +349,28 @@ class Repository(Installation):
     def plan(self):
         return repository_view(self.shared.plan(), self.deployment, self.shared.repositories, self.repository)
 
-    def enroll(self):
+    def enroll(self, number=1):
         request = {"schema_version": 1, **self.scope, "source": "github:issue:1",
-                   "request_key": self.tokens["request_key_prefix"] + "controlled-task-1",
+                   "request_key": "controlled-shared-task-" + str(number),
                    "title": "Shared repository " + self.label,
                    "requirements": "Verify this repository and change answer.txt. HOLD_FOR_ISOLATION_TRIAL"}
-        result = self.ingress.request("POST", "/managed/enroll", data=request)
-        require(self.ingress.request("POST", "/managed/enroll", data=request)["task"]["id"] == result["task"]["id"],
-                "source replay created a duplicate task")
-        return result["task"]["id"], request
+        requirements = self.shared.root / ("requirements-" + self.label + "-" + str(number) + ".txt")
+        requirements.write_text(request["requirements"])
+        requirements.chmod(0o600)
+        arguments = ["enroll", "--url", self.authority_endpoint, "--deployment-id", self.deployment,
+                     "--repository", self.repository, "--source", request["source"], "--request-key", request["request_key"],
+                     "--title", request["title"], "--requirements-file", str(requirements)]
+        receipts, evidence = concurrent_ingress(self.bundle / "environments/polyphony/bin/python", arguments,
+            self.shared.source_paths["polyphony"], clean_environment({"POLYPHONY_INGRESS_TOKEN": self.tokens["ingress"]}),
+            self.shared.root, "ingress-" + self.label + "-" + str(number), self.shared.processes)
+        require(all(all(receipt.get(key) == value for key, value in self.scope.items()) for receipt in receipts)
+                and receipts[0]["task"]["id"] == receipts[1]["task"]["id"],
+                "concurrent production ingress changed scope or duplicated a task")
+        self.ingress.request("POST", "/managed/enroll", data=request | {"requirements": "Changed retry must conflict."}, expected=409)
+        self.shared.ingress_evidence.append({"repository": self.repository, "source": request["source"],
+            "request_key": request["request_key"], "task_id": receipts[0]["task"]["id"],
+            "duplicate_delivery_same_task": True, "changed_retry_status": 409, **evidence})
+        return receipts[0]["task"]["id"], request
 
 
 class SharedInstallation:
@@ -256,7 +382,7 @@ class SharedInstallation:
         self.deployment = "multi-repository-" + secrets.token_hex(8)
         self.state = self.bundle / "state/zpm.sqlite3"
         self.processes = Processes(root)
-        self.observed_seconds, self.command_number = {}, 0
+        self.observed_seconds, self.command_number, self.ingress_evidence = {}, 0, []
         self.sensitive = set()
         canaries = ["multiple-" + secrets.token_urlsafe(32) for _ in range(2)]
         fixtures, entries, supplied = [], [], {}
@@ -301,7 +427,8 @@ class SharedInstallation:
             "ports": ports, "repositories": entries,
         }
         started = time.monotonic()
-        prepare(self.input_data, self.bundle)
+        prepared = prepare(self.input_data, self.bundle)
+        self.binding_files = {row["repository"]: row["binding_file"] for row in prepared["repositories"]}
         self.observed_seconds["prepare"] = elapsed(started)
         verify(self.bundle)
         self.data = json.loads((self.bundle / "manifest.json").read_text())["configuration"]
@@ -326,6 +453,7 @@ class SharedInstallation:
             self.environments = {name: _environment(self.bundle, name, self.data) for name in source_paths}
         self.manager_environment = clean_environment(supplied)
         self.members = [Repository(self, fixture) for fixture in fixtures]
+        self.profiles = {member.repository: member.profile for member in self.members}
         self.maximum = json.loads((self.bundle / "config/provider.json").read_text())["max_workers"]
         require(type(self.maximum) is int and self.maximum == 2, "generated global ceiling is not two")
         self.verify_configured_scopes()
@@ -375,7 +503,7 @@ class SharedInstallation:
         value = json.loads(result.stdout)
         if value.get("ready") is True:
             require(value.get("remote_access_checked") is True, "doctor lacks authenticated capability evidence")
-            require_shared_plan(value["capabilities"], self.deployment, self.repositories)
+            require_shared_plan(value["capabilities"], self.deployment, self.repositories, profiles=self.profiles)
         return value
 
     def plan(self):
@@ -384,7 +512,7 @@ class SharedInstallation:
         require(self.state.is_file() and not self.state.is_symlink(), "shared ownership journal is missing")
         with Store(self.state, self.deployment) as store:
             value = Controller(store, max_workers=self.maximum).plan()
-        require_shared_plan(value, self.deployment, self.repositories)
+        require_shared_plan(value, self.deployment, self.repositories, profiles=self.profiles)
         return value
 
     def start(self, name):
@@ -420,7 +548,7 @@ class SharedInstallation:
         require(not log.exists(), "one-shot report log was already used")
         self.processes.run_once(name, command[:-1], self.source_paths["zpm"], self.environments["zpm"], 90)
         value = json.loads(log.read_text())
-        require_shared_plan(value, self.deployment, self.repositories)
+        require_shared_plan(value, self.deployment, self.repositories, profiles=self.profiles)
         return value
 
     def change(self, member, operation, count=None):
@@ -434,6 +562,11 @@ class SharedInstallation:
 
     def history(self, member):
         return retained_history(self.bundle, self.deployment, self.repositories, member.repository)
+
+    def reenroll(self, member):
+        command = [str(self.bundle / "environments/zpm/bin/python"), "-m", "zpm", "--state", str(self.state),
+                   "--deployment-id", self.deployment, "enroll", str(self.bundle / self.binding_files[member.repository])]
+        self.processes.run_once("reenroll", command, self.source_paths["zpm"], clean_environment(), 30)
 
 
 def validate_scope_credentials(shared):
@@ -543,19 +676,17 @@ def run(args):
             shared.change(member, "target", 1)
         initial = [wait_for_capacity(member.plan, shared.processes, 1) for member in shared.members]
         left_worker, right_worker = (next(iter(live_ids(value))) for value in initial)
+        observed_workers = {"a": {left_worker}, "b": {right_worker}}
         containers = [container_for(identity) for identity in (left_worker, right_worker)]
-        require(left_worker != right_worker and len({value["Id"] for value in containers}) == 2
-                and all(value["State"]["Running"] for value in containers), "workers are not distinct running containers")
-        volumes = []
-        for value in containers:
-            mounted = [item for item in value["Mounts"] if item["Destination"] == "/workspace"]
-            require(len(mounted) == 1 and mounted[0]["Type"] == "volume", "worker lacks a private workspace volume")
-            volumes.append(mounted[0]["Name"])
-        require(len(set(volumes)) == 2, "repositories share a workspace volume")
+        require(left_worker != right_worker, "repositories share a runtime worker identity")
+        require_private_workspaces(containers)
         denials = validate_scope_credentials(shared)
         for member, other, worker in ((left, right, left_worker), (right, left, right_worker)):
             shared.runtime.request("GET", "/api/workers/" + worker, query=member.scope)
             shared.runtime.request("GET", "/api/workers/" + worker, query=other.scope, expected=404)
+            for action in ("drain", "stop"):
+                shared.runtime.request("POST", "/api/workers/" + worker + "/" + action, expected=404,
+                    data={"schema_version": 1, **other.scope, "request_key": "deny-cross-scope-" + action + "-" + member.label})
         checks.append("one generated bundle passes doctor and runs distinct scoped workers through one service pair")
 
         right_task, request = right.enroll()
@@ -624,6 +755,7 @@ def run(args):
         left_worker = next(iter(live_ids(restored)))
         require(left_worker not in {initial[0]["repositories"][0]["workers"][0]["worker_id"], right_worker},
                 "source restoration reused a retired or foreign worker")
+        observed_workers["a"].add(left_worker)
         peer_progress("exact A source restored and fresh idle worker ready")
         checks.append("two completed controller passes preserve no-allocation history during A source failure with free global capacity")
 
@@ -665,12 +797,14 @@ def run(args):
         resumed_worker = next(iter(live_ids(resumed)))
         require(resumed_worker not in {left_worker, right_worker}, "A resume reused a retired or foreign worker")
         left_worker = resumed_worker
+        observed_workers["a"].add(left_worker)
         peer_progress("A resumed with a fresh idle incarnation")
         checks.append("two completed passes and authenticated doctor show the shared ceiling, then A pauses and resumes while B retains its execution")
 
         left_container_data = container_for(left_worker)
         left_container = left_container_data["Id"]
         left_task, request = left.enroll()
+        require(left_task != right_task, "identical source and request key collided across repository scopes")
         reject_other_enrollment(left, right, request)
         left_attempt = eventually(lambda: left.attempt(left_task), shared.processes, "A canonical attempt", 20)
         eventually(lambda: progress(left_container), shared.processes, "A private progress barrier", 20)
@@ -712,6 +846,38 @@ def run(args):
         peer_progress("A capture and foreign artifact denial completed")
         checks.append("removed A retains its own active drain until canonical capture; B never receives a control operation")
 
+        require(prepare(shared.input_data, shared.bundle)["reused"] is True, "repeat preparation did not reuse the shared installation")
+        require(shared.sealed == {name: (shared.bundle / name).read_bytes() for name in shared.sealed},
+                "repeat preparation changed sealed configuration or credentials")
+        require(left.plan()["repositories"][0]["enabled"] is False, "repeat preparation silently reenrolled removed A")
+        peer_progress("retained bundle reused with A still removed")
+        shared.reenroll(left)
+        shared.change(left, "target", 1)
+        reenrolled = wait_for_capacity(left.plan, shared.processes, 1)
+        new_worker = next(iter(live_ids(reenrolled)))
+        require(new_worker not in observed_workers["a"] | observed_workers["b"], "reenrollment reused a retired or foreign worker")
+        observed_workers["a"].add(new_worker)
+        peer_progress("removed A explicitly reenrolled with a new worker")
+        second_task, second_request = left.enroll(2)
+        require(second_task not in {left_task, right_task} and second_request["source"] == request["source"]
+                and second_request["request_key"] != request["request_key"], "explicit same-source new request did not create a new scoped task")
+        second_attempt = eventually(lambda: left.attempt(second_task), shared.processes, "reenrolled A canonical attempt", 20)
+        require(second_attempt["runtime_binding"]["worker_id"] == new_worker, "reenrolled task changed its worker binding")
+        new_container = container_for(new_worker)["Id"]
+        eventually(lambda: progress(new_container), shared.processes, "reenrolled A private progress barrier", 20)
+        peer_progress("reenrolled A has a second actual root execution")
+        # Commit zero before release, so completion cannot create an extra idle
+        # worker before the operator's target change is observed.
+        shared.change(left, "target", 0)
+        release(new_container)
+        evidence["a_reenrolled"] = left.captured(second_task, new_worker, shared.processes)
+        wait_for_capacity(left.plan, shared.processes, 0)
+        shared.change(left, "remove")
+        reject_other_artifacts(left, right, evidence["a_reenrolled"])
+        peer_progress("reenrolled A captured and removed again at zero")
+        checks.append("explicit removed-A reenrollment runs and captures a new source request while original B progresses unchanged")
+        checks.append("three pairs of concurrently gated production ingress processes deduplicate identical deliveries; changed retries conflict and explicit new keys create new tasks")
+
         # End the uncontrolled-peer interval before intentionally retiring B.
         # Its target is zero while the original root remains held, preventing
         # desired-one replacement after the root exits.
@@ -722,11 +888,12 @@ def run(args):
         reject_other_artifacts(right, left, evidence["b"])
         require(shared.plan()["reserved"] == 0, "final shared drain left unresolved capacity")
         snapshots = {member.label: member.snapshot() for member in shared.members}
-        expected_tasks = {"a": left_task, "b": right_task}
+        expected_tasks = {"a": {left_task, second_task}, "b": {right_task}}
         for member in shared.members:
             snapshot = snapshots[member.label]
-            require({row["id"] for row in snapshot["task"]} == {expected_tasks[member.label]}
-                    and len(snapshot["attempt"]) == 1, "scoped canonical history contains extra or foreign work")
+            require({row["id"] for row in snapshot["task"]} == expected_tasks[member.label]
+                    and len(snapshot["attempt"]) == len(expected_tasks[member.label]), "scoped canonical history contains extra or foreign work")
+        histories_before_restart = {member.label: shared.history(member) for member in shared.members}
         before_bindings = {row["repository"]: {key: row[key] for key in
                            ("desired_workers", "effective_target", "enabled", "paused", "revision")}
                            for row in shared.plan()["repositories"]}
@@ -752,13 +919,18 @@ def run(args):
         for member in shared.members:
             require(fresh.request("GET", "/managed/snapshot", query=member.scope) == snapshots[member.label],
                     "restart changed scoped canonical records")
-            for digest in evidence[member.label]["artifacts"].values():
+            digests = {digest for capture in evidence.values() if capture["task"] in expected_tasks[member.label]
+                       for digest in capture["artifacts"].values()}
+            for digest in digests:
                 content = fresh.request("GET", "/managed/artifacts/" + digest, query=member.scope, text=True)
                 require(hashlib.sha256(content.encode()).hexdigest() == digest, "restart changed captured artifact bytes")
         require(subprocess.check_output(["docker", "info", "--format", "{{.ID}}"],
                                         text=True, timeout=30).strip() == engine, "Docker Engine identity changed")
-        checks.append("both captures survive full service restart with removed A, zero-target B and unchanged private credentials")
+        checks.append("all three captures survive full service restart with removed A, zero-target B and unchanged private credentials")
         final_history = {member.label: shared.history(member) for member in shared.members}
+        for member in shared.members:
+            require_same_history(histories_before_restart[member.label], final_history[member.label])
+            require_retained_workers(final_history[member.label], observed_workers[member.label], exact=member is right)
         shared.processes.close()
         timings["total_including_bootstrap_and_service_cleanup"] = elapsed(started)
         report = {
@@ -773,11 +945,13 @@ def run(args):
             "checks": checks, "credential_scope_checks": denials,
             "resource_scope_checks": {
                 "worker_reads_both_directions": {"own_scope": 200, "other_allowed_scope": 404},
+                "worker_drain_and_stop_both_directions": {"other_allowed_scope": 404},
                 "active_permission_both_directions": {"own_scope": 200, "other_allowed_scope": 409},
                 "artifact_reads_both_directions": {"own_scope": 200, "other_allowed_scope": 409},
                 "ingress_enrollment_both_directions": {"own_scope": 200, "other_scope": 403},
             },
             "canonical_evidence": evidence,
+            "concurrent_ingress": shared.ingress_evidence,
             "source_failure": source_evidence, "global_ceiling": quota_evidence,
             "peer_progress_checkpoints": observations,
             "peer_interval": "original B root through A operations; ends before B's explicit target-zero and release",
