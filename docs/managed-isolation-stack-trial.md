@@ -83,15 +83,18 @@ state and Docker evidence for diagnosis instead of deleting unresolved workers.
    cannot create a task in the sibling deployment.
 3. B starts one canonical task on its original worker. Its command verifies only
    B's source and synthetic credential are present. A runtime outage retains A's
-   reservation; reconnect recovers A's original worker. B's command continues
-   advancing its progress counter during that outage and recovery. Each held A
-   phase takes a fresh counter baseline and requires a later increase; fresh
-   worker HTTP observations before and after must retain B's exact scope,
-   open admission and original active attempt.
-4. A starts its own canonical task, scales `1 → 2 → 1`, then removes enrollment.
-   Removal closes admission and retains A's active root until completion and
-   capture. B keeps its exact target, worker, task and attempt, with open admission
-   and an advancing command throughout these changes.
+   reservation; reconnect recovers A's original idle worker. B's command continues
+   advancing during that outage and recovery. Each held A phase takes a fresh
+   counter baseline and requires a later increase. Fresh HTTP, durable journal and
+   actual container witnesses bracket that interval as described below.
+4. While B remains active, A scales idle capacity `1 → 2 → 1`.
+   The survivor must belong to A's verified pair and exclude B; either idle A
+   incarnation may retire. A then starts its own canonical task on that survivor
+   and removes enrollment. Removal closes admission while its original root
+   continues under the exact owned pending drain intent. The harness observes
+   fresh A progress before explicit release, then requires termination, canonical
+   capture and released capacity. B keeps its exact target, worker, task and
+   attempt and advances throughout these changes.
 5. A reaches zero reservations, stops and restarts all three services, preserving
    removed state, credentials, canonical records and artifact bytes. Explicit
    re-enrollment creates a fresh owned worker and runs another task while B's
@@ -106,11 +109,82 @@ state and Docker evidence for diagnosis instead of deleting unresolved workers.
    have disjoint identities and one Docker container per worker. Both deployments
    finish with zero unresolved reservations on the original engine.
 
-The local unit suite includes negative checks that reject replacement workers,
-unchanged counts hiding changed scopes or targets, replaced/terminated attempts,
-stale progress that predates the current held phase, closed admission hidden by
-cached controller state, and credentials crossing diagnostic log-tail boundaries. These checks validate
-the evidence assertions and redaction only; they do not run Docker.
+### Interpreting an active command's observation
+
+The pinned OpenJules command-only runtime holds its backend execution lock until
+the root completes. During that interval, a fresh lifecycle observation may be
+`unknown` with the exact reason `runtime operation is in progress` and closed
+admission. This trial records that conservative classification explicitly. It
+does not call unknown capacity healthy or interpret closed admission as open.
+An unrelated unknown reason, a missing active attempt or terminal evidence fails
+the trial.
+
+B is observed before A's first outage and around every subsequent progress
+interval. Each sample requires its original HTTP scope, worker and active root;
+an unchanged canonical task and attempt; no pending controller operation; and
+the same actual running container. A missing controller pending field also fails
+the witness, so an undelivered drain or stop cannot hide behind absent backend
+history. Read-only SQLite connections use `mode=ro` and observe live WAL data. They require
+the original lifecycle and runtime specification, profile, container and Docker
+exec binding, with no termination, capture, cancellation or retirement. B's
+durable draining flag must stay zero and **all** drain/stop records for its worker
+must be absent, including completed or foreign-scoped records. These monotonic
+fences detect an accepted control even when its task would temporarily continue.
+
+A's active removal has a different witness. Its enrollment must be disabled with
+effective target zero, its requested target retained and its original reservation
+still occupied. The HTTP observation must report the exact pending drain plus
+execution-lock reason, closed admission and the original active root. Its
+lifecycle journal must retain draining intent and exactly one scoped pending
+drain operation with the original worker and payload. The request key is frozen
+at the first durable lifecycle observation and must remain unchanged. ZPM has no
+durable action history after acknowledgment; when its pending field is present
+it must match that key, and a cleared pending field does not prove backend
+delivery. The runtime must remain bound to the original unretired execution and
+running container until explicit fixture release. The report labels this as
+pending intent, with backend delivery unconfirmed. Actual capture and reservation
+release are required afterward.
+
+The unit suite includes negative checks for replacement workers and executions,
+changed scopes or targets, generic unknown observations, stale progress from a
+previous phase, wrong or completed controls, retired/captured outcomes, changed
+controller keys, container changes and credentials crossing diagnostic log-tail
+boundaries. SQLite fixtures prove reads see a committed live WAL, reject writes
+and do not create missing journals. Their setup uses the actual ZPM bundle
+generator and controller schema; companion journals remain synthetic. Journal
+paths come from the generated OpenJules configuration, including the managed
+service's additional runtime subdirectory. These tests validate evidence
+assertions and redaction; they do not run Docker.
+
+### Retained failed qualification evidence
+
+The first [PR run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43029634925/job/130553309385)
+at head `98e38e31ee52eb2a55ba69f1c4a283e020e9a296` exposed the harness reading and
+releasing its private barrier outside the command's actual checkout directory.
+The path correction retained the deadlines and progress requirement.
+
+The next [PR run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43030761022/job/130557147817)
+tested synthetic merge `b0982d07dbf377e47ffe1a69c88a3eaa5db80fa4` for head
+`42518e0f7b6a0d51a7530478067073e405b08d89`. It passed preparation, scoped doctor,
+simultaneous distinct workers and API denial checks, then rejected B's admission
+observation. The [push run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43030753095/job/130557111711)
+failed at the same assertion. Source review and a separate deterministic runtime
+fixture reproduced the documented execution-lock uncertainty. This led to the
+strict witnesses and idle-resize ordering above, without changing production
+locking or classifying generic uncertainty as success.
+
+Independent source review also rejected unreferenced tree
+`f777855eff8f44f6e36c0674e1b931c1c3462ac5`: its runtime journal path omitted the
+managed service's additional runtime directory, and its B witness omitted the
+controller's pending operation. The replacement derives journal locations from
+generated configuration, uses the actual generator in its fixture, and rejects
+pending or missing controller evidence. The rejected tree was never committed
+or published to a branch, and no test execution was claimed for it.
+
+Both failed runs used the companion revisions listed above. Their partial
+evidence does not qualify the remaining isolation criteria. The corrected source
+must pass the existing actual Docker job and every other CI gate; source review
+and unexecuted negative fixtures are not passing results.
 
 ## Retained evidence
 
@@ -125,6 +199,9 @@ redacting every generated credential and synthetic secret from both installation
 The report also records monotonic elapsed seconds for the existing preparation,
 bootstrap, doctor, zero-to-ready, A scaling/drain/recovery and complete-trial
 operations, together with the host Git, Docker and service Python versions.
+It records each before/after HTTP classification, the fresh progress increment,
+aggregate durable control fences and container identity, plus A's original pending
+drain key. It never exports raw journal rows or Docker environment data.
 Readiness timings end when the harness observes the required predicate; polling
 and sequential observation are included. These are observations from this
 controlled installation trial, not performance thresholds or a benchmark for

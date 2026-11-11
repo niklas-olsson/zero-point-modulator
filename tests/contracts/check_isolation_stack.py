@@ -9,7 +9,7 @@ bounded, credential-redacted diagnostics.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 import hashlib
 import io
 import json
@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import platform
 import secrets
+import sqlite3
 import subprocess
 import sys
 import tarfile
@@ -36,6 +37,15 @@ LIMITS = [
     "multiple deployments behind one OpenJules API",
     "live model inference", "independent semantic review", "forge publication",
 ]
+
+
+SPEC_FIELDS = ("schema_version", "deployment_id", "repository", "slot_id", "generation", "launch_key", "profile")
+LOCK_CONTENTION = "runtime operation is in progress"
+PENDING_DRAIN = "Drain intent awaits runtime confirmation"
+
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
 def elapsed(started):
@@ -124,9 +134,10 @@ def require_peer_unchanged(plan, snapshot, scope, worker_id, task_id, attempt_id
             and row["effective_target"] == 1 and row["enabled"] and not row["paused"]
             and row["reserved"] == 1, "peer enrollment or reservation changed")
     worker = row["workers"][0]
-    require(worker["admission_open"] and worker["state"] in {"ready", "busy"}
-            and worker["deployment_id"] == scope["deployment_id"]
-            and worker["repository"] == scope["repository"], "peer admission or runtime scope changed")
+    require("pending_operation" in worker and worker["pending_operation"] is None,
+            "peer controller has a pending or unobserved operation")
+    require(all(worker.get(key) == value for key, value in scope.items()), "peer runtime scope changed")
+    classify_active_root(worker)
     require(all(snapshot.get(key) == value for key, value in scope.items()), "peer authority scope changed")
     require({task["id"] for task in snapshot["task"]} == {task_id}, "peer canonical task changed")
     attempts = snapshot["attempt"]
@@ -136,17 +147,184 @@ def require_peer_unchanged(plan, snapshot, scope, worker_id, task_id, attempt_id
             and not attempts[0].get("termination_confirmed"), "peer execution was replaced or terminated")
 
 
+def classify_active_root(worker):
+    # A command-only root holds the backend execution lock. Its conservative
+    # observation is not evidence of open admission or healthy capacity.
+    if worker.get("state") == "unknown":
+        require(worker.get("reason") == LOCK_CONTENTION and worker.get("admission_open") is False,
+                "active root has unrecognized uncertainty")
+        return "unknown: execution lock held; admission closed"
+    require(worker.get("state") in {"ready", "busy"} and worker.get("admission_open") is True,
+            "active root lost admission without recognized execution-lock uncertainty")
+    return "ready or busy: admission open"
+
+
+def require_active_runtime(worker, binding):
+    require(worker.get("worker_id") == binding["worker_id"]
+            and canonical({key: worker.get(key) for key in SPEC_FIELDS}) == canonical(binding["spec"]),
+            "fresh runtime observation changed its immutable worker binding")
+    require(worker.get("active_executions") == [binding["attempt_id"]]
+            and worker.get("termination_confirmed") is False and worker.get("artifacts_captured") is False,
+            "fresh runtime observation lost the original active root")
+
+
 def require_peer_runtime(worker, scope, worker_id, attempt_id):
     require(worker.get("worker_id") == worker_id and all(worker.get(key) == value for key, value in scope.items()),
             "fresh peer runtime observation changed identity or scope")
-    require(worker.get("admission_open") is True and worker.get("state") in {"ready", "busy"}
-            and worker.get("active_executions") == [attempt_id] and not worker.get("termination_confirmed"),
-            "fresh peer runtime observation lost admission or the original active attempt")
+    require(worker.get("active_executions") == [attempt_id]
+            and worker.get("termination_confirmed") is False and worker.get("artifacts_captured") is False,
+            "fresh peer runtime observation lost the original active attempt")
+    return classify_active_root(worker)
+
+
+def require_pending_drain_runtime(worker, binding):
+    require_active_runtime(worker, binding)
+    require(worker.get("admission_open") is False and worker.get("state") == "unknown"
+            and worker.get("reason") == PENDING_DRAIN + "; " + LOCK_CONTENTION,
+            "owned drain lacks the exact pending execution-lock observation")
+    return "unknown: owned drain pending; admission closed"
+
+
+@contextmanager
+def read_journal(path):
+    """Inspect existing state without constructors, migrations or PRAGMA writes."""
+    require(path.is_file() and not path.is_symlink(), "required runtime journal is absent or replaced")
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=1)) as database:
+        database.row_factory = sqlite3.Row
+        database.execute("BEGIN")
+        yield database
+
+
+def worker_journals(bundle, worker_id):
+    config = json.loads((bundle / "config/openjules.json").read_text())
+    lifecycle_path = Path(config["lifecycle_database"])
+    # The generated state_directory is the managed-service root. The pinned
+    # service passes its runtime/ child to ManagedDockerRuntime.
+    runtime_path = Path(config["state_directory"]) / "runtime/journal.sqlite3"
+    with read_journal(lifecycle_path) as database:
+        lifecycle = database.execute("SELECT * FROM managed_workers WHERE worker_id=?", (worker_id,)).fetchone()
+        executions = database.execute(
+            "SELECT worker_id,execution_id,parent_id,termination_confirmed,artifacts_captured "
+            "FROM worker_executions WHERE worker_id=? ORDER BY execution_id", (worker_id,)).fetchall()
+        # Filter only by original worker identity. Filtering by expected scope or
+        # completed=0 would conceal foreign-scoped or already-completed controls.
+        controls = database.execute(
+            "SELECT deployment_id,repository,request_key,action,worker_id,payload,completed "
+            "FROM worker_operations WHERE worker_id=? AND action IN ('drain','stop') ORDER BY rowid",
+            (worker_id,)).fetchall()
+    with read_journal(runtime_path) as database:
+        runtime = database.execute("SELECT * FROM workers WHERE worker_id=?", (worker_id,)).fetchone()
+        attempt = database.execute("SELECT * FROM attempts WHERE worker_id=?", (worker_id,)).fetchone()
+    return {"lifecycle": dict(lifecycle) if lifecycle else None,
+            "executions": [dict(row) for row in executions], "controls": [dict(row) for row in controls],
+            "runtime": dict(runtime) if runtime else None, "attempt": dict(attempt) if attempt else None}
+
+
+def worker_binding(worker, container, attempt_id):
+    spec = {key: worker[key] for key in SPEC_FIELDS}
+    require(type(spec["schema_version"]) is int and spec["schema_version"] == 1
+            and type(spec["generation"]) is int and spec["generation"] > 0,
+            "original worker has an invalid version or generation")
+    fingerprint = container["Config"]["Labels"].get("openjules.profile")
+    require(isinstance(fingerprint, str) and len(fingerprint) == 64
+            and all(character in "0123456789abcdef" for character in fingerprint),
+            "original container lacks its approved profile fingerprint")
+    binding = {"worker_id": worker["worker_id"], "spec": spec, "container_id": container["Id"],
+               "profile_fingerprint": fingerprint, "attempt_id": attempt_id}
+    require_live_container(container, binding)
+    return binding
+
+
+def require_bound_active_journals(records, binding):
+    lifecycle, runtime, attempt = (records[name] for name in ("lifecycle", "runtime", "attempt"))
+    require(all(isinstance(row, dict) for row in (lifecycle, runtime, attempt)),
+            "original active worker or attempt is missing from retained journals")
+    spec = binding["spec"]
+    payload = canonical(spec)
+    require(lifecycle["worker_id"] == binding["worker_id"] and lifecycle["spec"] == payload
+            and all(lifecycle[key] == spec[key] for key in ("deployment_id", "repository", "slot_id", "generation"))
+            and lifecycle["runtime_id"] == "docker:" + binding["container_id"]
+            and lifecycle["termination_confirmed"] == 0 and lifecycle["artifacts_captured"] == 0,
+            "lifecycle journal changed or completed the original worker")
+    require(runtime["worker_id"] == binding["worker_id"] and runtime["spec"] == payload
+            and runtime["container_id"] == binding["container_id"]
+            and runtime["profile_fingerprint"] == binding["profile_fingerprint"]
+            and runtime["start_confirmed"] == 1 and runtime["retired"] == 0 and runtime["receipt"] is None,
+            "runtime journal changed, retired or captured the original worker")
+    require(records["executions"] == [{"worker_id": binding["worker_id"], "execution_id": binding["attempt_id"],
+                                     "parent_id": None, "termination_confirmed": 0, "artifacts_captured": 0}],
+            "lifecycle journal changed or completed the original root execution")
+    require(attempt["worker_id"] == binding["worker_id"] and attempt["attempt_id"] == binding["attempt_id"]
+            and attempt["exec_dispatched"] == 1 and isinstance(attempt["exec_id"], str) and bool(attempt["exec_id"])
+            and attempt["cancelled"] == 0 and attempt["exit_code"] is None,
+            "runtime journal changed, cancelled or completed the original attempt")
+    execution = {key: attempt[key] for key in ("attempt_id", "input_sha256", "seconds", "deadline", "exec_id")}
+    if "execution" in binding:
+        require(execution == binding["execution"], "runtime changed the original execution input, budget or Docker exec")
+    return execution
+
+
+def require_uncontrolled_journals(records, binding):
+    execution = require_bound_active_journals(records, binding)
+    require(records["lifecycle"]["draining"] == 0 and records["controls"] == [],
+            "peer received a durable drain or stop, including an already-completed control")
+    return execution
+
+
+def require_pending_drain_journals(records, binding, request_key):
+    require_bound_active_journals(records, binding)
+    require(isinstance(request_key, str) and bool(request_key), "owned drain lacks its original request key")
+    expected = {key: binding["spec"][key] for key in ("deployment_id", "repository")}
+    expected.update(request_key=request_key, action="drain", worker_id=binding["worker_id"],
+                    payload=canonical({"worker_id": binding["worker_id"], "action": "drain"}), completed=0)
+    require(records["lifecycle"]["draining"] == 1 and records["controls"] == [expected],
+            "owned drain intent changed its scope, original key, payload or pending state")
+
+
+def require_live_container(container, binding):
+    labels = container.get("Config", {}).get("Labels") or {}
+    require(container.get("Id") == binding["container_id"] and container.get("State", {}).get("Running") is True
+            and labels.get("openjules.managed") == "1" and labels.get("openjules.worker") == binding["worker_id"]
+            and labels.get("openjules.spec") == hashlib.sha256(canonical(binding["spec"]).encode()).hexdigest()
+            and labels.get("openjules.profile") == binding["profile_fingerprint"],
+            "actual Docker container changed identity, scope, approved profile or running state")
+
+
+def controller_operation(state, binding):
+    with read_journal(state) as database:
+        identity = database.execute("SELECT value FROM metadata WHERE key='deployment_id'").fetchone()
+        row = database.execute("SELECT * FROM workers WHERE launch_key=?", (binding["spec"]["launch_key"],)).fetchone()
+    require(identity is not None and identity[0] == binding["spec"]["deployment_id"] and row is not None,
+            "controller lost the original deployment or reservation")
+    require(all(row[key] == binding["spec"][key] for key in ("repository", "slot_id", "generation", "profile")),
+            "controller changed the original reservation binding")
+    snapshot = json.loads(row["snapshot"])
+    require(snapshot.get("worker_id") == binding["worker_id"]
+            and canonical({key: snapshot.get(key) for key in SPEC_FIELDS}) == canonical(binding["spec"]),
+            "controller changed the original worker incarnation")
+    return row["pending_action"], row["action_key"]
+
+
+def require_controller_drain(state, binding, request_key):
+    # Acknowledged asynchronous intent may clear the local pending field.
+    # Freeze the first durable lifecycle key; ZPM retains no operation history.
+    require(controller_operation(state, binding) in {("drain", request_key), (None, None)},
+            "controller replaced the original owned drain request")
+
+
+def require_removed_plan(plan, binding):
+    require(plan["deployment_id"] == binding["spec"]["deployment_id"]
+            and live_ids(plan) == {binding["worker_id"]}, "removal changed the unresolved worker identity")
+    row = plan["repositories"][0]
+    require(row["repository"] == binding["spec"]["repository"] and row["profile"] == binding["spec"]["profile"]
+            and row["enabled"] is False and row["desired_workers"] == 1
+            and row["effective_target"] == 0 and row["reserved"] == 1,
+            "removal lost its disabled enrollment, retained target or unresolved reservation")
 
 
 def checkpoint_progress(read_counter, check_peer, processes):
     """Take the baseline only after entering the caller's held A phase."""
-    check_peer()
+    witness_before = check_peer()
     before = read_counter()
     require(type(before) is int and before > 0, "peer has no current progress baseline")
 
@@ -155,8 +333,8 @@ def checkpoint_progress(read_counter, check_peer, processes):
         return value if type(value) is int and value > before else None
 
     after = eventually(advanced, processes, "peer advances inside the current held phase", 15)
-    check_peer()
-    return {"before": before, "after": after}
+    witness_after = check_peer()
+    return {"before": before, "after": after, "witness_before": witness_before, "witness_after": witness_after}
 
 
 def container_for(worker_id):
@@ -484,18 +662,31 @@ def run(args):
         right_attempt = eventually(lambda: right.attempt(right_task), processes, "peer canonical attempt", 20)
         right_container = containers[1]["Id"]
         eventually(lambda: progress(right_container), processes, "peer private progress barrier", 20)
+        right_binding = worker_binding(initial[1]["repositories"][0]["workers"][0], containers[1], right_attempt["id"])
+        right_binding["execution"] = require_uncontrolled_journals(worker_journals(right.bundle, right_worker), right_binding)
         peer_observations = []
 
+        def fresh_peer():
+            require_peer_unchanged(right.plan(), right.snapshot(), right.scope, right_worker, right_task, right_attempt["id"])
+            worker = right.runtime.request("GET", "/api/workers/" + right_worker, query=right.scope)
+            classification = require_peer_runtime(worker, right.scope, right_worker, right_attempt["id"])
+            require_active_runtime(worker, right_binding)
+            require_uncontrolled_journals(worker_journals(right.bundle, right_worker), right_binding)
+            require_live_container(container_for(right_worker), right_binding)
+            return {"worker_id": right_worker, "attempt_id": right_attempt["id"],
+                    "container_id": right_container, "exec_id": right_binding["execution"]["exec_id"],
+                    "http_state": worker["state"], "admission_open": worker["admission_open"],
+                    "classification": classification, "controller_pending_operation": None, "durable_draining": False,
+                    "runtime_retired": False, "drain_or_stop_operations": 0, "container_running": True}
+
         def peer_progress(phase):
-            def fresh_peer():
-                require_peer_unchanged(right.plan(), right.snapshot(), right.scope, right_worker, right_task, right_attempt["id"])
-                worker = right.runtime.request("GET", "/api/workers/" + right_worker, query=right.scope)
-                require_peer_runtime(worker, right.scope, right_worker, right_attempt["id"])
             observed = checkpoint_progress(lambda: progress(right_container), fresh_peer, processes)
             peer_observations.append({"held_a_phase": phase, **observed})
             return observed["after"]
 
-        # The peer is already executing when A loses its runtime service.
+        # Observe B before disrupting A, so its conservative execution-lock
+        # uncertainty cannot be attributed to the later neighboring outage.
+        peer_before_outage = fresh_peer()
         started = time.monotonic()
         left.processes.stop("openjules", kill=True)
         def uncertain():
@@ -511,46 +702,83 @@ def run(args):
         recovered = wait_for_capacity(left.plan, processes, 1)
         observed_seconds["a_runtime_restart_to_observed_ready"] = elapsed(started)
         require(live_ids(recovered) == {left_worker}, "runtime reconnect duplicated or adopted a worker")
-        peer_progress("original worker reconnected")
-        checks.append("A runtime outage preserves its reservation and reconnects the same worker while B's original command progresses")
+        peer_progress("original idle worker reconnected")
+        checks.append("A runtime outage preserves its reservation and reconnects the same idle worker while B's original command progresses")
 
-        left_task = left.enroll(1)
-        left_attempt = eventually(lambda: left.attempt(left_task), processes, "A canonical attempt", 20)
-        left_container = containers[0]["Id"]
-        eventually(lambda: progress(left_container), processes, "A private progress barrier", 20)
-        require(left_attempt["runtime_binding"]["worker_id"] == left_worker, "A task adopted a different worker")
+        # Resize A while idle. Command-only active roots retain reservations but
+        # can report unknown rather than healthy while their execution lock is held.
         started = time.monotonic()
         left.change("target", 2)
         scaled = wait_for_capacity(left.plan, processes, 2)
-        observed_seconds["a_scale_one_to_two"] = elapsed(started)
-        require(left_worker in live_ids(scaled) and right_worker not in live_ids(scaled), "A scaling replaced its active worker or adopted B")
-        peer_progress("target two reached")
+        observed_seconds["a_idle_scale_one_to_two"] = elapsed(started)
+        scaled_ids = live_ids(scaled)
+        require(left_worker in scaled_ids and right_worker not in scaled_ids,
+                "A idle scaling replaced its original worker or adopted B")
+        peer_progress("idle target two reached")
         started = time.monotonic()
         left.change("target", 1)
         reduced = wait_for_capacity(left.plan, processes, 1)
-        observed_seconds["a_scale_two_to_one"] = elapsed(started)
-        require(live_ids(reduced) == {left_worker}, "A scale-down did not preserve its active worker")
-        peer_progress("target one reached")
+        observed_seconds["a_idle_scale_two_to_one"] = elapsed(started)
+        reduced_ids = live_ids(reduced)
+        require(len(reduced_ids) == 1 and reduced_ids <= scaled_ids and right_worker not in reduced_ids,
+                "A idle scale-down did not retain exactly one of its verified workers")
+        left_worker = next(iter(reduced_ids))
+        peer_progress("idle target one reached")
+        left_container_data = container_for(left_worker)
+        left_container = left_container_data["Id"]
+        require(left_container_data["State"]["Running"] and left_container != right_container,
+                "A idle survivor is not its own running container")
+        left_task = left.enroll(1)
+        left_attempt = eventually(lambda: left.attempt(left_task), processes, "A canonical attempt", 20)
+        eventually(lambda: progress(left_container), processes, "A private progress barrier", 20)
+        require(left_attempt["runtime_binding"]["worker_id"] == left_worker, "A task adopted a different worker")
+        left_binding = worker_binding(reduced["repositories"][0]["workers"][0], left_container_data, left_attempt["id"])
+        left_binding["execution"] = require_uncontrolled_journals(worker_journals(left.bundle, left_worker), left_binding)
+        require_active_runtime(left.runtime.request("GET", "/api/workers/" + left_worker, query=left.scope), left_binding)
+
         started = time.monotonic()
         left.cli("remove", left.repository)
         def removed_and_draining():
             plan = left.plan()
-            row = plan["repositories"][0]
-            workers = row["workers"]
-            return plan if not row["enabled"] and row["effective_target"] == 0 and row["reserved"] == 1 and len(workers) == 1 \
-                and workers[0]["state"] == "draining" and not workers[0]["admission_open"] \
-                and left_attempt["id"] in workers[0]["active_executions"] else None
-        draining = eventually(removed_and_draining, processes, "removed A retains its draining active execution", 25)
-        observed_seconds["a_remove_to_observed_active_drain"] = elapsed(started)
-        require(live_ids(draining) == {left_worker}, "removal changed A's unresolved worker identity")
-        peer_progress("removed with active drain")
+            require_removed_plan(plan, left_binding)
+            records = worker_journals(left.bundle, left_worker)
+            if not records["controls"]:
+                return None
+            require(len(records["controls"]) == 1, "A received more than its one owned drain intent")
+            request_key = records["controls"][0]["request_key"]
+            require_pending_drain_journals(records, left_binding, request_key)
+            require_controller_drain(left.state, left_binding, request_key)
+            worker = left.runtime.request("GET", "/api/workers/" + left_worker, query=left.scope)
+            require_pending_drain_runtime(worker, left_binding)
+            return request_key
+        # Store clears acknowledged local action keys and has no operation
+        # history. Freeze the first durable lifecycle key instead of racing a
+        # transient controller field; every later observation must retain it.
+        drain_key = eventually(removed_and_draining, processes, "removed A retains its owned pending drain", 25)
+        observed_seconds["a_remove_to_observed_pending_active_drain"] = elapsed(started)
+
+        def fresh_owned_drain():
+            require_removed_plan(left.plan(), left_binding)
+            worker = left.runtime.request("GET", "/api/workers/" + left_worker, query=left.scope)
+            classification = require_pending_drain_runtime(worker, left_binding)
+            require_pending_drain_journals(worker_journals(left.bundle, left_worker), left_binding, drain_key)
+            require_controller_drain(left.state, left_binding, drain_key)
+            require_live_container(container_for(left_worker), left_binding)
+            return {"worker_id": left_worker, "attempt_id": left_attempt["id"],
+                    "container_id": left_container, "exec_id": left_binding["execution"]["exec_id"],
+                    "http_state": worker["state"], "admission_open": False, "classification": classification,
+                    "durable_draining": True, "runtime_retired": False, "drain_completed": False,
+                    "container_running": True}
+
+        owned_drain_evidence = checkpoint_progress(lambda: progress(left_container), fresh_owned_drain, processes)
+        peer_progress("removed with active pending drain")
         started = time.monotonic()
         release(left_container)
         evidence["a_first"] = left.captured(left_task, left_worker, processes)
         wait_for_capacity(left.plan, processes, 0)
         observed_seconds["a_release_to_capture_and_zero_reservations"] = elapsed(started)
         peer_progress("removed execution captured")
-        checks.append("A scales independently, removes enrollment, closes admission and retains its active root until real capture while B progresses unchanged")
+        checks.append("A resizes idle capacity, then removes enrollment and retains its active root under an owned pending drain until real capture while B progresses unchanged")
 
         canonical_before = left.snapshot()
         started = time.monotonic()
@@ -634,7 +862,11 @@ def run(args):
                                                "worker_history": sorted(known[item.label]), "final_reserved": item.plan()["reserved"],
                                                "service_python_versions": item.python_versions, "observed_seconds": item.observed_seconds}
                                     for item in installations},
-                  "canonical_evidence": evidence, "peer_progress_checkpoints": peer_observations,
+                  "canonical_evidence": evidence, "peer_before_a_outage": peer_before_outage,
+                   "peer_progress_checkpoints": peer_observations,
+                   "owned_pending_drain": {"request_key": drain_key, "key_origin": "first durable lifecycle intent; retained across later observations",
+                                           "backend_delivery_confirmed": False, **owned_drain_evidence},
+                   "scene_order": "B active throughout; A idle outage and reconnect, idle 1-to-2-to-1 resize, then active removal and capture",
                   "proof": "real generated installations, real HTTP and Docker, controlled commands and private fixture barriers",
                   "timing_scope": "monotonic elapsed time to observed predicates in this controlled trial; no performance threshold or child/model latency inference",
                   "not_proven": LIMITS}
