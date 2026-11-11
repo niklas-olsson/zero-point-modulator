@@ -65,6 +65,11 @@ bound to their recorded revisions; they are not results for the new pin.
 Record the refreshed set's actual outcome in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
+The current extension adds concurrent production CLI ingress, explicit
+re-enrollment after A's removal, a second A capture and stricter resource/history
+oracles. The historical report above does not establish those added observations.
+They require the extended harness's actual Docker run on its delivery revision.
+
 ## Scene and evidence
 
 | Phase | Held condition | Required observations |
@@ -75,14 +80,26 @@ Record the refreshed set's actual outcome in
 | Global ceiling | A1 idle, B1 executing, A target 2, global maximum 2 | Exactly two reservations, A shortfall 1 and deployment-ceiling reason, no extra historical allocation, actual doctor output |
 | A pause and resume | A remains idle through capacity changes | Enabled A retains target 1 while paused at effective zero, then resumes unpaused with a fresh incarnation; B retains its execution |
 | A removal | A's original root remains active | Disabled A admission, one retained owned drain key and exact execution binding until real capture; B remains uncontrolled |
+| A re-enrollment | A is captured and removed; B's original root remains active | Repeat preparation preserves removed state and sealed files; explicit enrollment creates a fresh worker, and a new request key runs the same source again through real capture |
 | B completion | B target zero is committed while its root remains held | Release/capture without a desired-one replacement race; global reservations reach zero |
-| Recovery | Both roots captured, A source restored | Full restart retains credentials, removed A, zero-target B, exact scoped records and artifact bytes |
+| Recovery | All three tasks captured, A source restored | Full restart retains credentials, removed A, zero-target B, exact scoped records and artifact bytes |
 
 Every use of a one-repository witness follows validation of the complete shared
 plan. The plan must contain A and B exactly once, the correct deployment and
 configured maximum, consistent counters, no shared worker identity, and a global
 reservation total equal to the sum of the two rows. Filtering cannot conceal
-extra enrollment or workers.
+extra enrollment or workers. Approved profiles, launch keys and per-scope
+incarnations must remain correctly bound. A real pending launch may have an
+empty worker ID only with `reserve`/`ensure`, a starting or uncertain state,
+closed admission, no execution and no termination/capture receipt. The oracle
+checks this against actual Store/Controller transitions, not only dictionaries.
+
+Actual Docker mount evidence requires distinct workspace volumes and distinct
+read-only source snapshots. Extra persistent mounts, a shared source/volume or
+unexpected temporary mount fail the trial. Before and after final service
+restart, all three journals retain identical allocation histories, including
+every observed A worker and exactly B's original worker. Empty discovery cannot
+substitute for retained ownership.
 
 ### Completed controller decisions
 
@@ -160,6 +177,37 @@ B's uncontrolled-peer interval ends before its own target-zero command.
 Its later intentional drain is not described as cross-repository interference.
 No B progress claim spans the final shared-service shutdown.
 
+After A's first capture, the harness repeats normal preparation while B remains
+active. A must stay removed and all sealed configuration and credentials must
+remain unchanged. Explicit enrollment uses A's binding-file mapping from the
+actual prepare report, then target one admits a new worker. A second real task
+uses the same source item with a different explicit request key. The original
+B execution must show fresh progress before and during that second execution.
+A's target becomes zero before releasing its held command, preventing an idle
+replacement race. After the second capture, A is removed again, preserving the
+existing final restart check for disabled enrollment.
+
+### Concurrent production ingress
+
+Each of the three task requests is submitted by two separate installed
+`src.liminal_bridge.managed_cli` processes. A small host harness wrapper imports
+that production module, emits its own PID and waits for a stdin release. The
+parent must observe two distinct live processes at the gate before releasing
+either. Both then run the production CLI entry point, authenticated HTTP request
+and scoped receipt validation. No synthetic HTTP response or enrollment result
+stands in for the real authority. This establishes overlapping initialized CLI
+invocations released together; it does not assert TCP packet simultaneity or
+exercise OpenJules GitHub webhook delivery.
+
+Both initial repository requests deliberately use `github:issue:1` and the same
+raw `controlled-shared-task-1` key. Concurrent duplicates within each scope must
+return one task, while A and B receive distinct task IDs. A changed requirements
+payload under the same key must return HTTP 409. A's explicit later run keeps
+`github:issue:1` and changes the key to `controlled-shared-task-2`, producing a
+new task. This matches the pinned authority's key of scope, source and request
+key; it is not a silent retry or an implicit new budget. The aggregate report
+records each pair's PIDs, readiness observation, task ID and changed-retry result.
+
 ### Authentication and canonical visibility
 
 Repository ingress and reviewer credentials first succeed on their own managed
@@ -170,13 +218,14 @@ must also fail with 403.
 Controller and runtime credentials intentionally cover both repositories. Their
 successful access to both scopes is expected. Resource tests instead change only
 the requested scope: own worker reads succeed, sibling-scope reads fail with 404;
+drain and stop requests for that same worker in the sibling scope also fail with 404;
 an active own attempt permission succeeds, the other allowed scope fails with
 409; each exact captured artifact is readable in its owning scope and fails
 with 409 in the other. These controls do not rely on an already-active task
 claim, expired budget or unrelated schema error.
 
-Final scoped snapshots contain exactly the expected task and attempt per
-repository. Fresh authorized clients retrieve unchanged records and captured
+Final scoped snapshots contain exactly two tasks and attempts for A and one for
+B. Fresh authorized clients retrieve unchanged records and all three captures'
 bytes after restart. Work remains `awaiting_review` with its canonical candidate
 and no admission. Different reviewer tokens still identify the same operator;
 they do not establish independent review, acceptance or publication.

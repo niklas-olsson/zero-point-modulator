@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from zpm.deployment import _prepare_files
+from zpm.controller import Controller
 from zpm.models import Binding, OPERATIONS, readiness
 from zpm.store import Store
 
@@ -19,6 +20,7 @@ try:
     from check_multi_repository_stack import (
         SOURCE_READINESS, SOURCE_UNAVAILABLE, canonical, cleanup_services,
         displace_source, repository_view, require_quota,
+        require_private_workspaces, require_retained_workers,
         require_same_history, require_scope_capability, require_shared_plan,
         require_source_block, retained_history,
     )
@@ -39,8 +41,10 @@ class SharedPlanEvidenceTests(unittest.TestCase):
                 "revision": 1, "healthy": 1, "reserved": 1, "shortfall": 0, "launch_deficit": 0,
                 "validation": {"ready": True, "reason": ""}, "reasons": [],
                 "workers": [{"schema_version": 1, "deployment_id": self.deployment, "repository": repository,
+                             "profile": "approved", "slot_id": "slot-0", "generation": 1, "launch_key": "launch-" + repository[-1],
                              "worker_id": "worker-" + repository[-1], "state": "ready", "admission_open": True,
-                             "active_executions": [], "pending_operation": None}],
+                             "active_executions": [], "pending_operation": None,
+                             "termination_confirmed": False, "artifacts_captured": False}],
             })
         self.plan = {"schema_version": 1, "deployment_id": self.deployment, "max_workers": 2,
                      "reserved": 2, "over_capacity": 0, "repositories": rows}
@@ -59,6 +63,12 @@ class SharedPlanEvidenceTests(unittest.TestCase):
             ("foreign deployment", lambda value: value.update(deployment_id="foreign")),
             ("foreign unselected worker", lambda value: value["repositories"][0]["workers"][0].update(repository=self.b)),
             ("reused worker", lambda value: value["repositories"][0]["workers"][0].update(worker_id="worker-b")),
+            ("reused launch", lambda value: value["repositories"][0]["workers"][0].update(launch_key="launch-b")),
+            ("missing slot", lambda value: value["repositories"][0]["workers"][0].update(slot_id=None)),
+            ("boolean generation", lambda value: value["repositories"][0]["workers"][0].update(generation=True)),
+            ("wrong worker profile", lambda value: value["repositories"][0]["workers"][0].update(profile="other")),
+            ("missing worker identity", lambda value: value["repositories"][0]["workers"][0].update(worker_id=None)),
+            ("empty settled identity", lambda value: value["repositories"][0]["workers"][0].update(worker_id="")),
             ("missing maximum", lambda value: value.pop("max_workers")),
             ("offline unknown maximum", lambda value: value.update(max_workers=None)),
             ("incorrect total", lambda value: value.update(reserved=1)),
@@ -74,6 +84,52 @@ class SharedPlanEvidenceTests(unittest.TestCase):
                 change(value)
                 with self.assertRaises(AssertionError):
                     repository_view(value, self.deployment, self.repositories, self.b)
+
+    def test_approved_profiles_and_incarnations_cannot_change_inside_other_scope(self):
+        profiles = {name: "approved" for name in self.repositories}
+        require_shared_plan(self.plan, self.deployment, self.repositories, profiles=profiles)
+        changed = deepcopy(self.plan)
+        changed["repositories"][0]["profile"] = "other"
+        changed["repositories"][0]["workers"][0]["profile"] = "other"
+        with self.assertRaises(AssertionError):
+            require_shared_plan(changed, self.deployment, self.repositories, profiles=profiles)
+        changed = deepcopy(self.plan)
+        changed["max_workers"] = changed["reserved"] = 3
+        a = changed["repositories"][0]
+        a["reserved"] = 2
+        a["workers"].append(a["workers"][0] | {"worker_id": "distinct", "launch_key": "distinct"})
+        with self.assertRaises(AssertionError):
+            require_shared_plan(changed, self.deployment, self.repositories, maximum=3)
+
+    def test_actual_pending_store_plans_keep_empty_identity_reservations(self):
+        with TemporaryDirectory() as directory, Store(Path(directory) / "state.sqlite3", self.deployment) as store:
+            reservations = []
+            for name in self.repositories:
+                binding = Binding.parse({"schema_version": 1, "repository": name, "profile": "approved", "desired_workers": 1})
+                stored = store.enroll(binding)
+                store.validation(name, True, "", stored["revision"])
+                reservations.append(store.reserve(binding, stored["revision"]))
+            controller = Controller(store, max_workers=2)
+            for operation in ("reserve", "ensure", "unknown"):
+                if operation == "ensure":
+                    for reservation in reservations:
+                        store.dispatch(reservation["launch_key"], 2)
+                if operation == "unknown":
+                    store.uncertainty(reservations[0]["launch_key"], "controlled response loss")
+                plan = controller.plan()
+                self.assertEqual(plan["reserved"], 2)
+                self.assertTrue(all(row["workers"][0]["worker_id"] == "" for row in plan["repositories"]))
+                self.assertEqual(repository_view(plan, self.deployment, self.repositories, self.b)["reserved"], 1)
+            for change in ({"worker_id": None}, {"state": "ready"}, {"admission_open": True},
+                           {"termination_confirmed": True}, {"artifacts_captured": True}, {"active_executions": ["unbound"]}):
+                with self.subTest(change=change):
+                    altered = deepcopy(plan)
+                    altered["repositories"][0]["workers"][0].update(change)
+                    with self.assertRaises(AssertionError):
+                        repository_view(altered, self.deployment, self.repositories, self.b)
+            store.save_observation(reservations[0]["launch_key"], store.worker(reservations[0]["launch_key"])["snapshot"])
+            with self.assertRaises(AssertionError):
+                repository_view(controller.plan(), self.deployment, self.repositories, self.b)
 
     def source_plan(self):
         value = deepcopy(self.plan)
@@ -178,6 +234,51 @@ class SharedPlanEvidenceTests(unittest.TestCase):
         after["zpm"][0]["generation"] = True
         with self.assertRaises(AssertionError):
             require_same_history(before, after)
+
+
+class SharedResourceEvidenceTests(unittest.TestCase):
+    def test_mounts_require_distinct_readonly_sources_and_private_workspaces(self):
+        containers = [{"Id": "container-" + label, "State": {"Running": True}, "Mounts": [
+            {"Destination": "/source", "Type": "bind", "Source": "/private/snapshot-" + label, "RW": False},
+            {"Destination": "/workspace", "Type": "volume", "Name": "workspace-" + label, "RW": True},
+            {"Destination": "/tmp", "Type": "tmpfs"}, {"Destination": "/control", "Type": "tmpfs"},
+        ]} for label in ("a", "b")]
+        require_private_workspaces(containers)
+        changes = [
+            ("shared source", lambda rows: rows[0]["Mounts"][0].update(Source="/private/snapshot-b")),
+            ("writable source", lambda rows: rows[0]["Mounts"][0].update(RW=True)),
+            ("shared workspace", lambda rows: rows[0]["Mounts"][1].update(Name="workspace-b")),
+            ("same container", lambda rows: rows[0].update(Id="container-b")),
+            ("stopped peer", lambda rows: rows[1]["State"].update(Running=False)),
+            ("foreign volume", lambda rows: rows[0]["Mounts"].append({"Destination": "/foreign", "Type": "volume", "Name": "workspace-b"})),
+            ("extra temporary path", lambda rows: rows[0]["Mounts"].append({"Destination": "/foreign", "Type": "tmpfs"})),
+        ]
+        for label, change in changes:
+            with self.subTest(label=label):
+                changed = deepcopy(containers)
+                change(changed)
+                with self.assertRaises(AssertionError):
+                    require_private_workspaces(changed)
+
+    def test_positive_history_rejects_missing_observed_workers_in_every_journal(self):
+        expected = {"original", "reenrolled"}
+        history = {kind: [{"worker_id": value} for value in sorted(expected)] for kind in ("zpm", "lifecycle", "runtime")}
+        require_retained_workers(history, expected)
+        for kind in history:
+            for mutation in ("missing", "empty", "duplicate", "extra", "unbound"):
+                with self.subTest(kind=kind, mutation=mutation):
+                    changed = deepcopy(history)
+                    if mutation == "missing":
+                        changed[kind].pop()
+                    elif mutation == "empty":
+                        changed[kind].clear()
+                    elif mutation == "duplicate":
+                        changed[kind].append(changed[kind][0])
+                    else:
+                        changed[kind].append({"worker_id": "" if mutation == "unbound" else "extra"})
+                        require_retained_workers(changed, expected)
+                    with self.assertRaises(AssertionError):
+                        require_retained_workers(changed, expected, exact=True)
 
 
 class SharedRetainedHistoryTests(unittest.TestCase):
