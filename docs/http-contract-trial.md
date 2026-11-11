@@ -31,7 +31,7 @@ The same pins also pair OpenJules' opt-in initial child outcomes with Polyphony'
 final-manifest validation. The separate installed child variant exercises that
 callback/capture contract; this HTTP lifecycle trial does not.
 The candidate requires OpenJules' full repository CI and the changed ZPM
-revision's unit/package checks and all four integration jobs before promotion.
+revision's unit/package checks and all five integration jobs before promotion.
 Record exact ZPM and component revisions,
 CI links and remaining acceptance in [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
@@ -47,11 +47,11 @@ To update the shared component pins:
 1. Select an immutable OpenJules commit whose full repository CI passes. Use a
    clean checkout of that commit for the local trial below.
 2. Change all corresponding checkout `ref` values in `.github/workflows/ci.yml`
-   and the revision tables in the HTTP, command, model and child trial guides
+   and the revision tables in the HTTP, command, model, child and isolation trial guides
    together. Keep one explicit three-repository revision set. Do not substitute
    a moving branch or tag.
 3. Run the HTTP trial locally, then require the ZPM unit, package, CLI and all
-   four integration jobs to pass for the proposed update before merging it.
+   five integration jobs to pass for the proposed update before merging it.
 
 The pin records a tested component contract. It does not promote the fixture
 runtime to a production managed coding profile or complete the installation

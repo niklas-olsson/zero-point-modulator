@@ -102,6 +102,55 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  managed-isolation-stack:
+    name: Install and isolate two deployments on one Docker Engine
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: zpm
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/OpenJules
+          # Same reviewed runtime candidate as every other integration gate.
+          # Update this pin with docs/managed-isolation-stack-trial.md.
+          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
+          path: openjules
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/keystone-polyphony
+          ref: 653c0a71a921c0d23b8e0171277524125e929e66
+          path: polyphony
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the shared Docker Engine
+        run: docker info
+      - name: Build one immutable controlled trial image
+        run: docker build --iidfile "$RUNNER_TEMP/isolation-image.id" - < zpm/tests/contracts/Dockerfile.managed-trial
+      - name: Prepare two bundles and exercise concurrent isolation
+        run: |
+          python zpm/tests/contracts/check_isolation_stack.py \
+            --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/isolation-image.id")" \
+            --work-dir "$RUNNER_TEMP/managed-isolation-trial"
+      - name: Retain only aggregate isolation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-isolation-evidence
+          path: |
+            ${{ runner.temp }}/managed-isolation-trial/report.json
+            ${{ runner.temp }}/managed-isolation-trial/diagnostics.json
+          if-no-files-found: warn
+          retention-days: 14
+
   managed-children-stack:
     name: Install and verify two children inside one worker
     needs: test

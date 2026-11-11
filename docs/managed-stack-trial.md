@@ -38,7 +38,7 @@ The CI job currently pins:
 
 All installed-stack jobs use this same three-repository candidate set. The HTTP
 fixture and component CI do not qualify the changed installation: all ZPM jobs,
-including the command, model and child Docker trials, must pass on the exact
+including the command, model, child and isolation Docker trials, must pass on the exact
 candidate revision. Qualification and CI evidence remain tracked in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 Update all component pins and trial guides together with the workflow, then
