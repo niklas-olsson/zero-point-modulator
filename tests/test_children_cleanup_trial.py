@@ -21,6 +21,9 @@ finally:
     sys.path.pop(0)
 
 
+DEFAULT_PROGRESS = object()
+
+
 class CleanupEvidenceTests(unittest.TestCase):
     def setUp(self):
         temporary = TemporaryDirectory()
@@ -49,6 +52,23 @@ class CleanupEvidenceTests(unittest.TestCase):
         manifest = {"worker_id": self.worker, "container_id": self.original["container"],
                     "archive_sha256": self.archive_id["sha256"], "archive_bytes": self.archive_id["bytes"]}
         self.artifacts = {"patch": "private fixture patch", "log": "private fixture log", "manifest": json.dumps(manifest)}
+        self.canonical_proof = {
+            "binding": {"worker_id": self.worker, "attempt_id": "original-attempt"},
+            "runtime_receipt": {"state": "exited", "termination_confirmed": True,
+                                "launch_fenced": True, "artifacts": {"manifest": "original-root-hash"}},
+            "child_lineage": [{"child_id": "original-child", "grant_digest": "original-grant",
+                               "artifacts": {"manifest": "original-child-hash"}}],
+        }
+        # Independent literal witness, not manufactured by the oracle.
+        self.progress = {
+            "schema_version": 1, "worker_id": self.worker,
+            "spec_sha256": hashlib.sha256(json.dumps(
+                self.spec, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            "container_id": self.original["container"], "volume_identity": self.original["volume_identity"],
+            "archive_sha256": self.archive_id["sha256"], "canonical_proof": self.canonical_proof,
+            "container_removed": True, "volume_removed": True, "completed": True,
+        }
+        self.progress_json = json.dumps(self.progress, sort_keys=True, separators=(",", ":"))
         self.receipt = {**self.artifacts, "termination_confirmed": True, "artifacts_captured": True,
                         "launch_fenced": True, "capture_path": str(self.archive), "capture_sha256": self.archive_id["sha256"]}
         for name, path in self.paths.items():
@@ -157,7 +177,9 @@ class CleanupEvidenceTests(unittest.TestCase):
 
     def test_target_absence_is_insufficient_when_idle_control_changed(self):
         witness = self.original_capture() | {"journals": cleanup.retained_journals(self.paths, self.worker),
-            "remaining_inventory": self.remaining, "idle_worker": self.idle, "idle_resources": self.non_target}
+            "remaining_inventory": self.remaining, "idle_worker": self.idle, "idle_resources": self.non_target,
+            "cleanup_progress": self.progress_json}
+        self.update("runtime", "UPDATE workers SET cleanup=? WHERE worker_id=?", (self.progress_json, self.worker))
         with patch.object(cleanup, "docker_inventory", return_value=self.remaining), patch.object(
                 cleanup, "owned_resources", return_value=self.non_target | {"container": "c" * 64}):
             with self.assertRaises(AssertionError):
@@ -179,7 +201,7 @@ class CleanupEvidenceTests(unittest.TestCase):
                     with self.assertRaises(AssertionError):
                         cleanup.owned_resources(self.worker)
 
-    def exercise_phase(self, *, fail=None, cleanup_failure=False):
+    def exercise_phase(self, *, fail=None, cleanup_failure=False, stored_progress=DEFAULT_PROGRESS):
         events, requests, authority_reads = [], [], []
         processes = SimpleNamespace(running={})
 
@@ -209,6 +231,8 @@ class CleanupEvidenceTests(unittest.TestCase):
                 raise cleanup.subprocess.TimeoutExpired(command, 60)
             current_inventory.clear()
             current_inventory.update(deepcopy(self.remaining))
+            progress = self.progress_json if stored_progress is DEFAULT_PROGRESS else stored_progress
+            self.update("runtime", "UPDATE workers SET cleanup=? WHERE worker_id=?", (progress, self.worker))
             payload = expected if fail != "receipt" else expected | {"worker_id": "foreign"}
             if fail == "boolean":
                 payload = expected | {"container_removed": 1}
@@ -226,7 +250,8 @@ class CleanupEvidenceTests(unittest.TestCase):
             stack.enter_context(patch.object(cleanup.subprocess, "run", side_effect=run))
             try:
                 result = cleanup.qualify_owned_cleanup(self.bundle, {"polyphony": "original-polyphony", "openjules": "original-openjules"},
-                    self.scope, self.worker, self.idle, {}, processes, self.artifacts, canonical)
+                    self.scope, self.worker, self.idle, {}, processes, self.artifacts, canonical,
+                    canonical_proof=self.canonical_proof)
             finally:
                 self.assertEqual(events[-1], ("stop", "cleanup-authority"))
                 self.assertEqual(processes.running, {})
@@ -244,8 +269,39 @@ class CleanupEvidenceTests(unittest.TestCase):
 
     def test_cli_or_capture_verification_failure_still_stops_owned_authority(self):
         for failure in ("cli", "receipt", "boolean", "timeout", "verification"):
+            self.update("runtime", "UPDATE workers SET cleanup=NULL WHERE worker_id=?", (self.worker,))
             with self.subTest(failure=failure), self.assertRaises((AssertionError, ValueError, cleanup.subprocess.TimeoutExpired)):
                 self.exercise_phase(fail=failure)
+
+    def test_successful_cli_cannot_hide_missing_or_changed_durable_progress(self):
+        mutations = {
+            "foreign worker": self.progress | {"worker_id": self.idle},
+            "wrong spec": self.progress | {"spec_sha256": "f" * 64},
+            "wrong resource": self.progress | {"container_id": self.non_target["container"]},
+            "wrong archive": self.progress | {"archive_sha256": "f" * 64},
+            "foreign canonical binding": self.progress | {
+                "canonical_proof": self.canonical_proof | {"binding": {"worker_id": self.idle}}},
+            "incomplete": self.progress | {"completed": False},
+            "boolean alias": self.progress | {"container_removed": 1},
+            "unexpected field": self.progress | {"other": True},
+        }
+        cases = {"absent": None, "malformed": "{", "oversized": "x" * (cleanup.MAX_PROGRESS_BYTES + 1)}
+        cases.update({name: json.dumps(value, sort_keys=True, separators=(",", ":"))
+                      for name, value in mutations.items()})
+        for name, progress in cases.items():
+            with self.subTest(name=name):
+                self.update("runtime", "UPDATE workers SET cleanup=NULL WHERE worker_id=?", (self.worker,))
+                with self.assertRaisesRegex(AssertionError, "exact completed original proof"):
+                    self.exercise_phase(stored_progress=progress)
+
+    def test_later_progress_change_cannot_hide_behind_normalized_history(self):
+        witness = self.exercise_phase()
+        with patch.object(cleanup, "docker_inventory", return_value=self.remaining), patch.object(
+                cleanup, "owned_resources", return_value=self.non_target):
+            cleanup.require_retained(self.paths, self.worker, witness)
+            self.update("runtime", "UPDATE workers SET cleanup=NULL WHERE worker_id=?", (self.worker,))
+            with self.assertRaisesRegex(AssertionError, "exact completed original proof"):
+                cleanup.require_retained(self.paths, self.worker, witness)
 
     def test_reap_failure_does_not_mask_original_verification_failure(self):
         with self.assertRaisesRegex(ValueError, "controlled canonical failure") as caught:

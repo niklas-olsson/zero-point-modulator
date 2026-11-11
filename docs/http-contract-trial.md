@@ -19,7 +19,7 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`3e62230b8cfca02b4aaae19ec7a194f919fa822c`](https://github.com/niklas-olsson/OpenJules/commit/3e62230b8cfca02b4aaae19ec7a194f919fa822c) |
+| OpenJules | [`11842db8fc573b461121dc321a1537a9a148ad90`](https://github.com/niklas-olsson/OpenJules/commit/11842db8fc573b461121dc321a1537a9a148ad90) |
 
 This is the same merged OpenJules revision used by all five installed-stack
 jobs. Their common Polyphony pin is `653c0a71a921c0d23b8e0171277524125e929e66`;

@@ -23,6 +23,7 @@ from check_stack import eventually, require
 SPEC_FIELDS = {"schema_version", "deployment_id", "repository", "slot_id", "generation", "launch_key", "profile"}
 VOLUME_FIELDS = ("Name", "CreatedAt", "Driver", "Scope", "Labels", "Options")
 MAX_ARCHIVE_BYTES = 16777216  # The installed controlled profile's unchanged bound.
+MAX_PROGRESS_BYTES = 65536  # One root and two child lineages in this controlled scene.
 
 
 def journal_paths(bundle, config):
@@ -130,6 +131,15 @@ def owned_resources(worker):
 
 
 def require_retained(paths, worker, witness):
+    # History normalization permits only the selected progress column to change.
+    # Independently bind that durable value to the proof frozen before deletion.
+    with read_journal(paths["runtime"]) as database:
+        rows = database.execute("SELECT cleanup FROM workers WHERE worker_id=?", (worker,)).fetchmany(2)
+    require(len(rows) == 1, "cleanup original durable progress is missing or duplicated")
+    progress = rows[0]["cleanup"]
+    require(isinstance(progress, str) and 0 < len(progress.encode()) <= MAX_PROGRESS_BYTES
+            and progress == witness["cleanup_progress"],
+            "cleanup did not retain the exact completed original proof")
     require(retained_journals(paths, worker) == witness["journals"], "cleanup changed retained journal history")
     require(archive_identity(witness["archive"]) == witness["archive_identity"], "cleanup changed the retained archive")
     require(docker_inventory() == witness["remaining_inventory"], "cleanup removed another resource or recreated a target")
@@ -137,7 +147,7 @@ def require_retained(paths, worker, witness):
 
 
 def qualify_owned_cleanup(bundle, source_paths, scope, worker, idle_worker, source_environment,
-                          processes, artifacts, verify_canonical):
+                          processes, artifacts, verify_canonical, *, canonical_proof):
     from zpm.deployment import _command, _environment, verify
 
     require("installation" not in processes.running, "cleanup requires the owned installation manager to be reaped")
@@ -146,6 +156,17 @@ def qualify_owned_cleanup(bundle, source_paths, scope, worker, idle_worker, sour
     config = json.loads((bundle / "config/openjules.json").read_text())
     paths = journal_paths(bundle, config)
     witness = original_capture(paths, worker, scope, artifacts)
+    # Freeze the independently verified canonical attempt, never a post-cleanup
+    # response or the mutable progress row. Canonical JSON also rejects bool/int
+    # aliases, extra fields and incomplete or foreign completed receipts.
+    witness["cleanup_progress"] = json.dumps({
+        "schema_version": 1, "worker_id": worker,
+        "spec_sha256": hashlib.sha256(json.dumps(
+            witness["spec"], sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+        "container_id": witness["container"], "volume_identity": witness["volume_identity"],
+        "archive_sha256": witness["archive_identity"]["sha256"], "canonical_proof": canonical_proof,
+        "container_removed": True, "volume_removed": True, "completed": True,
+    }, sort_keys=True, separators=(",", ":"), allow_nan=False)
     original, idle = owned_resources(worker), owned_resources(idle_worker)
     require(worker != idle_worker and original["container"] == witness["container"]
             and original["volume_identity"] == witness["volume_identity"]

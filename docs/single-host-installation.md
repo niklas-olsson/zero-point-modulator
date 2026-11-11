@@ -427,7 +427,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/3e62230b8cfca02b4aaae19ec7a194f919fa822c/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/11842db8fc573b461121dc321a1537a9a148ad90/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -445,7 +445,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/3e62230b8cfca02b4aaae19ec7a194f919fa822c/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/11842db8fc573b461121dc321a1537a9a148ad90/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature

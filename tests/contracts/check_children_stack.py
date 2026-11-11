@@ -684,8 +684,13 @@ def run(args):
                             == child_artifacts[child["child_id"]], "cleanup changed canonical child artifact bytes")
                 return True
 
-            cleanup = qualify_owned_cleanup(bundle, paths, scope, worker, idle_worker, manager_environment,
-                                             processes, artifacts, retained_canonical)
+            cleanup = qualify_owned_cleanup(
+                bundle, paths, scope, worker, idle_worker, manager_environment,
+                processes, artifacts, retained_canonical,
+                canonical_proof={"binding": attempt["runtime_binding"],
+                                 "runtime_receipt": attempt["runtime_receipt"],
+                                 "child_lineage": attempt["child_lineage"]},
+            )
             checks.append("installed OpenJules host cleanup removes only the fully captured root worker container and volume against the reopened real canonical authority; repeated cleanup retains all journals, archive bytes, canonical captures and the idle replacement")
             verify(bundle)
             processes.start("installation", manager + ["start"], bundle, manager_environment)

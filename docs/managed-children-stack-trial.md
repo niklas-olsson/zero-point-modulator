@@ -21,7 +21,7 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `3e62230b8cfca02b4aaae19ec7a194f919fa822c`, merged owned cleanup, initial child outcomes and durable control replay |
+| OpenJules | `11842db8fc573b461121dc321a1537a9a148ad90`, merged owned cleanup, initial child outcomes and durable control replay |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
@@ -32,7 +32,8 @@ from Polyphony #122. The merged OpenJules revision also contains
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15).
 The current pin adds [explicit owned cleanup](https://github.com/niklas-olsson/OpenJules/pull/17)
 and [strict adapter and authentication checks](https://github.com/niklas-olsson/OpenJules/pull/18)
-for the qualified creation transport.
+for the qualified creation transport. [Versioned persisted proof](https://github.com/niklas-olsson/OpenJules/pull/20)
+keeps earlier unqualified creation markers ineligible after restart.
 Its component Docker tests cover process death between removal and journal
 acknowledgement with a fixture authority. This installed trial separately requires
 cleanup against the real retained Polyphony authority before the set is qualified.
@@ -260,7 +261,9 @@ and container boundaries:
     idle replacement's exact container and volume identities remain. The host
     archive, all six local logical journal snapshots and real canonical root/child
     records and artifact bytes remain unchanged, except for the intended runtime
-    cleanup progress. A second CLI invocation returns the identical completed
+    cleanup progress. That progress must exactly bind the original worker, spec,
+    resources, archive and canonical root/child proof, with all completion flags
+    true; missing, malformed or changed progress cannot qualify. A second CLI invocation returns the identical completed
     receipt. The temporary authority is stopped through its owned process handle
     even if cleanup or verification fails.
 12. After the normal full-service restart, replaying the saved original ensure
