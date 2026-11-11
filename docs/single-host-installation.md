@@ -13,6 +13,10 @@ that the services are ready. `verify` is also an offline integrity check.
 ## Supported host and execution boundary
 
 - Linux with Python 3.11 or newer, Git and a local Docker Engine.
+- New preparation requires libc and the local filesystem to support Linux
+  `renameat2(RENAME_NOREPLACE)`, plus directory `fsync`. Unsupported atomic
+  publication fails closed. The destination's existing parent directory must
+  be trusted by the operator.
 - The three application checkouts and enrolled source checkout must be clean
   and fixed at the full Git revisions declared in configuration.
 - Keep all databases and lock files on local storage. A copied SQLite database
@@ -72,13 +76,14 @@ Different configuration, a symlink, an incomplete destination or modified sealed
 files are rejected. Verification reads the existing ZPM journal without creating
 it and requires its original deployment identity and retained enrollment. A
 missing or unreadable journal must be restored before restart. This is not a
-version-upgrade or interrupted-preparation recovery operation. Keep an incomplete
-directory for diagnosis; use a new destination for a fresh preparation. No
+version-upgrade operation. Keep a legacy incomplete destination for diagnosis;
+use a new destination for a fresh preparation. No
 existing resources are overwritten or deleted.
 
 | Path | Purpose |
 | --- | --- |
 | `manifest.json` | Approved normalized choices, exact source revisions and configuration integrity hashes |
+| `preparation.json` | Private preparation identity, final destination and normalized-configuration digest, sealed by the manifest |
 | `config/polyphony.json` | Canonical repository, profile, base, attempt and acceptance policy |
 | `config/openjules.json` | Approved Docker profile, lifecycle state, authority endpoint and secret references |
 | `config/provider.json` | ZPM's scoped OpenJules provider configuration |
@@ -95,6 +100,35 @@ and runtime operations, to the declared deployment and canonical repository.
 The owner and reviewer credentials identify the same `operator` principal.
 They do not create two independent reviewers. The runtime is a separate
 principal and cannot use its credential to accept its own work.
+
+### Retry interrupted preparation
+
+New preparation writes a private `.zpm-prepare-*` sibling directory. Its marker
+records the intended final destination, and generated state and credential paths
+already name that final location. The generated manager rejects the unpublished stage
+as a moved bundle before starting or bootstrapping any service. Stage files and
+directory entries are flushed before
+[atomic no-replace publication](https://man7.org/linux/man-pages/man2/rename.2.html).
+The parent directory is then
+[flushed explicitly](https://man7.org/linux/man-pages/man2/fsync.2.html).
+
+If preparation is interrupted, rerun the same command with the same configuration
+and destination. If the final directory is absent, the retry creates a fresh
+private stage. It never edits, resumes or deletes an abandoned stage. If the
+complete bundle was already published, retry verifies it and reuses its existing
+credentials, deployment identity and current enrollment state. A destination
+created by another writer is preserved, including an empty directory or symlink.
+Cooperating preparers share a parent-directory lock; that advisory lock does not
+make a hostile parent directory trustworthy.
+
+Abandoned stages contain private credentials and remain available for diagnosis.
+Their markers are evidence of the preparation attempt, not authorization to
+repair an arbitrary destination. Legacy or foreign incomplete final directories
+still fail closed. The
+[recovery tests](../tests/test_preparation_recovery.py) use real `SIGKILL` at the
+credential-write and publication boundaries, concurrent preparers and foreign
+destination races. They verify process interruption, not hardware power-loss
+behavior or a version upgrade.
 
 Do not publish, commit or copy the generated directory to a public location.
 The input configuration contains secret references only. Keep actual model
@@ -342,7 +376,8 @@ environments/zpm/bin/zpm --state state/zpm.sqlite3 status
 
 The installed command trial checks this path after real execution and capture,
 including a full service restart and byte-identical retained canonical artifacts.
-It does not qualify recovery of a partially prepared bundle or a version upgrade.
+Preparation interruption is covered separately by the process-level recovery
+tests above. This runtime trial does not qualify a version upgrade.
 
 The [command-based contract trial](managed-stack-trial.md) is separate from installation preparation. It must
 run the actual authority and OpenJules services in separate processes, use a

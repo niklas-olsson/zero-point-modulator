@@ -255,9 +255,14 @@ Preparation does not establish managed-runtime readiness or run a coding agent.
 Repeating preparation with identical normalized configuration reuses a verified
 complete bundle without rotating credentials or resetting current enrollment.
 Verification rejects a missing or mismatched ownership journal without creating
-replacement state. The installed command trial also checks removal, complete
+replacement state. New preparation writes a private sibling stage and publishes
+it atomically on supported Linux filesystems without replacing an existing
+destination. An interrupted attempt can be retried with the same command;
+abandoned stages are retained and published credentials keep their identity.
+The installed command trial also checks removal, complete
 service restart and explicit re-enrollment while retaining canonical artifacts.
-Incomplete preparation and version upgrades remain separate acceptance cases.
+Legacy incomplete destinations require a new destination or retained-state
+restoration. Version upgrades remain a separate acceptance case.
 The bundle requires OpenJules and Polyphony revisions containing their managed
 service entry points; it rejects older checkouts instead of falling back to the
 legacy execution path.
@@ -283,6 +288,11 @@ under trickled headers/body, stalled resolution/TLS, helper cleanup and durable
 recovery of timed-out ensure/drain/stop operations. The test provider performs no
 inference or real coding. The CI workflow also installs the package and checks the CLI on
 Python 3.11 and 3.12.
+
+Preparation recovery tests kill real preparer processes during credential writes
+and before or after atomic publication. They check retained stages, concurrent
+preparers, foreign destination races and refusal to start an unpublished stage.
+These process-death checks do not establish storage hardware power-loss behavior.
 
 An optional [OpenJules HTTP contract trial](docs/http-contract-trial.md) exercises
 the actual client and lifecycle API together, including lost replies, recovery
