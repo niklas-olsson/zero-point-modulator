@@ -18,6 +18,8 @@ import subprocess
 import sys
 import threading
 
+from check_authority_admission import docker_inventory, qualify_unmanaged_authority
+
 from check_stack import (
     Client, Processes, clean_environment, diagnostics, eventually, port,
     private_json, require, wait_for_capacity,
@@ -239,9 +241,18 @@ def run(args):
                 return json.loads(result.stdout).get("ready") is True
 
             processes.run_once("bootstrap", manager + ["bootstrap"], bundle, clean_environment(), 900)
+            preflight_inventory = docker_inventory()
             processes.start("installation", manager + ["start"], bundle, manager_environment)
             eventually(installed_ready, processes, "generated model installation readiness", 60)
             require(plan()["reserved"] == 0 and not model.requests, "preparation or readiness performed unrequested inference")
+            processes.stop("installation")
+            verify(bundle)
+            admission = qualify_unmanaged_authority(
+                bundle, paths, scope, profile, model, processes, manager_environment, sensitive, preflight_inventory,
+            )
+            checks.append("a responsive current coordinator without managed policy rejects two completed controller passes, repeated ensure and enrollment without protected work, Docker changes or inference; the original authority then recovers")
+            processes.start("installation", manager + ["start"], bundle, manager_environment)
+            eventually(installed_ready, processes, "generated model installation after admission recovery", 60)
             target(1)
             require(not model.requests, "idle worker performed unrequested inference")
             checks.append("generated installation bootstraps and starts three real services; scoped readiness and idle capacity make no model calls")
@@ -322,9 +333,11 @@ def run(args):
                       "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed", "checks": checks,
                       "canonical_task": task, "candidate": candidate["id"], "captured_artifacts": attempt["captured_artifacts"],
                       "model_fixture_calls": len(model.requests), "final_reserved": plan()["reserved"],
+                      "authority_admission": admission,
                       "proof": "real generated installation, canonical authority, Docker agent and broker; deterministic localhost model responses",
                       "not_proven": ["live provider compatibility", "model reasoning quality", "financial spend bound",
-                                     "child delegation", "independent semantic review", "forge publication", "merge authorization"]}
+                                     "child delegation", "independent semantic review", "forge publication", "merge authorization",
+                                     "an installed historical authority release", "a literal legacy HTTP health endpoint"]}
             require(all(token not in json.dumps(report) for token in sensitive), "verification report contains a credential")
             private_json(root / "report.json", report)
             return report
