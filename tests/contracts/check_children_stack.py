@@ -265,6 +265,100 @@ def read_artifacts(authority, scope, mapping, sensitive, *, attempt_id=None, chi
     return artifacts
 
 
+def configured_verification_output_observation(output, *, present=True):
+    """Retain only fixed exception classes and this verifier's numeric frames."""
+    result = {
+        "available": present and isinstance(output, str),
+        "output_kind": "missing" if not present else "text" if isinstance(output, str) else "nontext",
+        "output_bytes": None,
+        "scanned_bytes": 0, "scan_limited": False,
+        "exception_classes": [], "fixed_script_lines": [], "details_limited": False,
+    }
+    if not result["available"]:
+        return result
+    raw = output.encode("utf-8", errors="replace")
+    lines = raw[:8192].decode("utf-8", errors="ignore").splitlines()
+    result.update(output_bytes=len(raw), scanned_bytes=min(len(raw), 8192),
+                  scan_limited=len(raw) > 8192 or len(lines) > 128)
+    classes = (
+        "AssertionError", "TimeoutError", "ConnectionRefusedError", "PermissionError",
+        "ConnectionResetError", "BrokenPipeError", "FileNotFoundError", "OSError",
+        "ValueError", "KeyError", "UnicodeDecodeError", "json.decoder.JSONDecodeError",
+        "struct.error",
+    )
+    for line in lines[:128]:
+        for name in classes:
+            if line == name or line.startswith(name + ":"):
+                if name not in result["exception_classes"]:
+                    if len(result["exception_classes"]) < 2:
+                        result["exception_classes"].append(name)
+                    else:
+                        result["details_limited"] = True
+                break
+        frame = re.fullmatch(
+            r'  File "<string>", line ([1-9][0-9]{0,2}), in (?:<module>|deny_socket)', line,
+        )
+        if frame and int(frame.group(1)) <= len(CHILD_VERIFY[-1].splitlines()):
+            if len(result["fixed_script_lines"]) < 4:
+                result["fixed_script_lines"].append(int(frame.group(1)))
+            else:
+                result["details_limited"] = True
+    return result
+
+
+def child_capture_observation(actor, uid, content):
+    """Describe the failed log predicate without exporting guest-controlled text."""
+    require(actor in {"left", "right"} and type(uid) is int
+            and uid == (60000 if actor == "left" else 60001),
+            "child diagnostic identity is not a fixed trial actor")
+    raw = content.encode("utf-8")
+    scanned = raw[:65536].decode("utf-8", errors="ignore")
+    lines = scanned.splitlines()
+    observation = {
+        "actor": actor, "expected_uid": uid,
+        "log_bytes": len(raw), "log_sha256": hashlib.sha256(raw).hexdigest(),
+        "expected_uid_marker_present": "CHILD_STACK_BOUNDARY_VERIFIED uid=" + str(uid) in content,
+        "configured_verification_literal_present": '"event": "configured_verification"' in content,
+        "scanned_bytes": min(len(raw), 65536),
+        "scan_limited": len(raw) > 65536 or len(lines) > 256,
+        "configured_verification_events_observed": 0,
+        "configured_verification_details": [],
+    }
+    for line in lines[:256]:
+        try:
+            event = json.loads(line)
+        except (ValueError, RecursionError):
+            continue
+        if not isinstance(event, dict) or event.get("event") != "configured_verification":
+            continue
+        observation["configured_verification_events_observed"] += 1
+        details = observation["configured_verification_details"]
+        if len(details) >= 4:
+            continue
+        state = event.get("state")
+        code = event.get("exit_code")
+        code_kind = (
+            "missing" if "exit_code" not in event else
+            "null" if code is None else
+            "integer" if type(code) is int and -255 <= code <= 255 else "unrecognized"
+        )
+        details.append({
+            "state": state if isinstance(state, str) and state in {
+                "exited", "timed_out", "output_limit", "unknown",
+            } else "unrecognized",
+            "exit_code_kind": code_kind,
+            "exit_code": code if code_kind == "integer" else None,
+            "output_observation": configured_verification_output_observation(
+                event.get("output"), present="output" in event,
+            ),
+        })
+    observation["verification_details_limited"] = (
+        observation["configured_verification_events_observed"]
+        > len(observation["configured_verification_details"])
+    )
+    return observation
+
+
 def verify_root_log(content, compose_turn=5):
     """Match the runner's recorded events without requiring private tool output."""
     events = []
@@ -332,6 +426,7 @@ def run(args):
     root.mkdir(mode=0o700)
     processes = Processes(root)
     checks, revisions, sensitive = [], {}, set()
+    child_capture_observations = []
     measurements = Measurements()
     initial_outcomes = bool(getattr(args, "initial_outcomes", False))
     with ChildrenFixture(initial_outcomes) as model:
@@ -619,6 +714,7 @@ def run(args):
                         "child manifest lacks its monotonically bounded armed deadline")
                 require(captured_child["patch"] == model.patches[name],
                         "final child artifact differs from its provisional result")
+                child_capture_observations.append(child_capture_observation(name, uid, captured_child["log"]))
                 if initial_outcomes and name == "right":
                     require(captured_child["patch"] == ""
                             and '"event": "configured_verification"' not in captured_child["log"],
@@ -816,6 +912,11 @@ def run(args):
             return report
         except Exception as exc:
             diagnostic = diagnostics(root, str(exc) if isinstance(exc, AssertionError) else type(exc).__name__, checks, revisions, sensitive)
+            diagnostic["child_capture_observations"] = child_capture_observations
+            try:
+                private_json(root / "diagnostics.json", diagnostic)
+            except OSError:
+                pass  # Keep the original failure; the same bounded evidence is printed below.
             print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
             raise
         finally:
