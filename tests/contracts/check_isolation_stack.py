@@ -371,6 +371,79 @@ def release(container_id):
                    check=True, capture_output=True, timeout=10)
 
 
+
+def wait_for_capture(read_snapshot, scope, task_id, worker_id, base, processes, label):
+    """Wait for the separate terminal-capture and candidate publications."""
+    frozen = None
+    phase = "terminal capture"
+    description = "canonical capture and candidate " + label
+
+    def complete():
+        nonlocal frozen, phase
+        snapshot = read_snapshot()
+        require(isinstance(snapshot, dict) and all(snapshot.get(key) == value for key, value in scope.items()),
+                "canonical capture scope changed")
+
+        def rows(kind, fields):
+            values = snapshot.get(kind)
+            require(isinstance(values, list) and all(
+                isinstance(row, dict) and all(isinstance(row.get(key), str) and row[key] for key in fields)
+                for row in values), "canonical " + kind + " collection is malformed")
+            return values
+
+        tasks = [row for row in rows("task", ("id",)) if row["id"] == task_id]
+        attempts = [row for row in rows("attempt", ("id", "task", "worker")) if row["task"] == task_id]
+        all_candidates = rows("candidate", ("id", "task", "attempt", "base", "patch"))
+        require(len(tasks) == 1, "canonical capture task is missing or duplicated")
+        require(len(attempts) <= 1, "canonical task has duplicate attempts")
+        require(tasks[0].get("status") != "accepted" and not snapshot.get("admission"),
+                "runtime self-authorized acceptance")
+        attempt = attempts[0] if attempts else None
+        candidates = [row for row in all_candidates if row["task"] == task_id
+                      or (attempt is not None and row["attempt"] == attempt["id"])]
+        require(len(candidates) <= 1, "canonical task has duplicate candidates")
+        if attempt is None:
+            require(frozen is None and not candidates, "canonical capture disappeared or candidate preceded its attempt")
+            return None
+        binding = attempt.get("runtime_binding")
+        require(isinstance(binding, dict) and all(binding.get(key) == value for key, value in scope.items())
+                and binding.get("worker_id") == worker_id and binding.get("base") == base
+                and binding.get("attempt_id") == attempt["id"], "captured attempt changed its runtime binding")
+        require(type(attempt.get("termination_confirmed")) is bool, "canonical termination flag is malformed")
+        if not attempt["termination_confirmed"]:
+            require(frozen is None and not candidates, "terminal capture regressed or candidate preceded final capture")
+            return None
+        require(attempt.get("state") in {"exited", "timed_out"} and attempt.get("launch_fenced") is True,
+                "captured attempt lacks a terminal state or launch fence")
+        artifacts = attempt.get("captured_artifacts")
+        require(isinstance(artifacts, dict) and set(artifacts) == {"patch", "log", "manifest"}
+                and all(isinstance(value, str) and len(value) == 64 and set(value) <= set("0123456789abcdef")
+                        for value in artifacts.values()), "canonical capture is incomplete or malformed")
+        immutable = canonical({key: attempt.get(key) for key in
+                               ("id", "worker", "runtime_binding", "state", "termination_confirmed",
+                                "launch_fenced", "captured_artifacts")})
+        require(frozen is None or immutable == frozen, "canonical capture changed while awaiting candidate publication")
+        frozen = immutable
+        phase = "candidate publication"
+        if not candidates:
+            return None
+        candidate = candidates[0]
+        require(candidate["task"] == task_id and candidate["attempt"] == attempt["id"],
+                "candidate changed its task or attempt")
+        require(candidate["base"] == base and candidate["patch"] == artifacts["patch"],
+                "candidate changed its source base or capture")
+        require(tasks[0].get("status") == "awaiting_review" and tasks[0].get("current_candidate") == candidate["id"],
+                "candidate is not the task's canonical review request")
+        return attempt, candidate
+
+    try:
+        return eventually(complete, processes, description, 45)
+    except AssertionError as exc:
+        if str(exc) == "deadline waiting for " + description:
+            raise AssertionError("deadline waiting for " + phase + " " + label) from None
+        raise
+
+
 class Installation:
     def __init__(self, root, label, source_paths, revisions, image, ports, canary, other_canary):
         from zpm.deployment import _command, _environment, prepare, verify
@@ -507,13 +580,7 @@ class Installation:
         return attempts[0] if attempts and attempts[0].get("runtime_binding") else None
 
     def captured(self, task_id, worker_id, processes):
-        def complete():
-            attempt = self.attempt(task_id)
-            return attempt if attempt and attempt.get("termination_confirmed") and attempt.get("captured_artifacts") else None
-        attempt = eventually(complete, processes, "canonical capture " + self.label, 45)
-        require(attempt["runtime_binding"]["worker_id"] == worker_id and attempt.get("launch_fenced") is True,
-                "captured attempt changed its worker or lacks a launch fence")
-        require(set(attempt["captured_artifacts"]) == {"patch", "log", "manifest"}, "canonical capture is incomplete")
+        attempt, candidate = wait_for_capture(self.snapshot, self.scope, task_id, worker_id, self.base, processes, self.label)
         contents = {}
         for kind, digest in attempt["captured_artifacts"].items():
             content = self.authority.request("GET", "/managed/artifacts/" + digest, query=self.scope, text=True)
@@ -523,15 +590,9 @@ class Installation:
         require("+completed " + self.label in contents["patch"], "captured patch lacks this repository's change")
         require("ISOLATION_BOUNDARY_VERIFIED_" + self.label in contents["log"]
                 and "ISOLATION_COMPLETED_" + self.label in contents["log"], "controlled boundary or completion assertion failed")
-        snapshot = self.snapshot()
-        candidates = [row for row in snapshot["candidate"] if row["task"] == task_id]
-        require(len(candidates) == 1 and candidates[0]["base"] == self.base
-                and candidates[0]["patch"] == attempt["captured_artifacts"]["patch"], "candidate changed its source base or capture")
-        require(next(row for row in snapshot["task"] if row["id"] == task_id)["status"] == "awaiting_review"
-                and not snapshot.get("admission"), "runtime self-authorized acceptance")
         require((self.source / "answer.txt").read_text() == "initial " + self.label + "\n", "task modified its approved source")
         return {"task": task_id, "attempt": attempt["id"], "worker": worker_id,
-                "candidate": candidates[0]["id"], "artifacts": attempt["captured_artifacts"]}
+                "candidate": candidate["id"], "artifacts": attempt["captured_artifacts"]}
 
 
 def denied_cross_access(left, right, left_worker, right_worker):
