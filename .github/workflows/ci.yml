@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
+          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -65,9 +65,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Initial child outcomes and durable replay candidate, shared by every gate.
+          # Merged initial child outcomes and durable replay baseline, shared by every gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
+          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -115,9 +115,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Same reviewed runtime candidate as every other integration gate.
+          # Same merged runtime baseline as every other integration gate.
           # Update this pin with docs/managed-isolation-stack-trial.md.
-          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
+          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -151,6 +151,55 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  managed-shared-isolation-stack:
+    name: Isolate two repositories in one generated service pair
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: zpm
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/OpenJules
+          # Merged runtime baseline; update all pins and trial guides together.
+          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
+          path: openjules
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/keystone-polyphony
+          # Explicit #122 candidate dependency, pending its independent review gate.
+          ref: 653c0a71a921c0d23b8e0171277524125e929e66
+          path: polyphony
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the shared Docker Engine
+        run: docker info
+      - name: Build one immutable controlled trial image
+        run: docker build --iidfile "$RUNNER_TEMP/shared-isolation-image.id" - < zpm/tests/contracts/Dockerfile.managed-trial
+      - name: Exercise two repositories inside one generated installation
+        run: |
+          python zpm/tests/contracts/check_shared_isolation_stack.py \
+            --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/shared-isolation-image.id")" \
+            --work-dir "$RUNNER_TEMP/managed-shared-isolation-trial"
+      - name: Retain only aggregate shared-service evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-shared-isolation-evidence
+          path: |
+            ${{ runner.temp }}/managed-shared-isolation-trial/report.json
+            ${{ runner.temp }}/managed-shared-isolation-trial/diagnostics.json
+          if-no-files-found: warn
+          retention-days: 14
+
   managed-children-stack:
     name: Install and verify two children inside one worker
     needs: test
@@ -164,9 +213,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Initial child outcomes and durable replay candidate, shared by every gate.
+          # Merged initial child outcomes and durable replay baseline, shared by every gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
+          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -227,9 +276,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Initial child outcomes and durable replay candidate, shared by every gate.
+          # Merged initial child outcomes and durable replay baseline, shared by every gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: 7ca211ebb01d041827df5e480ad65c30cf7ba9ee
+          ref: c85867c9a110f6c3ea00a53e6a721a15ce15782d
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4

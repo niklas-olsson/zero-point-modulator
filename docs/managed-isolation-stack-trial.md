@@ -26,16 +26,17 @@ runtime admission, or replace canonical execution and capture.
 The [schema-2 installer](single-host-installation.md) can generate multiple
 repository profiles and canonical policies within one deployment and service
 pair. This harness still prepares separate schema-1 bundles. Its evidence does
-not qualify shared-service runtime isolation; that requires a distinct actual
-two-repository trial. The report names the tested topology explicitly and must
-not close that remaining acceptance criterion in
+not qualify shared-service runtime isolation; the distinct
+[shared-service trial](managed-shared-isolation-stack-trial.md) covers that
+topology when its real Docker job passes. This report must not substitute for
+that separate acceptance evidence in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
 ## Exact candidate set
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `7ca211ebb01d041827df5e480ad65c30cf7ba9ee`, initial child outcomes and durable control replay candidate |
+| OpenJules | `c85867c9a110f6c3ea00a53e6a721a15ce15782d`, merged initial child outcomes and durable control replay baseline |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial outcome authority candidate |
 | ZPM | The workflow's checked-out revision, recorded in the report |
 
@@ -216,7 +217,7 @@ revisions, but it does not contain the observed candidate count or values. The
 historical cause therefore remains unproven.
 
 Pinned OpenJules
-[`_publish_capture`](https://github.com/niklas-olsson/OpenJules/blob/7ca211ebb01d041827df5e480ad65c30cf7ba9ee/src/worker/managed_dispatch.py)
+[`_publish_capture`](https://github.com/niklas-olsson/OpenJules/blob/c85867c9a110f6c3ea00a53e6a721a15ce15782d/src/worker/managed_dispatch.py)
 records terminal artifacts before a separate candidate request. Pinned Polyphony
 [`managed_observe` and `managed_candidate`](https://github.com/niklas-olsson/keystone-polyphony/blob/653c0a71a921c0d23b8e0171277524125e929e66/src/core/collaboration/managed_runtime.py)
 preserve those separate calls. The earlier harness waited only for terminal

@@ -237,11 +237,13 @@ Schema-2 configuration is for fresh installations. Adding a repository, changing
 the repository set or approved pins/profile, or converting a schema-1 bundle
 remains an unsupported upgrade and cannot overwrite an existing bundle.
 
-The new generator tests cover configuration, scoped credentials, exact output
-size, secret resolution and retained state. The existing installed trials still
-exercise schema 1. An actual two-repository trial with one controller and one
-service pair remains required before claiming shared-service runtime isolation.
-Its source-failure evidence must stay scoped: a shared service, authority or
+The generator tests cover configuration, scoped credentials, exact output
+size, secret resolution and retained state. The
+[shared-service trial](managed-shared-isolation-stack-trial.md) exercises two
+repositories through one actual schema-2 bundle, controller and service pair.
+Its real Docker CI result on the explicit delivery revisions is required for
+runtime qualification; deterministic oracle tests alone do not establish it.
+Source-failure evidence must stay scoped: a shared service, authority or
 Docker outage affects both repositories, and broker readiness can couple model
 profiles when an endpoint is unavailable. An already-running B task may continue
 while A's source is unavailable. However, verify, bootstrap, start and doctor
@@ -421,7 +423,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/7ca211ebb01d041827df5e480ad65c30cf7ba9ee/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/c85867c9a110f6c3ea00a53e6a721a15ce15782d/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature

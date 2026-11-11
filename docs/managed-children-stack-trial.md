@@ -21,13 +21,13 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `7ca211ebb01d041827df5e480ad65c30cf7ba9ee`, initial child outcomes and durable control replay candidate |
+| OpenJules | `c85867c9a110f6c3ea00a53e6a721a15ce15782d`, merged initial child outcomes and durable control replay baseline |
 | Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
 The paired initial-outcome changes are [OpenJules #16](https://github.com/niklas-olsson/OpenJules/pull/16)
 and [Polyphony #122](https://github.com/niklas-olsson/keystone-polyphony/pull/122).
-The OpenJules candidate also contains
+The merged OpenJules baseline also contains
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15).
 The previous integrated candidate could acknowledge a drain while its runtime
 lock was busy, then fail to close canonical child admission. The unchanged

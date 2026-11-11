@@ -276,8 +276,10 @@ serialized OpenJules files must each fit its 1,000,000-byte parser limit.
 Equivalent reordered input reuses the same installation and preserves current
 targets, pause/removal, credentials and history. Schema-1 bundles keep their
 existing shape; adding repositories or converting a live bundle is an
-unsupported upgrade. Configuration tests do not replace the separate actual
-shared-service isolation trial still required by [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
+unsupported upgrade. The dedicated [shared-service isolation trial](docs/managed-shared-isolation-stack-trial.md)
+uses two repositories in one actual schema-2 installation. Qualification requires
+its real Docker CI run on the delivery revision, recorded in
+[#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 The [model deployment example](examples/deployment-model.json) adds an explicit
 provider policy and uses the managed agent image. Its provider token resolves
 only into OpenJules; the worker retains disabled networking and uses its own
@@ -316,7 +318,7 @@ before dispatch, accepted drain recovery after runtime lock contention and
 dispatcher restart, cancellation, and five real subprocess fixtures. It is separate
 from the unit suite and does not establish production agent or confinement proof.
 
-Four additional CI jobs install the generated three-service bundle and use real
+Five additional CI jobs install the generated three-service bundle and use real
 Docker. The [command-based trial](docs/managed-stack-trial.md) exercises capacity,
 crashes, watchdog termination and durable capture. The
 [model-backed trial](docs/managed-model-stack-trial.md) exercises the real coding
@@ -328,9 +330,15 @@ and verifies final capture and restart without repeated inference. The
 [isolation trial](docs/managed-isolation-stack-trial.md) installs two independent
 single-repository deployments on one Docker Engine and requires one deployment's
 original task to keep progressing while the other scales, drains, loses service,
-removes enrollment and reconnects. It does not qualify a generated multi-repository
-installation, one-controller fairness or multiple deployments behind one
-OpenJules API. These trials
+removes enrollment and reconnects. The separate
+[shared-service trial](docs/managed-shared-isolation-stack-trial.md) uses one
+schema-2 bundle, controller and service pair. B's original task, attempt,
+container and Docker exec must keep progressing while A changes targets,
+removes enrollment, captures and explicitly re-enrolls. It also checks scoped
+credentials and object bindings, cross-process canonical ingress deduplication,
+distinct source/workspace mounts and durable captures after a shared restart.
+It does not claim repository-local recovery from a shared service outage,
+wall-clock fairness or multiple deployments behind one OpenJules API. These trials
 use controlled commands or deterministic model replies and keep independent
 review and live forge publication as separate acceptance gates.
 
