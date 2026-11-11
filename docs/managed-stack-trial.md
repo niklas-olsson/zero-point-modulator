@@ -30,11 +30,17 @@ The CI job currently pins:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `c03e6b0e83bf77c31b3bab6155f15635770f69f2`, the tested PR9 head retained in main's ancestry |
-| Keystone Polyphony | `37c7a421698a7988e4cfff94c27252c58449b626`, merged canonical root handoff |
+| OpenJules | `3f0575364cc4b8d96e703f161652ec6fdfc8a6a1`, durable control replay candidate |
+| Keystone Polyphony | `473df5a0406accfe5cb550877e7b28a602cb116c`, merged child grants and durable conversation baseline |
 | ZPM | The workflow's checked-out candidate revision, recorded in the report |
 
-Update component pins together with the workflow and rerun the complete trial.
+All installed-stack jobs use this same three-repository candidate set. The HTTP
+fixture and component CI do not qualify the changed installation: all ZPM jobs,
+including the command, model and child Docker trials, must pass on the exact
+candidate revision. Qualification and CI evidence remain tracked in
+[ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
+Update all component pins and trial guides together with the workflow, then
+rerun all integration gates.
 
 Build the small test-only image and record the resulting immutable image ID:
 

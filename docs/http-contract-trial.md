@@ -19,26 +19,36 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`5c3568785e754b47f61c8ba6c57fa2668fa6fc81`](https://github.com/niklas-olsson/OpenJules/commit/5c3568785e754b47f61c8ba6c57fa2668fa6fc81) |
+| OpenJules | [`3f0575364cc4b8d96e703f161652ec6fdfc8a6a1`](https://github.com/niklas-olsson/OpenJules/commit/3f0575364cc4b8d96e703f161652ec6fdfc8a6a1) |
 
-The combined OpenJules changes passed
-[full-suite CI on Python 3.11 and 3.12](https://github.com/niklas-olsson/OpenJules/actions/runs/42901146449)
-before this contract pin was selected.
+This is the same candidate OpenJules revision used by all three installed-stack
+jobs. Their common Polyphony pin is `473df5a0406accfe5cb550877e7b28a602cb116c`;
+this HTTP-only trial does not run Polyphony. The OpenJules candidate adds
+[durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15)
+after an accepted drain or stop encounters a busy runtime lock. The deterministic
+regression below requires that replay without another client control request.
+The candidate requires OpenJules' full repository CI and the changed ZPM
+revision's unit/package checks and all four integration jobs before promotion.
+Record exact ZPM and component revisions,
+CI links and remaining acceptance in [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
 Both revisions are printed in the job log. The contract job runs on Python 3.12,
-installs FastAPI and Uvicorn with their dependencies, and expects all eight
-checks to pass with five subprocess fixtures. It does not use model,
+installs FastAPI, Uvicorn and the dispatcher's HTTPX, Docker SDK and PyYAML import
+dependencies, and expects all nine checks to pass with five subprocess fixtures.
+The SDK is imported without creating a Docker client. The trial does not use model,
 repository-publication or authority credentials. The workflow has read-only
 repository permissions, and the contract job does not retain checkout credentials.
 
-To update the OpenJules pin:
+To update the shared component pins:
 
 1. Select an immutable OpenJules commit whose full repository CI passes. Use a
    clean checkout of that commit for the local trial below.
-2. Change the checkout `ref` in `.github/workflows/ci.yml` and the revision in
-   this table together. Do not substitute a moving branch or tag.
-3. Run the trial locally, then require the ZPM unit, package, CLI and contract
-   jobs to pass for the proposed update before merging it.
+2. Change all corresponding checkout `ref` values in `.github/workflows/ci.yml`
+   and the revision tables in the HTTP, command, model and child trial guides
+   together. Keep one explicit three-repository revision set. Do not substitute
+   a moving branch or tag.
+3. Run the HTTP trial locally, then require the ZPM unit, package, CLI and all
+   four integration jobs to pass for the proposed update before merging it.
 
 The pin records a tested component contract. It does not promote the fixture
 runtime to a production managed coding profile or complete the installation
@@ -51,7 +61,7 @@ the ZPM controller and OpenJules lifecycle implementation. From the ZPM checkout
 in a disposable virtual environment:
 
 ```sh
-python -m pip install -e . fastapi uvicorn
+python -m pip install -e . fastapi uvicorn httpx docker pyyaml
 python tests/contracts/check_openjules.py --openjules-checkout ../OpenJules
 ```
 
@@ -75,18 +85,29 @@ The trial fails with an assertion if any of these expectations is violated:
    a foreign deployment. The actual HTTP API returns authorization denial.
 3. One repository changes through `0 → 2 → 3 → 1 → 0`, while a second repository
    retains its independent target. Idle workers retire before a busy worker.
-4. A registered root and child occupy the busy worker without increasing replica
+4. While the worker's real lifecycle lock is held, HTTP drain acknowledges
+   durable intent and ZPM clears its pending request. The trusted dispatcher is
+   stopped, the lifecycle journal is reopened, and a new dispatcher delivers
+   the exact original operation once. The key and payload remain unchanged;
+   neither active work nor the other repository's reservation is released.
+5. A registered root and child occupy the busy worker without increasing replica
    demand. Drain closes admission. Recording root completion alone does not
    release the still unresolved child occupancy.
-5. An injected pre-dispatch boundary leaves an OpenJules journal row with a worker
+6. An injected pre-dispatch boundary leaves an OpenJules journal row with a worker
    ID and unknown state, but no process. After ZPM reopens, discovery must retain
    the pending ensure and resume the same launch key and worker incarnation.
-6. A zero target can cancel a second journal-only launch. A later ensure using
+7. A zero target can cancel a second journal-only launch. A later ensure using
    that original specification cannot recreate the cancelled incarnation.
-7. All five real subprocesses terminate, and the expected output is present in
+8. All five real subprocesses terminate, and the expected output is present in
    their fixture artifact files before the temporary directory is removed.
-8. Replacing the configured fixture with OpenJules' default unavailable runtime
+9. Replacing the configured fixture with OpenJules' default unavailable runtime
    prevents provisioning through the same HTTP client and capability contract.
+
+The drain fault holds the production lifecycle lock across a real HTTP request.
+The production dispatcher loops run in bounded threads and use the persisted
+lifecycle and dispatch journals. Their authority sentinel rejects every task
+request; no task authority is emulated or contacted. Only the subprocess runtime
+is a fixture, and the API server process remains running during daemon restart.
 
 The pre-dispatch fault temporarily wraps the lifecycle resume method after its
 durable journal commit. It is a deterministic injection of that crash boundary,
@@ -97,9 +118,10 @@ admission and capture-barrier fixtures; they are not spawned child agents.
 
 The HTTP server binds only to loopback on an ephemeral port. Requests bypass
 external proxy configuration for this local trial. A random test credential is
-stored under a newly generated environment-variable name and removed afterward;
-existing environment values are not replaced. Credentials and worker output are
-not included in the JSON result.
+stored under a newly generated environment-variable name and removed afterward.
+The trial temporarily sets both `no_proxy` and `NO_PROXY` to `*` and restores
+their prior values on exit. Credentials and worker output are not included in
+the JSON result.
 
 SQLite state and fixture artifacts live in a temporary directory. HTTP calls,
 server startup and shutdown, and subprocess cleanup have bounded waits. The

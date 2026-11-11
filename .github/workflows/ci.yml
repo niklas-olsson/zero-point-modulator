@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: 5c3568785e754b47f61c8ba6c57fa2668fa6fc81
+          ref: 3f0575364cc4b8d96e703f161652ec6fdfc8a6a1
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -47,7 +47,7 @@ jobs:
       - name: Record OpenJules revision
         run: git -C .contract/OpenJules rev-parse HEAD
       - name: Install contract trial dependencies
-        run: python -m pip install "fastapi>=0.110.0" "uvicorn>=0.28.0"
+        run: python -m pip install "fastapi>=0.110.0" "uvicorn>=0.28.0" "httpx>=0.27.0" "docker>=7.0.0" "pyyaml>=6.0.1"
       - name: Verify the shared lifecycle contract
         run: python tests/contracts/check_openjules.py --openjules-checkout .contract/OpenJules
 
@@ -65,16 +65,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Exact head tested by PR9 and retained in main's ancestry.
+          # Durable control replay candidate, shared by every integration gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: c03e6b0e83bf77c31b3bab6155f15635770f69f2
+          ref: 3f0575364cc4b8d96e703f161652ec6fdfc8a6a1
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          # Canonical root runtime handoff, merged in PR118.
-          ref: 37c7a421698a7988e4cfff94c27252c58449b626
+          # Same merged Polyphony revision in every installed-stack gate.
+          ref: 473df5a0406accfe5cb550877e7b28a602cb116c
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -115,15 +115,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Qualified PR12 head includes the child runtime and publication CLI.
+          # Durable control replay candidate, shared by every integration gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: 8a40e04478ef25c128364b6c989a77735cca21eb
+          ref: 3f0575364cc4b8d96e703f161652ec6fdfc8a6a1
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          # Qualified canonical child grants plus durable conversation baseline.
+          # Same merged Polyphony revision in every installed-stack gate.
           ref: 473df5a0406accfe5cb550877e7b28a602cb116c
           path: polyphony
           persist-credentials: false
@@ -168,15 +168,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Exact tested PR10 head, retained in main's ancestry.
+          # Durable control replay candidate, shared by every integration gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: 5dadee74e824e3fa3f19c6a45a44374e2467e0d1
+          ref: 3f0575364cc4b8d96e703f161652ec6fdfc8a6a1
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: f90c97416f6bc81abcb7835598d09d7954437542
+          ref: 473df5a0406accfe5cb550877e7b28a602cb116c
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
