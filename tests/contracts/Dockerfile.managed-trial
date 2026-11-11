@@ -1,0 +1,9 @@
+# Test-only image. CI records its resolved immutable image ID and supplies that
+# ID to the trial; deployment configuration never accepts this mutable tag.
+ARG BASE_IMAGE=python:3.12-slim
+FROM ${BASE_IMAGE}
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /workspace

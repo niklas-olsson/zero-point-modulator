@@ -37,6 +37,12 @@ def parser() -> argparse.ArgumentParser:
         commands.add_parser(command).add_argument("repository")
     commands.add_parser("status")
     commands.add_parser("plan")
+    deployment = commands.add_parser("deployment", help="prepare or verify an explicit private single-host installation")
+    deployment_commands = deployment.add_subparsers(dest="deployment_command", required=True)
+    prepare = deployment_commands.add_parser("prepare", help="write configuration without installing or starting services")
+    prepare.add_argument("configuration", help="versioned operator deployment JSON")
+    prepare.add_argument("--directory", required=True, help="new private directory outside source checkouts")
+    deployment_commands.add_parser("verify", help="offline source and configuration integrity check").add_argument("directory")
     for command in ("check", "reconcile"):
         sub = commands.add_parser(command)
         sub.add_argument("--provider", required=True, help="OpenJules endpoint, token reference and capacity ceiling JSON")
@@ -50,7 +56,12 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
-        if args.command == "validate":
+        if args.command == "deployment":
+            from .deployment import prepare, verify
+
+            output = (prepare(read_json(args.configuration), args.directory)
+                      if args.deployment_command == "prepare" else verify(args.directory))
+        elif args.command == "validate":
             # No database, credentials, model or provider is accessed.
             output = {"valid": True, "binding": Binding.parse(read_json(args.binding)).to_dict(), "remote_access_checked": False}
         else:

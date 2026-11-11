@@ -50,3 +50,54 @@ jobs:
         run: python -m pip install "fastapi>=0.110.0" "uvicorn>=0.28.0"
       - name: Verify the shared lifecycle contract
         run: python tests/contracts/check_openjules.py --openjules-checkout .contract/OpenJules
+
+  managed-stack:
+    name: Install and verify the managed stack
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      # Sibling checkouts preserve each repository's clean-tree invariant.
+      - uses: actions/checkout@v4
+        with:
+          path: zpm
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/OpenJules
+          # Exact head tested by PR9 and retained in main's ancestry.
+          # Update this pin with docs/managed-stack-trial.md.
+          ref: c03e6b0e83bf77c31b3bab6155f15635770f69f2
+          path: openjules
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/keystone-polyphony
+          # Canonical root runtime handoff, merged in PR118.
+          ref: 37c7a421698a7988e4cfff94c27252c58449b626
+          path: polyphony
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the local Docker Engine
+        run: docker info
+      - name: Build and identify the controlled trial image
+        run: docker build --iidfile "$RUNNER_TEMP/managed-trial-image.id" - < zpm/tests/contracts/Dockerfile.managed-trial
+      - name: Prepare, bootstrap and verify actual managed services
+        run: |
+          python zpm/tests/contracts/check_stack.py \
+            --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/managed-trial-image.id")" \
+            --work-dir "$RUNNER_TEMP/managed-stack-trial"
+      - name: Retain only the credential-free verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-stack-evidence
+          path: |
+            ${{ runner.temp }}/managed-stack-trial/report.json
+            ${{ runner.temp }}/managed-stack-trial/diagnostics.json
+          if-no-files-found: warn
+          retention-days: 14
