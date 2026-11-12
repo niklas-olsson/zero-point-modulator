@@ -155,7 +155,7 @@ def _child_policy(value: Any, runtime: dict, root_seconds: float, root_capabilit
     required = {"max_children", "max_child_seconds", "max_child_turns", "capabilities"}
     defaults = {"uid_start": 60000, "command": ["python3", "-I", "-S", "/opt/openjules/managed_runner.py"],
                 "verify_argv": [], "max_result_bytes": 4_000_000}
-    data = defaults | _object(value, required | set(defaults) | {"outcome_protocol"}, "child_policy", required)
+    data = defaults | _object(value, required | set(defaults) | {"outcome_protocol", "session_protocol"}, "child_policy", required)
     count = _number(data["max_children"], "child max_children", 1, 64, integer=True)
     seconds = data["max_child_seconds"]
     if type(seconds) not in {int, float} or not 0 < seconds <= min(86400, root_seconds):
@@ -177,6 +177,12 @@ def _child_policy(value: Any, runtime: dict, root_seconds: float, root_capabilit
     if "outcome_protocol" in data:
         if data["outcome_protocol"] != "initial-v1" or data["command"] != defaults["command"]:
             raise ConfigurationError("child outcome_protocol requires initial-v1 and the supported managed runner")
+    if "session_protocol" in data:
+        if (data["session_protocol"] != "cold-clarification-v1"
+                or data.get("outcome_protocol") != "initial-v1" or count < 2):
+            raise ConfigurationError(
+                "child session_protocol requires cold-clarification-v1, initial-v1 and at least two lifetime slots"
+            )
     return data
 
 

@@ -21,7 +21,7 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `5bdda3de5bc3b2f8afb8de9abc191661245fe8ba` |
+| OpenJules | `74429feda1f3991ce528678b74d6db5e3b3b250c` |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
@@ -56,12 +56,17 @@ fresh B progress checkpoints, an unchanged single B worker, both canonical
 captures through restart and zero final reservations. The complete exact-head
 aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
 
-The workflow now selects [OpenJules #32](https://github.com/niklas-olsson/OpenJules/pull/32),
-`5bdda3de5bc3b2f8afb8de9abc191661245fe8ba`, which adds an exact optional
-loopback bootstrap binding to the participant from
-[OpenJules #31](https://github.com/niklas-olsson/OpenJules/pull/31).
-It retains that explicitly invoked participant, pinned MCP SDK and shared bounded
-HTTP transport used by the managed model broker. This shared-service trial does
+The workflow now selects [OpenJules #33](https://github.com/niklas-olsson/OpenJules/pull/33),
+`74429feda1f3991ce528678b74d6db5e3b3b250c`, tree
+`9694e7450f12da3c162c62d220f782914902d7be`. Its optional cold-clarification
+session correlates two separately granted children under the original canonical
+policy and earlier armed cutoff. Omitted session policy preserves this scene's
+ordinary behavior. The separate [cold child trial](managed-children-stack-trial.md#explicit-cold-clarification)
+qualifies that opt-in without changing this shared-service scenario.
+The runtime retains [OpenJules #32](https://github.com/niklas-olsson/OpenJules/pull/32)'s
+explicit loopback bootstrap and the public participant from
+[OpenJules #31](https://github.com/niklas-olsson/OpenJules/pull/31), pinned MCP SDK
+and shared bounded HTTP transport used by the managed model broker. This shared-service trial does
 not start that participant or supply the separately required restricted conversation
 service. Native discussion fixtures do not qualify an installed conversation or a
 live provider. The runtime preserves the [bounded socket-denial correction](https://github.com/niklas-olsson/OpenJules/pull/30)

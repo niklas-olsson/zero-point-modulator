@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
+          ref: 74429feda1f3991ce528678b74d6db5e3b3b250c
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -65,9 +65,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Merged public-discussion component and shared HTTP transport, shared by every gate.
+          # Merged cold clarification and public discussion, shared by every gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
+          ref: 74429feda1f3991ce528678b74d6db5e3b3b250c
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -126,9 +126,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Same merged public-discussion component as every other integration gate.
+          # Same merged cold/public runtime as every other integration gate.
           # Update this pin with docs/managed-isolation-stack-trial.md.
-          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
+          ref: 74429feda1f3991ce528678b74d6db5e3b3b250c
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -175,9 +175,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Same merged public-discussion component as every other integration gate.
+          # Same merged cold/public runtime as every other integration gate.
           # Update with docs/managed-multi-repository-stack-trial.md.
-          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
+          ref: 74429feda1f3991ce528678b74d6db5e3b3b250c
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -224,9 +224,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Merged public-discussion component and shared HTTP transport, shared by every gate.
+          # Merged cold clarification and public discussion, shared by every gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
+          ref: 74429feda1f3991ce528678b74d6db5e3b3b250c
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -270,6 +270,13 @@ jobs:
             --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
             --image "$(cat "$RUNNER_TEMP/managed-children-image.id")" \
             --work-dir "$RUNNER_TEMP/managed-child-outcomes-trial"
+      - name: Install and verify two cold clarification rounds
+        run: |
+          python zpm/tests/contracts/check_cold_children_stack.py \
+            --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/managed-children-image.id")" \
+            --work-dir "$RUNNER_TEMP/managed-cold-children-trial"
       - name: Retain only the credential-free child trial report
         if: always()
         uses: actions/upload-artifact@v4
@@ -280,6 +287,8 @@ jobs:
             ${{ runner.temp }}/managed-children-stack-trial/diagnostics.json
             ${{ runner.temp }}/managed-child-outcomes-trial/report.json
             ${{ runner.temp }}/managed-child-outcomes-trial/diagnostics.json
+            ${{ runner.temp }}/managed-cold-children-trial/report.json
+            ${{ runner.temp }}/managed-cold-children-trial/diagnostics.json
           if-no-files-found: warn
           retention-days: 14
 
@@ -296,9 +305,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Merged public-discussion component and shared HTTP transport, shared by every gate.
+          # Merged cold clarification and public discussion, shared by every gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
+          ref: 74429feda1f3991ce528678b74d6db5e3b3b250c
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4

@@ -240,5 +240,190 @@ class DedicatedContainmentTests(unittest.TestCase):
         self.assertIn("metadata was unavailable", value["cleanup_reason"])
 
 
+@unittest.skipUnless(sys.platform == "linux" and hasattr(os, "WNOWAIT"), "Linux containment qualification")
+class DestinationReadinessTests(unittest.TestCase):
+    """Named process fixtures exercise ownership, not MCP or native transport."""
+
+    def probe(self, mode):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            unrelated = subprocess.Popen(
+                [sys.executable, "-c", "import time; time.sleep(30)"],
+                start_new_session=True, stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            script = textwrap.dedent(r'''
+                import importlib.util,json,os,signal,subprocess,sys,time
+                from pathlib import Path
+                spec=importlib.util.spec_from_file_location("trial",sys.argv[1])
+                trial=importlib.util.module_from_spec(spec); spec.loader.exec_module(trial)
+                mode=sys.argv[2]; directory=Path(sys.argv[3])
+                package=directory/"src"/"liminal_bridge"; package.mkdir(parents=True)
+                (package.parent/"__init__.py").write_text("")
+                (package/"__init__.py").write_text("")
+                record="json.dumps({'pid':os.getpid(),'starttime':Path('/proc/self/stat').read_text().rsplit(')',1)[1].split()[19]})"
+                bridge=directory/"native_fixture.py"
+                bridge.write_text("\n".join([
+                    "import time",
+                    "from pathlib import Path",
+                    "directory=Path(__file__).parent",
+                    "while not (directory/'release').exists(): time.sleep(.01)",
+                ])+"\n")
+                (package/"conversation_server.py").write_text("\n".join([
+                    "import json,os,subprocess,sys,time",
+                    "from pathlib import Path",
+                    "config=json.loads(Path(sys.argv[-1]).read_text())",
+                    "directory=Path(config['directory'])",
+                    "(directory/'profile.json').write_text("+record+")",
+                    "if config['mode']=='missing': time.sleep(30)",
+                    "else:",
+                    "    child=subprocess.Popen([sys.executable,'-c',config['node_bootstrap']],env=config['node_environment'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)",
+                    "    raise SystemExit(child.wait())",
+                ])+"\n")
+                configuration=directory/"profile.json.config"
+                expected={"python":sys.executable,"config":str(configuration),
+                          "node":sys.executable,"bridge":str(bridge),
+                          "scope_hash":"a"*64,"port":31337}
+                # The identity file is closed before exec exposes the exact
+                # bridge argv. The bridge never rewrites it; PID/starttime persist.
+                node_bootstrap="\n".join([
+                    "import json,os,sys",
+                    "from pathlib import Path",
+                    "directory=Path("+repr(str(directory))+")",
+                    "(directory/'node.json').write_text("+record+")",
+                    "os.execve(sys.executable,"+repr([sys.executable,str(bridge),
+                        expected["scope_hash"],"--conversation-bootstrap-port",str(expected["port"])])
+                        +","+repr(trial.NODE_ENVIRONMENT)+")",
+                ])
+                configuration.write_text(json.dumps(expected | {
+                    "mode":mode,"directory":str(directory),
+                    "node_environment":trial.NODE_ENVIRONMENT,"node_bootstrap":node_bootstrap,
+                }))
+                # The profile and native-shaped child use the exact argv,
+                # environment and session ancestry checked by the real observer.
+                command="\n".join([
+                    "import json,os,subprocess,sys",
+                    "from pathlib import Path",
+                    "directory=Path("+repr(str(directory))+")",
+                    "(directory/'leader.json').write_text("+record+")",
+                    "if "+repr(mode)+"=='exited': raise SystemExit(0)",
+                    "profile=subprocess.Popen([sys.executable,'-m','src.liminal_bridge.conversation_server','--config',"+repr(str(configuration))+"],env="+repr(trial.PROFILE_ENVIRONMENT)+",start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)",
+                    "raise SystemExit(profile.wait())",
+                ])
+                owner=trial.OwnedTrial(dedicated_process=True)
+                entry=None; ready=None; source=None; reason=None
+                try:
+                    entry=owner.launch("destination",[sys.executable,"-c",command],
+                                       directory,trial.PROFILE_ENVIRONMENT,expected_profile=expected)
+                    original_start=entry["start"]
+                    ready=owner.profile_ready(entry, maximum=.5 if mode=="missing" else 3)
+                    assert not (directory/"release").exists()
+                    for kind in ("profile","node"):
+                        recorded=json.loads((directory/(kind+".json")).read_text())
+                        assert ready[kind]["pid"]==recorded["pid"]
+                        assert ready[kind]["starttime"]==recorded["starttime"]
+                        assert trial.process_info(recorded["pid"])["state"] not in {"Z","X"}
+                    assert ready["profile"]["parent"]==entry["process"].pid
+                    assert ready["node"]["parent"]==ready["profile"]["pid"]
+                    assert entry["start"]==original_start
+                    if mode=="deadline":
+                        # This absolute command deadline elapsed during actual
+                        # readiness. A fresh default wait allowance must not win.
+                        owner.wait([entry], cutoff=original_start)
+                        raise AssertionError("expired original deadline was renewed")
+                    source=owner.launch("sole-source",[sys.executable,"-c",
+                        "from pathlib import Path; Path("+repr(str(directory/"release"))+").write_text('released')"],
+                        directory,trial.PROFILE_ENVIRONMENT)
+                    assert source["start"]>=ready["observed_monotonic"]
+                    results=owner.wait([source,entry],cutoff=original_start+trial.COMMAND_SECONDS)
+                    assert all(result["returncode"]==0 for result in results)
+                except AssertionError as error:
+                    reason=str(error)
+                finally:
+                    cleanup_started=time.monotonic()
+                    owner.cleanup(cleanup_started+trial.FINAL_CLEANUP_SECONDS)
+                for name in ("leader","profile","node"):
+                    path=directory/(name+".json")
+                    if path.exists():
+                        recorded=json.loads(path.read_text())
+                        current=trial.process_info(recorded["pid"])
+                        assert current is None or current["starttime"]!=recorded["starttime"]
+                assert trial.children_of(os.getpid())==[]
+                assert trial.kernel_has_no_children()
+                assert all(item["process"].returncode is not None for item in owner.commands)
+                print(json.dumps({
+                    "reason":reason,"ready":ready is not None,
+                    "source_started":source is not None,
+                    "source_after_readiness":source is not None and ready is not None
+                        and source["start"]>=ready["observed_monotonic"],
+                    "release_written":(directory/"release").exists(),
+                    "children":[],"all_reaped":True,"admission_closed":owner.closing,
+                    "cleanup_seconds":time.monotonic()-cleanup_started,
+                }))
+            ''')
+            try:
+                result = subprocess.run(
+                    [sys.executable, "-c", script, trial.__file__, mode, str(root)],
+                    cwd=Path(__file__).resolve().parents[1], capture_output=True,
+                    text=True, timeout=20, check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIsNone(unrelated.poll(), "readiness containment affected unrelated work")
+                value = json.loads(result.stdout)
+                self.assertEqual(value["children"], [])
+                self.assertTrue(value["all_reaped"])
+                self.assertTrue(value["admission_closed"])
+                self.assertLess(value["cleanup_seconds"], trial.FINAL_CLEANUP_SECONDS)
+                return value
+            finally:
+                unrelated.terminate()
+                unrelated.wait(timeout=5)
+                # Only exact private fixture identities, never global PID scans,
+                # may be contained if the implementation under test regresses.
+                for name in ("leader", "profile", "node"):
+                    path = root / (name + ".json")
+                    if not path.exists():
+                        continue
+                    recorded = json.loads(path.read_text())
+                    current = trial.process_info(recorded["pid"])
+                    if current is None or current["starttime"] != recorded["starttime"]:
+                        continue
+                    try:
+                        if current["group"] == current["session"] == current["pid"]:
+                            os.killpg(current["pid"], signal.SIGKILL)
+                        else:
+                            os.kill(current["pid"], signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+    def test_receiver_is_observed_before_the_sole_source_starts(self):
+        value = self.probe("ready")
+        self.assertIsNone(value["reason"])
+        self.assertTrue(value["ready"])
+        self.assertTrue(value["source_after_readiness"])
+        self.assertTrue(value["release_written"])
+
+    def test_missing_or_exited_receiver_refuses_before_source_and_cleans(self):
+        for mode, reasons in [
+            ("missing", {"passive destination readiness deadline expired",
+                         "kernel process inventory exceeded its deadline"}),
+            ("exited", {"passive destination exited before readiness"}),
+        ]:
+            with self.subTest(mode=mode):
+                value = self.probe(mode)
+                # The same readiness cutoff also bounds the real /proc scan.
+                self.assertIn(value["reason"], reasons)
+                self.assertFalse(value["ready"])
+                self.assertFalse(value["source_started"])
+                self.assertFalse(value["release_written"])
+
+    def test_readiness_does_not_renew_original_command_deadline(self):
+        value = self.probe("deadline")
+        self.assertEqual(value["reason"], "owned command exceeded its deadline")
+        self.assertTrue(value["ready"])
+        self.assertFalse(value["source_started"])
+        self.assertFalse(value["release_written"])
+
+
 if __name__ == "__main__":
     unittest.main()

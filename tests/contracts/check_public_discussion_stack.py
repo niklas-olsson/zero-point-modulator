@@ -241,13 +241,13 @@ class OwnedTrial:
                         "native executable changed")
                 entry["observed"][(pid, info["starttime"])] = info | {"kind": "node"}
 
-    def tick(self):
+    def tick(self, *, cutoff=None):
         self.remaining(COMMAND_SECONDS)
         self._drain()
         observing = [entry for entry in self.commands if entry["result"] is None and entry["profile"] is not None
                      and time.monotonic() - entry.get("last_observation", 0) >= 0.1]
         if observing:
-            inventory = process_inventory(self.deadline)
+            inventory = process_inventory(self.deadline if cutoff is None else min(self.deadline, cutoff))
             for entry in observing:
                 self._observe(entry, inventory)
 
@@ -287,14 +287,15 @@ class OwnedTrial:
                 entry["process"].returncode = code
         return code
 
-    def finish(self, entry):
+    def finish(self, entry, *, cutoff=None):
         if entry["result"] is not None:
             return entry["result"]
         pid = entry["process"].pid
         if exit_info(pid) is None or len(entry["eof"]) != 2:
             return None
         registered = {item["process"].pid for item in self.commands if item["result"] is None}
-        require(not (set(children_of(os.getpid(), self.deadline)) - registered),
+        inventory_cutoff = self.deadline if cutoff is None else min(self.deadline, cutoff)
+        require(not (set(children_of(os.getpid(), inventory_cutoff)) - registered),
                 "command left an adopted descendant")
         for old in entry["observed"].values():
             current = process_info(old["pid"])
@@ -308,14 +309,46 @@ class OwnedTrial:
                            "elapsed_seconds": time.monotonic() - entry["start"]}
         return entry["result"]
 
-    def wait(self, entries, maximum=COMMAND_SECONDS):
-        cutoff = time.monotonic() + self.remaining(maximum)
+    def wait(self, entries, maximum=COMMAND_SECONDS, *, cutoff=None):
+        stop_at = time.monotonic() + self.remaining(maximum)
+        if cutoff is not None:
+            stop_at = min(stop_at, cutoff)
         while True:
-            self.tick()
-            results = [self.finish(entry) for entry in entries]
+            require(time.monotonic() < stop_at, "owned command exceeded its deadline")
+            self.tick(cutoff=stop_at)
+            results = [self.finish(entry, cutoff=stop_at) for entry in entries]
             if all(result is not None for result in results):
+                require(time.monotonic() < stop_at, "owned command exceeded its deadline")
                 return results
-            require(time.monotonic() < cutoff, "owned command exceeded its deadline")
+            time.sleep(min(0.02, max(0, stop_at - time.monotonic())))
+
+    def profile_ready(self, entry, maximum=5):
+        """Observe a live destination; elapsed time starts at host Popen return."""
+        require(any(item is entry for item in self.commands) and entry["profile"] is not None
+                and entry["result"] is None, "destination command is not owned and active")
+        cutoff = min(entry["start"] + COMMAND_SECONDS,
+                     time.monotonic() + self.remaining(min(maximum, 5)))
+        while True:
+            require(time.monotonic() < cutoff, "passive destination readiness deadline expired")
+            self.tick(cutoff=cutoff)
+            require(exit_info(entry["process"].pid) is None,
+                    "passive destination exited before readiness")
+            live = {"profile": [], "node": []}
+            for observed in entry["observed"].values():
+                current = process_info(observed["pid"])
+                if (current is not None and current["state"] not in {"Z", "X"}
+                        and all(current[key] == observed[key]
+                                for key in ("pid", "parent", "group", "session", "starttime"))):
+                    live[observed["kind"]].append(current)
+            if len(live["profile"]) == len(live["node"]) == 1:
+                profile, node = live["profile"][0], live["node"][0]
+                require(profile["parent"] == entry["process"].pid and node["parent"] == profile["pid"],
+                        "passive destination process ancestry changed")
+                observed_at = time.monotonic()
+                require(observed_at < cutoff, "passive destination readiness deadline expired")
+                return {"profile": profile, "node": node,
+                        "observed_monotonic": observed_at,
+                        "elapsed_seconds": observed_at - entry["start"]}
             time.sleep(min(0.02, max(0, cutoff - time.monotonic())))
 
     def line(self, entry, maximum=10):
@@ -666,8 +699,9 @@ def scene(owner, root, stack, evidence):
                              "--config", str(peer["policy"]), *arguments],
                             checkouts["openjules"], peer["environment"], expected_profile=peer["expected"])
 
-    def finish(entries):
-        return [json_result(entry, result, logs) for entry, result in zip(entries, owner.wait(entries))]
+    def finish(entries, *, cutoff=None):
+        return [json_result(entry, result, logs)
+                for entry, result in zip(entries, owner.wait(entries, cutoff=cutoff))]
 
     def call(name, arguments):
         return finish([start(name, arguments)])[0]
@@ -732,9 +766,24 @@ def scene(owner, root, stack, evidence):
         peer["cursor"] = check_page(current, peer["status"], peer["cursor"], [record])
         peer["items"].extend(current["history"]["messages"])
         other = "beta" if name == "alpha" else "alpha"
-        source = start(name, observe_args(name, peer["cursor"], 30))
+        require(all(entry["result"] is not None for entry in owner.commands if entry["profile"] is not None),
+                "passive delivery still has an earlier participant")
         destination = start(other, observe_args(other, peers[other]["cursor"], 30))
-        source_value, destination_value = finish([source, destination])
+        ready = owner.profile_ready(destination)
+        source = start(name, observe_args(name, peer["cursor"], 30))
+        require(source["start"] >= ready["observed_monotonic"],
+                "passive source started before destination observation")
+        evidence.setdefault("passive_destination_readiness", []).append({
+            "source": name, "destination": other, "destination_leader": destination["identity"],
+            "profile": ready["profile"], "node": ready["node"],
+            "observed_seconds_after_destination_popen_return": ready["elapsed_seconds"],
+            "source_popen_return_seconds_after_destination_popen_return": source["start"] - destination["start"],
+            "original_command_limit_seconds": COMMAND_SECONDS,
+        })
+        # The readiness interval consumes the original command allowance.
+        # A signed page can make watch return immediately once this source starts.
+        pair_cutoff = min(destination["start"], source["start"]) + COMMAND_SECONDS
+        source_value, destination_value = finish([source, destination], cutoff=pair_cutoff)
         check_page(source_value, peer["status"], peer["cursor"], [])
         peers[other]["cursor"] = check_page(destination_value, peers[other]["status"], peers[other]["cursor"], [record])
         peers[other]["items"].extend(destination_value["history"]["messages"])

@@ -108,6 +108,16 @@ class MultipleRepositoryDeploymentTests(unittest.TestCase):
             "request_timeout_seconds": 5,
         }
 
+    def child_configuration(self):
+        configuration = deepcopy(self.configuration)
+        entry = configuration["repositories"][0]
+        entry["model_policy"] = self.model_policy("alpha")
+        entry["child_policy"] = {
+            "max_children": 2, "max_child_seconds": 20, "max_child_turns": 4,
+            "capabilities": ["python"],
+        }
+        return configuration
+
     def assert_no_reference_values_written(self, values):
         for path in self.bundle.rglob("*"):
             if path.is_file():
@@ -441,6 +451,100 @@ class MultipleRepositoryDeploymentTests(unittest.TestCase):
             with self.subTest(invalid_provider=invalid), patch.dict(os.environ, inputs, clear=True):
                 with self.assertRaises(ConfigurationError):
                     _environment(self.bundle, "openjules", normalized)
+
+    def test_cold_child_sessions_remain_scoped_to_the_opted_in_repository(self):
+        configuration = self.child_configuration()
+        entry = configuration["repositories"][0]
+        entry["child_policy"].update({
+            "outcome_protocol": "initial-v1", "session_protocol": "cold-clarification-v1",
+        })
+        prepare(configuration, self.bundle)
+        self.assertTrue(verify(self.bundle)["valid"])
+        normalized = self.read("manifest.json")["configuration"]["repositories"]
+        children = self.read("config/openjules.json")["children"]
+        self.assertEqual(children, [{
+            "deployment_id": configuration["deployment_id"], "repository": REPOSITORIES[0],
+            "profile": "approved", "policy": normalized[0]["child_policy"],
+        }])
+        self.assertEqual(children[0]["policy"]["session_protocol"], "cold-clarification-v1")
+        self.assertEqual(children[0]["policy"]["outcome_protocol"], "initial-v1")
+        self.assertNotIn("child_policy", normalized[1])
+        canonical = self.read("config/polyphony.json")["repositories"]
+        self.assertEqual(canonical[REPOSITORIES[0]]["profiles"]["approved"], {
+            "base": entry["source"]["revision"], "attempt_seconds": 60, "capabilities": ["python"],
+            "max_children": 2, "max_child_seconds": 20, "max_child_turns": 4, "child_capabilities": ["python"],
+        })
+        self.assertEqual(set(canonical[REPOSITORIES[1]]["profiles"]["approved"]),
+                         {"base", "attempt_seconds", "capabilities"})
+        self.assertEqual(self.read("config/provider.json")["max_workers"], configuration["max_workers"])
+
+    def test_cold_child_sessions_validate_each_repository_before_publishing(self):
+        configuration = self.child_configuration()
+        variants = [
+            {"outcome_protocol": "initial-v1", "session_protocol": value}
+            for value in (None, False, True, 1, 1.0, "", "future-v2", "cold-clarification-v1 ", [], {})
+        ]
+        variants.extend((
+            {"session_protocol": "cold-clarification-v1"},
+            {"session_protocol": "cold-clarification-v1", "outcome_protocol": None},
+            {"session_protocol": "cold-clarification-v1", "outcome_protocol": "initial-v1", "max_children": 1},
+            {"session_protocol": "cold-clarification-v1", "outcome_protocol": "initial-v1",
+             "command": ["python3", "custom.py"]},
+        ))
+        # Exercise both ordered entries, including rejection after a valid first
+        # repository was parsed. No partial installation may be published.
+        for index in (0, 1):
+            for variant in variants:
+                bad = deepcopy(configuration)
+                entry = bad["repositories"][index]
+                entry["model_policy"] = self.model_policy(("alpha", "beta")[index])
+                entry["child_policy"] = configuration["repositories"][0]["child_policy"] | variant
+                with self.subTest(repository=index, variant=variant), self.assertRaises(ConfigurationError):
+                    prepare(bad, self.bundle)
+                self.assertFalse(self.bundle.exists())
+
+    def test_cold_child_session_opt_in_preserves_immutable_multi_repository_bundles(self):
+        configuration = self.child_configuration()
+        configuration["repositories"][0]["child_policy"]["outcome_protocol"] = "initial-v1"
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled):
+                bundle = self.root / ("sessions-" + str(enabled))
+                selected = deepcopy(configuration)
+                policy = selected["repositories"][0]["child_policy"]
+                if enabled:
+                    policy["session_protocol"] = "cold-clarification-v1"
+                prepare(selected, bundle)
+                sealed = self.sealed(bundle)
+                if not enabled:
+                    normalized = self.read("manifest.json", bundle)["configuration"]["repositories"]
+                    self.assertEqual(normalized[0]["child_policy"], {
+                        "max_children": 2, "max_child_seconds": 20, "max_child_turns": 4,
+                        "capabilities": ["python"], "uid_start": 60000,
+                        "command": ["python3", "-I", "-S", "/opt/openjules/managed_runner.py"],
+                        "verify_argv": [], "max_result_bytes": 4_000_000, "outcome_protocol": "initial-v1",
+                    })
+                    self.assertNotIn(b'"session_protocol"', sealed["config/openjules.json"])
+                with Store(bundle / "state/zpm.sqlite3") as store:
+                    store.change(REPOSITORIES[0], "target", 1)
+                    store.change(REPOSITORIES[0], "remove")
+                retained_rows = self.retained_rows(bundle)
+                artifact = bundle / "state/openjules/retained-session-evidence"
+                artifact.write_bytes(b"retained capture")
+                changed = deepcopy(selected)
+                if enabled:
+                    changed["repositories"][0]["child_policy"].pop("session_protocol")
+                else:
+                    changed["repositories"][0]["child_policy"]["session_protocol"] = "cold-clarification-v1"
+                reordered = deepcopy(selected)
+                reordered["repositories"].reverse()
+                with patch("zpm.deployment.secrets.token_urlsafe", side_effect=AssertionError("credential rotation")), \
+                        patch("zpm.deployment.Store", side_effect=AssertionError("state mutation")):
+                    self.assertTrue(prepare(reordered, bundle)["reused"])
+                    with self.assertRaisesRegex(ConfigurationError, "different configuration"):
+                        prepare(changed, bundle)
+                self.assertEqual(self.sealed(bundle), sealed)
+                self.assertEqual(self.retained_rows(bundle), retained_rows)
+                self.assertEqual(artifact.read_bytes(), b"retained capture")
 
     def test_actual_serialized_openjules_file_accepts_one_million_bytes_and_rejects_one_more(self):
         configuration = deepcopy(self.configuration)

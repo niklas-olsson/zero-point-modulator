@@ -16,11 +16,21 @@ rounds, warm provider reuse, publication-before-journal crash recovery, or an
 actual generated forge proposal. Those criteria remain separate in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
-The candidate uses OpenJules `5bdda3de5bc3b2f8afb8de9abc191661245fe8ba`
+The candidate uses OpenJules `74429feda1f3991ce528678b74d6db5e3b3b250c`
 and Polyphony `0cf8b4772b04269505e3e1cd41324e41409b80f9` with the
 workflow's exact ZPM checkout. Those are merged components. Their component CI
 does not qualify this new installed scene; its report and all existing ZPM gates
 must pass on the complete delivery set.
+
+The original public-discussion delivery was ZPM
+`43a18ac50b1e2798ff37b8a8113731af32769872` with OpenJules
+`5bdda3de5bc3b2f8afb8de9abc191661245fe8ba` and the same Polyphony revision. Its
+[actual-main managed-stack job](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43149758935/job/130956180524)
+passed this scene with three deterministic HTTP calls, original signed records,
+exact replay and completed process containment. Those reports remain historical
+evidence for that exact set. The later cold-capable runtime retains this public
+scene unchanged; the [separate cold trial](managed-children-stack-trial.md#explicit-cold-clarification)
+does not turn this public-peer evidence into confined-child discussion.
 
 ## Reuse the actual installation
 
