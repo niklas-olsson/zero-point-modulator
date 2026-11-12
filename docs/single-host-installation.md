@@ -298,7 +298,7 @@ credential exclusively in the trusted OpenJules process.
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/34a005a731ee4614ab1f105669378fcf814f092d).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/247fe1d4647510d158eb564594a406ef33fcafc8).
 A valid generic source pin alone is insufficient. Require the component's CI and
 all eight ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
@@ -451,14 +451,27 @@ complete native logs and each separately reviewed correction. Later passing
 results do not relabel those failed attempts. These are component results with
 explicitly named authority, provider and conversation fixtures.
 
-The current shared OpenJules pin is
+The earlier adopted-child reaping revision is
 [`34a005a731ee4614ab1f105669378fcf814f092d`](https://github.com/niklas-olsson/OpenJules/commit/34a005a731ee4614ab1f105669378fcf814f092d),
 tree `c95c192e9a28e40f110b4468e1a13410465253c9`, from
 [OpenJules #45](https://github.com/niklas-olsson/OpenJules/pull/45).
-Both runtime watchdogs now reap exited children adopted by PID 1 using bounded,
+Both runtime watchdogs reap exited children adopted by PID 1 using bounded,
 nonblocking waits. Resource limits, process identities, authority and execution
-deadlines are unchanged. The confined suite, all installed scenes and a fresh
-parent-and-two-child execution must qualify this consumer set separately.
+deadlines are unchanged.
+
+The current shared OpenJules pin is
+[`247fe1d4647510d158eb564594a406ef33fcafc8`](https://github.com/niklas-olsson/OpenJules/commit/247fe1d4647510d158eb564594a406ef33fcafc8),
+tree `9d6bdc84891c836f19bae5a97f150e8c6bb0bc1d`, from
+[OpenJules #46](https://github.com/niklas-olsson/OpenJules/pull/46).
+Its managed image compiles checked-hash standard-library bytecode at normal
+optimization during the image build. Runtime interpreters can reuse those
+root-owned caches from the read-only image. The image retains
+`PYTHONDONTWRITEBYTECODE=1`; its read-only root protects the standard library
+for isolated commands. Managed agent source loading is unchanged. The native image test
+requires fresh isolated imports with source-compilation fallback refused.
+The confined suite, all installed scenes and a fresh parent-and-two-child
+execution must qualify this consumer set separately; component cache evidence
+does not establish its completion time or deadline margin.
 
 This runtime connects the approved managed-public descriptor to the original
 root and child Unix identities, shared inference allowance, restricted
@@ -827,7 +840,7 @@ prove a managed public turn, child participation or delivery to a live peer.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/34a005a731ee4614ab1f105669378fcf814f092d/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/247fe1d4647510d158eb564594a406ef33fcafc8/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -845,7 +858,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/34a005a731ee4614ab1f105669378fcf814f092d/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/247fe1d4647510d158eb564594a406ef33fcafc8/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature
@@ -972,6 +985,19 @@ observed failure details. Both used OpenJules
 termination and exact fixture cleanup. The added progress and timing fields
 locate remaining slow work; these results do not qualify the combined revision
 set or justify increasing its bounds.
+
+The later
+[`014b7e0f` HEAD diagnostic](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43319388209/job/131536512368)
+and [`46da47c1` proposed-merge diagnostic](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43319397886/job/131536578717)
+both used OpenJules `34a005a731ee4614ab1f105669378fcf814f092d` and observed
+bytecode writing disabled with no cache files for the four recorded
+standard-library modules. HEAD passed all 424 tests in 90.709 seconds with no
+failures or skips. The proposal reached the unchanged guard after 406 start
+callbacks and 405 stop callbacks; its last progress checkpoint was at 108.268
+seconds with no observed test failure. Both retained native capture, fencing,
+termination and exact fixture cleanup. These measurements select the image-cache
+improvement for qualification; they do not establish its effect before a new
+complete run at the updated producer revision.
 
 Dispatch this execution-only workflow from its reviewed main revision as a new
 source qualification. It is not a rerun or recovery of the original publication

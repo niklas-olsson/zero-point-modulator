@@ -19,7 +19,7 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`34a005a731ee4614ab1f105669378fcf814f092d`](https://github.com/niklas-olsson/OpenJules/commit/34a005a731ee4614ab1f105669378fcf814f092d) |
+| OpenJules | [`247fe1d4647510d158eb564594a406ef33fcafc8`](https://github.com/niklas-olsson/OpenJules/commit/247fe1d4647510d158eb564594a406ef33fcafc8) |
 
 This is the same merged runtime used by all five installed-stack jobs, including
 the explicit managed-public profile. The cold-session option, loopback bootstrap,
