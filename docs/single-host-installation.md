@@ -905,6 +905,30 @@ establish the cause of the other process or preparation failures in the recorded
 run, nor does it assign a cause to earlier runs. A new confined execution at the
 reviewed revision must still pass every original acceptance check.
 
+The later [execution-only run on `90cc7174`](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43302946878)
+still failed: its captured full suite reported 415 tests, 52 failures and 25
+errors. The cause of those remaining failures was not established by its capped
+list of test identifiers.
+
+The existing managed-model CI job now runs the complete public-source suite
+through the pinned OpenJules Docker producer and the same managed-agent image.
+This diagnostic uses a fresh, explicitly synthetic readiness fixture, no
+authority, broker, child grants or forge credential. The native source export,
+root UID, inert watchdog, private temporary directory and default isolation and
+resource limits are retained. Its 110-second suite and 120-second command guards
+do not extend the publication trial's bounds. All discovered test identities
+must execute once; skips, incomplete execution or failures prevent a pass.
+
+Only `confined-suite-trial/report.json` is exported. It contains bounded
+exception categories, numeric error/exit codes, frame coordinates checked
+against public source, and resource counters. Missing kernel observations remain
+unknown. The suite projection is a fresh bounded read from the stopped fixture,
+separate from the native capture. Raw logs and captures stay private. Cleanup
+checks exact native container/volume identities and confirmed removal; uncertain
+cleanup fails. This fixture has fewer processes than a managed root and two
+children and uses the non-child watchdog. A pass does not qualify their combined
+deadlines, original failure cause, canonical candidate or publication outcome.
+
 Dispatch this execution-only workflow from its reviewed main revision as a new
 source qualification. It is not a rerun or recovery of the original publication
 run `43266932548`; that run's cause remains unknown and its private execution
