@@ -22,8 +22,8 @@ The separate `managed-model-stack` CI job pins these revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `e50d501cc81975d25e367be3ba1d6de9169207c1`, merged scoped unsupported-capability diagnostics and managed-context runtime |
-| Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
+| OpenJules | `57f62d1e108c61a21698c7d23936dc44e83b3092`, merged bounded socket denial, scoped diagnostics and managed-context runtime |
+| Keystone Polyphony | `143d77c92ca8699ad7ccad4de98a540da6540a09`, merged initial child outcome authority |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
 All installation gates use this same candidate set. The changed combination is

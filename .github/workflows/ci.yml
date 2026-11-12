@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: e50d501cc81975d25e367be3ba1d6de9169207c1
+          ref: 57f62d1e108c61a21698c7d23936dc44e83b3092
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -65,16 +65,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Merged scoped unsupported-capability diagnostics, shared by every gate.
+          # Merged bounded socket denial and scoped diagnostics, shared by every gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: e50d501cc81975d25e367be3ba1d6de9169207c1
+          ref: 57f62d1e108c61a21698c7d23936dc44e83b3092
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          # Same initial-outcome authority candidate in every installed-stack gate.
-          ref: 653c0a71a921c0d23b8e0171277524125e929e66
+          # Same merged initial-outcome authority in every installed-stack gate.
+          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -115,15 +115,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Same merged diagnostic runtime as every other integration gate.
+          # Same merged bounded socket runtime as every other integration gate.
           # Update this pin with docs/managed-isolation-stack-trial.md.
-          ref: e50d501cc81975d25e367be3ba1d6de9169207c1
+          ref: 57f62d1e108c61a21698c7d23936dc44e83b3092
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 653c0a71a921c0d23b8e0171277524125e929e66
+          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -164,15 +164,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Same merged diagnostic runtime as every other integration gate.
+          # Same merged bounded socket runtime as every other integration gate.
           # Update with docs/managed-multi-repository-stack-trial.md.
-          ref: e50d501cc81975d25e367be3ba1d6de9169207c1
+          ref: 57f62d1e108c61a21698c7d23936dc44e83b3092
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 653c0a71a921c0d23b8e0171277524125e929e66
+          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -213,16 +213,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Merged scoped unsupported-capability diagnostics, shared by every gate.
+          # Merged bounded socket denial and scoped diagnostics, shared by every gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: e50d501cc81975d25e367be3ba1d6de9169207c1
+          ref: 57f62d1e108c61a21698c7d23936dc44e83b3092
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          # Same initial-outcome authority candidate in every installed-stack gate.
-          ref: 653c0a71a921c0d23b8e0171277524125e929e66
+          # Same merged initial-outcome authority in every installed-stack gate.
+          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
           path: polyphony
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -285,15 +285,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          # Merged scoped unsupported-capability diagnostics, shared by every gate.
+          # Merged bounded socket denial and scoped diagnostics, shared by every gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: e50d501cc81975d25e367be3ba1d6de9169207c1
+          ref: 57f62d1e108c61a21698c7d23936dc44e83b3092
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 653c0a71a921c0d23b8e0171277524125e929e66
+          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5

@@ -21,8 +21,8 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `e50d501cc81975d25e367be3ba1d6de9169207c1` |
-| Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66` |
+| OpenJules | `57f62d1e108c61a21698c7d23936dc44e83b3092` |
+| Keystone Polyphony | `143d77c92ca8699ad7ccad4de98a540da6540a09`, merged initial child outcome authority |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
 
@@ -56,8 +56,9 @@ fresh B progress checkpoints, an unchanged single B worker, both canonical
 captures through restart and zero final reservations. The complete exact-head
 aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
 
-The workflow now selects the [merged scoped unsupported-capability diagnostics](https://github.com/niklas-olsson/OpenJules/pull/27)
-[`e50d501cc81975d25e367be3ba1d6de9169207c1`](https://github.com/niklas-olsson/OpenJules/commit/e50d501cc81975d25e367be3ba1d6de9169207c1).
+The workflow now selects the [merged bounded socket-denial correction](https://github.com/niklas-olsson/OpenJules/pull/30)
+[`57f62d1e108c61a21698c7d23936dc44e83b3092`](https://github.com/niklas-olsson/OpenJules/commit/57f62d1e108c61a21698c7d23936dc44e83b3092).
+It preserves the scoped unsupported-capability diagnostic from OpenJules #27.
 It retains the merged managed-context implementation. Its dedicated-interpreter
 selector refuses legacy execution before owned effects,
 while canonical service, publication and cleanup retain their authority checks.
@@ -76,9 +77,14 @@ claim-versus-drain regressions, actual Docker
 [combined-verification failure case](https://github.com/niklas-olsson/OpenJules/pull/21),
 [versioned creation proof](https://github.com/niklas-olsson/OpenJules/pull/20),
 strict cleanup transport checks, explicit owned cleanup, child outcomes and
-durable replay. The Polyphony pin is unchanged. The merged component's
-[actual-main CI](https://github.com/niklas-olsson/OpenJules/actions/runs/43119302563)
-passed both Python suites. This new integration set still requires its own
+durable replay. The positive Polyphony pin is the actual merged revision
+`143d77c92ca8699ad7ccad4de98a540da6540a09`, containing the initial child outcomes.
+Earlier Polyphony `653c0a71` results above remain historical. The preceding diagnostic
+component `e50d501cc81975d25e367be3ba1d6de9169207c1` passed both Python suites in
+[its actual-main CI](https://github.com/niklas-olsson/OpenJules/actions/runs/43119302563).
+The current bounded socket runtime passed 636 tests and four subtests on both
+Python versions in [its actual-main CI](https://github.com/niklas-olsson/OpenJules/actions/runs/43125104912).
+This new integration set still requires its own
 complete eight-job ZPM qualification. Historical reports,
 including those for the previous operative pin, remain bound to their recorded
 revisions; they do not qualify this changed set.
