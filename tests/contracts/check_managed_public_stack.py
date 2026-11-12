@@ -407,6 +407,21 @@ else:
 """
 
 
+# LocalTools keeps its existing 128-item / 8,192-character-per-item contract.
+# Reconstruct the trusted fixture unchanged, then restore its original -c argv.
+GUEST_BOOTSTRAP = "import sys\nsource=''.join(sys.argv[2:])\nsys.argv=sys.argv[:2]\nexec(source)"
+
+
+def guest_argv(source, options):
+    argv = ["python3", "-I", "-S", "-c", GUEST_BOOTSTRAP,
+            canonical(options).decode("ascii")]
+    argv.extend(source[index:index + 4096] for index in range(0, len(source), 4096))
+    require(len(argv) <= 128
+            and all(isinstance(arg, str) and "\0" not in arg and len(arg) <= 8192 for arg in argv),
+            "guest command exceeds the existing runner argv bound")
+    return argv
+
+
 def guest_command(phase, tool_hashes, *, actor=None, peer_author=None):
     require(set(tool_hashes) == {"child_tools.py", "public_tools.py"}
             and all(hash_value(value) for value in tool_hashes.values()),
@@ -423,7 +438,7 @@ def guest_command(phase, tool_hashes, *, actor=None, peer_author=None):
         options.update(peer_author=peer_author, peer_decline=PEER_DECLINE)
     require(phase in {"proposal", "activate", "child", "observe", "compose"},
             "unknown managed public command")
-    return ["python3", "-I", "-S", "-c", GUEST, canonical(options).decode("ascii")]
+    return guest_argv(GUEST, options)
 
 
 def same_slot(original, current):

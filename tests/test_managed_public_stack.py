@@ -891,6 +891,85 @@ print(json.dumps(observed,sort_keys=True))
                         "all_owned_children_reaped": True,
                     })
 
+    def test_generated_guest_argv_preserves_all_phase_bytes_and_original_options(self):
+        tool_hashes = {"child_tools.py": "d" * 64, "public_tools.py": "e" * 64}
+        phases = [
+            ("proposal", None), ("activate", None), ("child", "left"),
+            ("child", "right"), ("observe", None), ("compose", None),
+        ]
+        self.assertGreater(len(trial.GUEST), 8192)
+        for phase, actor in phases:
+            with self.subTest(phase=phase, actor=actor):
+                expected = {"phase": phase, "tool_hashes": tool_hashes}
+                if phase == "proposal":
+                    expected["instructions"] = trial.PRIVATE_INSTRUCTIONS
+                if phase == "child":
+                    expected["actor"] = actor
+                if phase == "observe":
+                    expected.update(peer_author="f" * 16, peer_decline=trial.PEER_DECLINE)
+                argv = trial.guest_command(
+                    phase, tool_hashes, actor=actor, peer_author="f" * 16,
+                )
+                self.assertEqual(argv[:4], ["python3", "-I", "-S", "-c"])
+                self.assertLessEqual(len(argv), 128)
+                self.assertTrue(all(isinstance(arg, str) and "\0" not in arg
+                                    and len(arg) <= 8192 for arg in argv))
+                self.assertEqual("".join(argv[6:]).encode("utf-8"), trial.GUEST.encode("utf-8"))
+                self.assertEqual(argv[5], json.dumps(
+                    expected, ensure_ascii=True, sort_keys=True, separators=(",", ":"),
+                ))
+        # This runs the actual transport helper, not the image-only GUEST or a
+        # copied LocalTools implementation. Long quoted Unicode crosses chunks.
+        payload = "start:" + ("é🐍'\\\n" * 1800) + ":end"
+        program = (
+            "import hashlib,json,sys\nsource='program-owned-source'\n"
+            "payload=" + repr(payload) + "\n"
+            "print(json.dumps({'argv':sys.argv,"
+            "'sha256':hashlib.sha256(payload.encode('utf-8')).hexdigest(),"
+            "'source':source,'isolated':sys.flags.isolated,'no_site':sys.flags.no_site}))\n"
+        )
+        options = {"phase": "transport-control", "value": "é🐍'\\\n", "empty": ""}
+        encoded = json.dumps(options, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+        self.assertGreater(len(program), 8192)
+        argv = trial.guest_argv(program, options)
+        self.assertEqual(argv[:4], ["python3", "-I", "-S", "-c"])
+        self.assertLessEqual(len(argv), 128)
+        self.assertTrue(all("\0" not in arg and len(arg) <= 8192 for arg in argv))
+        self.assertEqual("".join(argv[6:]), program)
+        failed_program = (
+            "import sys\nassert sys.argv==" + repr(["-c", encoded]) + "\n"
+            "raise RuntimeError('reconstructed-program-failed')\n"
+        )
+        failed_argv = trial.guest_argv(failed_program, options)
+        with tempfile.TemporaryDirectory() as directory:
+            completed = subprocess.run(
+                [sys.executable, *argv[1:]], cwd=directory, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5,
+            )
+            failed = subprocess.run(
+                [sys.executable, *failed_argv[1:]], cwd=directory, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5,
+            )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stderr, "")
+        self.assertEqual(json.loads(completed.stdout), {
+            "argv": ["-c", encoded], "sha256": hashlib.sha256(payload.encode("utf-8")).hexdigest(),
+            "source": "program-owned-source", "isolated": 1, "no_site": 1,
+        })
+        self.assertEqual(failed.returncode, 1)
+        self.assertEqual(failed.stdout, "")
+        self.assertIn("RuntimeError: reconstructed-program-failed", failed.stderr)
+        self.assertNotIn("AssertionError", failed.stderr)
+        # Reject before dispatch instead of silently widening the pinned API.
+        for source, value in (
+            (program, {"value": "x" * 8192}),
+            ("pass\n" + "\0", options),
+            (" " * (4096 * 123), options),
+        ):
+            with self.subTest(bound="nul" if "\0" in source else len(source)):
+                with self.assertRaisesRegex(AssertionError, "existing runner argv bound"):
+                    trial.guest_argv(source, value)
+
     def test_http_reply_requires_a_committed_shared_reservation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "calls.sqlite3"
