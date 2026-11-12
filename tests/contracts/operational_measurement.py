@@ -11,13 +11,19 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import time
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 
 MAX_INTEGER = 2**63 - 1
 MAX_JSON_BYTES = 5_000_000
 MAX_CAPTURE_ENTRIES = 4096
+IDLE_WITNESS_SECONDS = 60
+MAX_IDLE_LOG_BYTES = 131072
+MAX_IDLE_LOG_LINE = 4096
+MAX_IDLE_LOG_LINES = 1024
 JOURNALS = {"canonical", "controller", "lifecycle", "runtime", "dispatcher", "children", "models"}
 STORAGE_PHASES = (
     "prepared", "ready_target_zero", "idle_before_enrollment",
@@ -219,12 +225,183 @@ def _children(proc, pid):
     return children
 
 
+def idle_worker_binding(plan):
+    """Require the installed scene's one original ready worker, without HTTP."""
+    require(isinstance(plan, dict) and plan.get("schema_version") == 1
+            and type(plan.get("reserved")) is int and plan["reserved"] == 1
+            and isinstance(plan.get("repositories"), list) and len(plan["repositories"]) == 1,
+            "idle plan does not have one binding and reservation")
+    row = plan["repositories"][0]
+    require(isinstance(row, dict) and all(type(row.get(name)) is int and row[name] == 1
+            for name in ("desired_workers", "effective_target", "permitted_target", "healthy", "reserved"))
+            and row.get("enabled") is True and row.get("paused") is False
+            and isinstance(row.get("validation"), dict) and row["validation"].get("ready") is True
+            and isinstance(row.get("workers"), list) and len(row["workers"]) == 1,
+            "idle binding is not ready at unchanged target one")
+    worker = row["workers"][0]
+    require(isinstance(worker, dict) and worker.get("state") == "ready"
+            and worker.get("admission_open") is True and worker.get("termination_confirmed") is False
+            and worker.get("active_executions") == [] and worker.get("pending_operation") is None
+            and all(worker.get(name) == value for name, value in {
+                "deployment_id": plan.get("deployment_id"), "repository": row.get("repository"),
+                "profile": row.get("profile"),
+            }.items()), "idle worker changed scope, admission or execution state")
+    binding = {name: worker.get(name) for name in (
+        "deployment_id", "repository", "profile", "worker_id", "slot_id", "launch_key", "generation",
+    )} | {"binding_revision": row.get("revision")}
+    require(all(isinstance(binding[name], str) and 0 < len(binding[name]) <= 512
+                and not any(char.isspace() for char in binding[name])
+                for name in binding if name not in {"generation", "binding_revision"})
+            and integer(binding["generation"], 1) and integer(binding["binding_revision"], 1),
+            "idle worker binding is incomplete")
+    return binding
+
+
+def _idle_access_event(line, binding):
+    """Recognize only the existing Uvicorn lifecycle records; never export them."""
+    try:
+        text = line.decode("utf-8", errors="strict")
+    except UnicodeError:
+        raise AssertionError("operational measurement: invalid idle log encoding") from None
+    match = re.fullmatch(
+        r'INFO:\s+127\.0\.0\.1:([0-9]{1,5}) - "([A-Z]+) ([^ "\r\n]+) HTTP/1\.[01]" ([0-9]{3}) ([^\r\n]+)', text)
+    if match is None:
+        require("/api/workers" not in text, "malformed idle lifecycle access record")
+        return None
+    port, method, target, status, reason = match.groups()
+    try:
+        url = urlsplit(target)
+        path = unquote(url.path, encoding="utf-8", errors="strict")
+        if not path.startswith("/api/workers"):
+            return None
+        pairs = parse_qsl(url.query, keep_blank_values=True, strict_parsing=True,
+                          encoding="utf-8", errors="strict", max_num_fields=4)
+    except (ValueError, UnicodeError):
+        raise AssertionError("operational measurement: invalid idle lifecycle target") from None
+    require(not url.scheme and not url.netloc and not url.fragment
+            and 1 <= int(port) <= 65535 and method == "GET" and status == "200" and reason == "OK",
+            "idle lifecycle request was not a successful scoped GET")
+    query = dict(pairs)
+    require(len(query) == len(pairs), "duplicate idle lifecycle query key")
+    expected = {name: binding[name] for name in ("deployment_id", "repository")}
+    if path == "/api/workers/capabilities":
+        expected["profile"] = binding["profile"]
+        event = "capabilities"
+    else:
+        require(path == "/api/workers/" + binding["worker_id"], "idle lifecycle worker changed")
+        event = "worker"
+    require(query == expected, "idle lifecycle query changed scope or fields")
+    return event
+
+
+def _idle_reconciliation_witness(path, binding, manager, start, clock, sleep):
+    """A bounded passive C/O/C/O/C witness; access logs mark response start."""
+    deadline = start + IDLE_WITNESS_SECONDS * 1_000_000_000
+    previous = start
+
+    def observed_time():
+        nonlocal previous
+        now = clock()
+        elapsed(previous, now)
+        require(now < deadline, "idle reconciliation observation deadline expired")
+        previous = now
+        return now
+
+    observed_time()
+    path = Path(path)
+    descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        original = os.fstat(descriptor)
+        require(stat.S_ISREG(original.st_mode), "idle log is not a regular file")
+        offset = os.lseek(descriptor, 0, os.SEEK_END)
+        position = offset
+        discard_partial = False
+        if offset:
+            os.lseek(descriptor, offset - 1, os.SEEK_SET)
+            discard_partial = os.read(descriptor, 1) != b"\n"
+            os.lseek(descriptor, offset, os.SEEK_SET)
+
+        def unchanged_log():
+            opened, named = os.fstat(descriptor), path.lstat()
+            require(stat.S_ISREG(named.st_mode)
+                    and (opened.st_dev, opened.st_ino) == (named.st_dev, named.st_ino)
+                    == (original.st_dev, original.st_ino), "idle log identity changed")
+            require(opened.st_size >= position, "idle log was truncated")
+            require(opened.st_size - offset <= MAX_IDLE_LOG_BYTES, "idle log byte bound exceeded")
+
+        expected = ("capabilities", "worker", "capabilities", "worker", "capabilities")
+        events, buffer = [], b""
+        examined = ignored_worker = discarded_prefix = 0
+        line_start = offset
+        while True:
+            observed_time()
+            require(manager.poll() is None, "owned manager exited during idle observation")
+            unchanged_log()
+            chunk = os.read(descriptor, min(4096, MAX_IDLE_LOG_BYTES - (position - offset) + 1))
+            position += len(chunk)
+            require(position - offset <= MAX_IDLE_LOG_BYTES, "idle log byte bound exceeded")
+            buffer += chunk
+            while b"\n" in buffer:
+                raw, buffer = buffer.split(b"\n", 1)
+                end = line_start + len(raw) + 1
+                examined += 1
+                require(len(raw) + 1 <= MAX_IDLE_LOG_LINE, "idle log line bound exceeded")
+                require(examined <= MAX_IDLE_LOG_LINES, "idle log record bound exceeded")
+                observed = observed_time()
+                if discard_partial:
+                    discard_partial = False
+                    discarded_prefix = end - offset
+                else:
+                    event = _idle_access_event(raw, binding)
+                    if event is not None:
+                        if not events and event == "worker" and ignored_worker == 0:
+                            ignored_worker = 1  # The prior cycle may straddle the fresh EOF.
+                        else:
+                            require(event == expected[len(events)], "idle lifecycle request sequence changed")
+                            events.append({"event": event, "log_start_offset": line_start,
+                                           "log_end_offset": end, "reader_observed_after_start_ns": elapsed(start, observed)})
+                        if len(events) == len(expected):
+                            unchanged_log()
+                            observed_time()
+                            return {
+                                "binding": dict(binding), "events": events,
+                                "log_start_offset": offset, "log_read_end_offset": position,
+                                "log_bytes_read": position - offset, "complete_lines_examined": examined,
+                                "discarded_partial_prefix_bytes": discarded_prefix,
+                                "leading_worker_observation_ignored": ignored_worker,
+                                "observation_limit_seconds": IDLE_WITNESS_SECONDS,
+                                "timing_scope": "reader observations of complete access records, not server request or tick timestamps",
+                            }
+                line_start = end
+            require(len(buffer) < MAX_IDLE_LOG_LINE, "idle log line bound exceeded")
+            if not chunk:
+                now = observed_time()
+                sleep(min(0.1, (deadline - now) / 1_000_000_000))
+    finally:
+        os.close(descriptor)
+
+
+def confirm_idle_reconciliation(sample, before, after, counts_before, counts_after):
+    """Finalize proof only after unchanged local state and zero-call controls."""
+    require(isinstance(sample.get("reconciliation_witness"), dict)
+            and sample["reconciliation_witness"]["binding"] == before == idle_worker_binding(after),
+            "idle worker or binding changed during reconciliation observation")
+    for counts in (counts_before, counts_after):
+        require(isinstance(counts, dict) and set(counts) == {"requests", "errors"}
+                and all(type(value) is int and value == 0 for value in counts.values()),
+                "idle reconciliation requested inference or recorded a fixture error")
+    sample["fixture_counts"] = {"before": dict(counts_before), "after": dict(counts_after)}
+    sample["reconciliation_witness"]["ready_binding_unchanged"] = True
+    sample["completed_reconcile_tick_proven"] = True
+
+
 def idle_process_sample(manager, commands, working_directories, *, proc=Path("/proc"),
-                        clock=time.monotonic_ns, sleep=time.sleep):
-    """One fixed two-second window; no provider, Docker or controller invocation."""
+                        clock=time.monotonic_ns, sleep=time.sleep, log_path=None, binding=None):
+    """Passive counters, optionally spanning a complete installed watch pass."""
     roles = {"manager", "polyphony", "openjules", "zpm"}
     require(set(commands) == set(working_directories) == roles and manager.poll() is None,
             "owned manager or expected service cohort is missing")
+    require((log_path is None) == (binding is None), "idle witness configuration is incomplete")
     ticks, pages = os.sysconf("SC_CLK_TCK"), os.sysconf("SC_PAGE_SIZE")
     require(integer(ticks, 1) and integer(pages, 1), "Linux counter units are unavailable")
     start = clock()
@@ -241,12 +418,23 @@ def idle_process_sample(manager, commands, working_directories, *, proc=Path("/p
         before[role] = _read_process(proc, pid, commands[role], working_directories[role])
         require(before[role]["ppid"] == manager.pid, "service left its original manager")
     require(set(before) == roles, "service cohort is incomplete")
-    sleep(2)
+    # Every initial process counter precedes the fresh log offset. No doctor,
+    # check, provider, Docker or model request is made by this observation.
+    witness = None
+    if log_path is None:
+        sleep(2)
+    else:
+        witness = _idle_reconciliation_witness(log_path, binding, manager, start, clock, sleep)
     require(manager.poll() is None and sorted(_children(proc, manager.pid)) == sorted(child_pids),
             "manager or direct service cohort changed during idle")
     after = {role: _read_process(proc, original["pid"], commands[role], working_directories[role])
              for role, original in before.items()}
     stop = clock()
+    if witness is not None:
+        require(elapsed(start, stop) >= witness["events"][-1]["reader_observed_after_start_ns"],
+                "idle observation clock regressed after the reconciliation witness")
+        require(elapsed(start, stop) < IDLE_WITNESS_SECONDS * 1_000_000_000,
+                "idle reconciliation observation deadline expired")
     rows = {}
     for role in ("manager", "polyphony", "openjules", "zpm"):
         first, last = before[role], after[role]
@@ -262,12 +450,17 @@ def idle_process_sample(manager, commands, working_directories, *, proc=Path("/p
             "user_ticks_delta": user, "system_ticks_delta": system,
             "rss_bytes_before": rss_before, "rss_bytes_after": rss_after,
         }
-    return {
-        "nominal_sleep_seconds": 2, "observation_ns": elapsed(start, stop),
+    result = {
+        "observation_ns": elapsed(start, stop),
         "clock_ticks_per_second": ticks, "page_size_bytes": pages, "processes": rows,
         "scope": "self user/system CPU and approximate endpoint RSS; excludes descendants and unrelated host/kernel work",
         "completed_reconcile_tick_proven": False, "peak_rss_measured": False,
     }
+    if witness is None:
+        result["nominal_sleep_seconds"] = 2
+    else:
+        result["reconciliation_witness"] = witness
+    return result
 
 
 def _safe_path(bundle, path):
@@ -386,6 +579,8 @@ class Measurements:
                 "required observations are incomplete")
         require(idle["observation_ns"] > 0 and requests["request_count"] in {10, 12},
                 "required idle/request observations are invalid")
+        require("reconciliation_witness" not in idle or idle.get("completed_reconcile_tick_proven") is True,
+                "installed idle reconciliation witness was not finalized")
         require(not self.cold_session or requests.get("child_session_protocol") == "cold-clarification-v1",
                 "cold observations lack their explicit request protocol")
         deltas = []

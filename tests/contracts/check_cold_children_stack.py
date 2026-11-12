@@ -33,7 +33,9 @@ from check_stack import (
     Client, Processes, clean_environment, diagnostics, eventually, port,
     private_json, require, wait_for_capacity,
 )
-from operational_measurement import Measurements, RequestMeasurements, idle_process_sample
+from operational_measurement import (
+    Measurements, RequestMeasurements, confirm_idle_reconciliation, idle_process_sample, idle_worker_binding,
+)
 
 
 PROTOCOL = "cold-clarification-v1"
@@ -1034,13 +1036,24 @@ def run(args):
             measurements.start("target_one_converged")
             target(1)
             measurements.stop("target_one_converged")
+            idle_binding = idle_worker_binding(plan())
+            require({key: idle_binding[key] for key in ("deployment_id", "repository", "profile")}
+                    == scope | {"profile": profile}, "cold idle measurement changed its installed scope")
+            with model.lock:
+                idle_counts_before = {"requests": len(model.requests), "errors": len(model.errors)}
+                require(not any(idle_counts_before.values()), "cold idle worker requested inference")
+            # All prior doctor transports have returned and been reaped. Only
+            # the original watch issues scoped lifecycle requests here.
             idle = idle_process_sample(
                 installation, commands | {"manager": manager + ["start"]},
                 {name: Path(installation_data["sources"][name]["checkout"]) for name in commands}
                 | {"manager": bundle.resolve()},
+                log_path=processes.root / "installation.log", binding=idle_binding,
             )
+            idle_plan_after = plan()
             with model.lock:
-                require(not model.requests and not model.errors, "cold idle worker requested inference")
+                idle_counts_after = {"requests": len(model.requests), "errors": len(model.errors)}
+            confirm_idle_reconciliation(idle, idle_binding, idle_plan_after, idle_counts_before, idle_counts_after)
             storage_phase("idle_before_enrollment")
             checks.append("the sealed opt-in bundle starts the real three services with the unchanged canonical child-policy projection and zero idle inference")
             request = {
@@ -1340,7 +1353,7 @@ def run(args):
                     worker_id=worker, task_id=task, attempt_id=attempt_id,
                 )
             operational = measurements.report(idle, request_measurements)
-            checks.append("bounded cold response-prepared latency and logical context observations bind actual instructions to canonical grants; six storage phases and the separate idle PID/starttime cohort retain their original measurement limits")
+            checks.append("bounded cold response-prepared latency and logical context observations bind actual instructions to canonical grants; the idle PID/starttime interval contains a complete controller cycle with zero inference and unchanged worker; six storage phases retain their original measurement limits")
             report = {
                 "passed": True, "schema_version": 1, "deployment_id": scope["deployment_id"], "image": image,
                 "component_revisions": revisions, "component_provenance": provenance,

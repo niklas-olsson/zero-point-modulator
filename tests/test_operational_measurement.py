@@ -14,6 +14,11 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from urllib.parse import quote, urlencode
+
+from zpm.controller import Controller
+from zpm.store import Store
+from tests.support import FixtureProvider
 
 sys.path.insert(0, str(Path(__file__).parent / "contracts"))
 try:
@@ -136,6 +141,218 @@ def stat_line(pid, *, ppid=99, started=50, user=10, system=4, rss=3, state="S"):
     return str(pid) + " (name with spaces ) and ()) " + " ".join(fields) + "\n"
 
 
+def ready_idle_plan(directory):
+    # Use the real controller/store shape, with a labelled in-memory provider.
+    with Store(directory / "idle.sqlite3", "idle-deployment") as store:
+        store.enroll({"schema_version": 1, "repository": "owner/idle", "profile": "fixture", "desired_workers": 1})
+        return Controller(store, FixtureProvider(), max_workers=1).tick()
+
+
+def access_record(binding, event="capabilities", *, method="GET", status=200, extra_query=(), worker=None):
+    query = [(name, binding[name]) for name in ("deployment_id", "repository")]
+    path = "/api/workers/" + quote(worker or binding["worker_id"], safe="")
+    if event == "capabilities":
+        path = "/api/workers/capabilities"
+        query.append(("profile", binding["profile"]))
+    return ('INFO:     127.0.0.1:45231 - "' + method + " " + path + "?" + urlencode(query + list(extra_query))
+            + ' HTTP/1.1" ' + str(status) + (" OK" if status == 200 else " Service Unavailable") + "\n").encode()
+
+
+class ReaderClock:
+    def __init__(self, during=None):
+        self.now = 100
+        self.during = during
+        self.sleeps = []
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        if not 0 < seconds <= 0.1:
+            raise AssertionError("observer sleep was not bounded")
+        self.sleeps.append(seconds)
+        self.now += round(seconds * 1_000_000_000)
+        if self.during is not None:
+            self.during()
+
+
+class IdleReconciliationTests(unittest.TestCase):
+    def setUp(self):
+        temporary = TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.log = self.root / "installation.log"
+        self.plan = ready_idle_plan(self.root)
+        self.binding = measurement.idle_worker_binding(self.plan)
+        self.manager = SimpleNamespace(poll=lambda: None)
+        self.sequence = [access_record(self.binding, event) for event in (
+            "capabilities", "worker", "capabilities", "worker", "capabilities",
+        )]
+
+    def observe(self, chunks, *, prefix=b"", action=None):
+        self.log.write_bytes(prefix)
+        chunks = iter(chunks)
+
+        def during():
+            if action is not None:
+                action()
+            value = next(chunks, b"")
+            if value:
+                with self.log.open("ab") as stream:
+                    stream.write(value)
+
+        self.clock = ReaderClock(during)
+        with patch("socket.socket", side_effect=AssertionError("sampler opened a socket")), \
+                patch("subprocess.Popen", side_effect=AssertionError("sampler started a process")), \
+                patch("sqlite3.connect", side_effect=AssertionError("sampler opened SQLite")):
+            return measurement._idle_reconciliation_witness(
+                self.log, self.binding, self.manager, self.clock.now, self.clock, self.clock.sleep,
+            )
+
+    def test_complete_middle_cycle_uses_new_flushed_records_and_sanitized_offsets(self):
+        stale = b"".join(self.sequence)
+        report = self.observe(self.sequence, prefix=stale)
+        self.assertEqual([row["event"] for row in report["events"]],
+                         ["capabilities", "worker", "capabilities", "worker", "capabilities"])
+        self.assertEqual(report["log_start_offset"], len(stale))
+        self.assertEqual(report["log_bytes_read"], len(stale))
+        self.assertEqual(report["complete_lines_examined"], 5)
+        self.assertEqual(report["events"][0]["log_start_offset"], len(stale))
+        self.assertTrue(all(row["reader_observed_after_start_ns"] > 0 for row in report["events"]))
+        self.assertNotIn("HTTP", json.dumps(report))
+        self.assertNotIn(str(self.log), json.dumps(report))
+
+    def test_one_prior_worker_and_partial_prefix_never_supply_witness_events(self):
+        partial = self.sequence[0][:30]
+        report = self.observe([self.sequence[0][30:], self.sequence[1]] + self.sequence, prefix=partial)
+        self.assertEqual(report["leading_worker_observation_ignored"], 1)
+        self.assertEqual(report["discarded_partial_prefix_bytes"], len(self.sequence[0]) - len(partial))
+        self.assertEqual(len(report["events"]), 5)
+        self.assertEqual(report["events"][0]["log_start_offset"], len(self.sequence[0]) + len(self.sequence[1]))
+
+    def test_old_records_or_two_capabilities_cannot_complete_proof(self):
+        for records in ([], self.sequence[:3], self.sequence[:4]):
+            with self.subTest(length=len(records)), self.assertRaisesRegex(AssertionError, "deadline"):
+                self.observe(records, prefix=b"".join(self.sequence))
+            self.assertEqual(self.clock.now, 60_000_000_100)
+
+    def test_wrong_status_scope_worker_method_or_query_cannot_be_filtered_out(self):
+        wrong_scope = self.binding | {"deployment_id": "other"}
+        records = [
+            access_record(self.binding, status=503), access_record(self.binding, method="POST"),
+            access_record(wrong_scope), access_record(self.binding, "worker", worker="another-worker"),
+            access_record(self.binding, extra_query=[("repository", self.binding["repository"])]),
+            access_record(self.binding, extra_query=[("unknown", "value")]),
+            access_record(self.binding, "worker", extra_query=[("profile", self.binding["profile"])]),
+            self.sequence[0].replace(b"INFO:", b"not-an-access-record:"),
+        ]
+        for record in records:
+            with self.subTest(record=record), self.assertRaises(AssertionError):
+                self.observe([self.sequence[0], record] + self.sequence[1:])
+
+    def test_duplicate_leading_worker_or_middle_capability_refuses(self):
+        for records in ([self.sequence[1], self.sequence[1]] + self.sequence,
+                        [self.sequence[0], self.sequence[0]] + self.sequence[1:]):
+            with self.subTest(records=records[:2]), self.assertRaisesRegex(AssertionError, "sequence"):
+                self.observe(records)
+
+    def test_reordered_valid_query_pairs_and_unrelated_authority_records_are_safe(self):
+        def reordered(record):
+            prefix, tail = record.split(b"?", 1)
+            query, suffix = tail.split(b" HTTP/", 1)
+            return prefix + b"?" + b"&".join(reversed(query.split(b"&"))) + b" HTTP/" + suffix
+        noise = b'INFO:     127.0.0.1:45122 - "GET /managed/snapshot HTTP/1.1" 200 OK\n'
+        report = self.observe([noise + reordered(record) for record in self.sequence])
+        self.assertEqual(report["complete_lines_examined"], 10)
+        self.assertEqual(len(report["events"]), 5)
+
+    def test_complete_records_can_span_multiple_reads(self):
+        payload = b"".join(self.sequence)
+        report = self.observe([payload[:11], payload[11:70], payload[70:-1], payload[-1:]])
+        self.assertEqual(report["log_bytes_read"], len(payload))
+        self.assertEqual(len(report["events"]), 5)
+
+    def test_continuing_irrelevant_traffic_never_renews_cutoff(self):
+        with self.assertRaisesRegex(AssertionError, "deadline"):
+            self.observe([b"unrelated\n"] * 600)
+        self.assertEqual(self.clock.now, 60_000_000_100)
+
+    def test_log_truncation_or_replacement_cannot_reuse_an_offset(self):
+        def truncate():
+            self.log.write_bytes(b"")
+        def replace():
+            self.log.rename(self.root / "old.log")
+            self.log.write_bytes(b"different inode\n")
+        for action in (truncate, replace):
+            with self.subTest(action=action.__name__), self.assertRaisesRegex(AssertionError, "truncated|identity"):
+                self.observe([], prefix=b"old line\n", action=action)
+
+    def test_symlink_and_special_file_are_rejected_without_blocking(self):
+        target = self.root / "target"
+        target.write_bytes(b"")
+        self.log.symlink_to(target)
+        clock = ReaderClock()
+        with self.assertRaises(OSError):
+            measurement._idle_reconciliation_witness(self.log, self.binding, self.manager, clock.now, clock, clock.sleep)
+        self.log.unlink()
+        os.mkfifo(self.log)
+        with self.assertRaisesRegex(AssertionError, "regular"):
+            measurement._idle_reconciliation_witness(self.log, self.binding, self.manager, clock.now, clock, clock.sleep)
+
+    def test_byte_line_and_record_bounds_apply_before_success(self):
+        for payload, reason in (
+            (b"x" * (measurement.MAX_IDLE_LOG_BYTES + 1), "byte"),
+            (b"x" * measurement.MAX_IDLE_LOG_LINE, "line"),
+            (b"x\n" * (measurement.MAX_IDLE_LOG_LINES + 1), "record"),
+        ):
+            with self.subTest(reason=reason), self.assertRaisesRegex(AssertionError, reason + " bound"):
+                self.observe([payload + b"".join(self.sequence)])
+
+    def test_dead_manager_and_regressed_clock_are_not_success(self):
+        with self.assertRaisesRegex(AssertionError, "manager exited"):
+            self.observe([], action=lambda: setattr(self.manager, "poll", lambda: 1))
+        self.manager.poll = lambda: None
+        self.log.write_bytes(b"")
+        with self.assertRaisesRegex(AssertionError, "monotonic"):
+            measurement._idle_reconciliation_witness(self.log, self.binding, self.manager, 100, lambda: 99, lambda _: None)
+
+    def test_finalization_requires_exact_original_binding_and_zero_counts(self):
+        witness = self.observe(self.sequence)
+        sample = {"reconciliation_witness": witness, "completed_reconcile_tick_proven": False}
+        for changes in ({"worker_id": "replacement"}, {"generation": 2}, {"launch_key": "replacement"},
+                        {"state": "busy", "active_executions": ["task"]}, {"pending_operation": "drain"}):
+            after = deepcopy(self.plan)
+            after["repositories"][0]["workers"][0].update(changes)
+            with self.subTest(changes=changes), self.assertRaises(AssertionError):
+                measurement.confirm_idle_reconciliation(sample, self.binding, after,
+                    {"requests": 0, "errors": 0}, {"requests": 0, "errors": 0})
+            self.assertFalse(sample["completed_reconcile_tick_proven"])
+        for counts in ({"requests": 1, "errors": 0}, {"requests": 0, "errors": 1},
+                       {"requests": False, "errors": 0}, {"requests": 0}):
+            with self.subTest(counts=counts), self.assertRaises(AssertionError):
+                measurement.confirm_idle_reconciliation(sample, self.binding, self.plan,
+                    {"requests": 0, "errors": 0}, counts)
+        measurement.confirm_idle_reconciliation(sample, self.binding, self.plan,
+            {"requests": 0, "errors": 0}, {"requests": 0, "errors": 0})
+        self.assertTrue(sample["completed_reconcile_tick_proven"])
+        self.assertEqual(sample["fixture_counts"], {"before": {"requests": 0, "errors": 0},
+                                                    "after": {"requests": 0, "errors": 0}})
+
+    def test_non_idle_or_multiple_binding_plan_is_refused(self):
+        for change in (
+            lambda p: p.update(reserved=2),
+            lambda p: p["repositories"].append(deepcopy(p["repositories"][0])),
+            lambda p: p["repositories"][0].update(revision=0),
+            lambda p: p["repositories"][0].update(desired_workers=0),
+            lambda p: p["repositories"][0]["validation"].update(ready=False),
+            lambda p: p["repositories"][0]["workers"][0].update(admission_open=False),
+        ):
+            value = deepcopy(self.plan)
+            change(value)
+            with self.assertRaises(AssertionError):
+                measurement.idle_worker_binding(value)
+
+
 class ProcessMeasurementTests(unittest.TestCase):
     def setUp(self):
         temporary = TemporaryDirectory()
@@ -219,6 +436,100 @@ class ProcessMeasurementTests(unittest.TestCase):
         self.reset_cohort()
         with patch.object(measurement.os, "sysconf", return_value=True), self.assertRaises(AssertionError):
             measurement.idle_process_sample(self.manager, self.commands, self.directories, proc=self.proc)
+
+    def test_every_cpu_interval_contains_the_new_complete_witness(self):
+        log = self.root / "installation.log"
+        log.write_bytes(b"")
+        plan = ready_idle_plan(self.root)
+        binding = measurement.idle_worker_binding(plan)
+        records = [access_record(binding, event) for event in ("capabilities", "worker", "capabilities", "worker", "capabilities")]
+        pending = iter(records)
+        order = []
+
+        def during():
+            record = next(pending)
+            order.append("log")
+            with log.open("ab") as stream:
+                stream.write(record)
+
+        clock = ReaderClock(during)
+        actual_read = measurement._read_process
+
+        def read_process(*args):
+            order.append("counter")
+            if len(order) <= 4:
+                with log.open("ab") as stream:
+                    stream.write(b"".join(records))  # Old evidence at every initial counter.
+            else:
+                self.assertEqual(order[4:9], ["log"] * 5)
+            return actual_read(*args)
+
+        with patch.object(measurement, "_read_process", side_effect=read_process):
+            sample = measurement.idle_process_sample(self.manager, self.commands, self.directories, proc=self.proc,
+                clock=clock, sleep=clock.sleep, log_path=log, binding=binding)
+        self.assertEqual(order, ["counter"] * 4 + ["log"] * 5 + ["counter"] * 4)
+        self.assertEqual(sample["reconciliation_witness"]["log_start_offset"], 4 * sum(map(len, records)))
+        self.assertFalse(sample["completed_reconcile_tick_proven"])
+        measurement.confirm_idle_reconciliation(sample, binding, plan, {"requests": 0, "errors": 0},
+                                                {"requests": 0, "errors": 0})
+        self.assertTrue(sample["completed_reconcile_tick_proven"])
+
+    def test_initial_and_final_counter_collection_share_the_same_cutoff(self):
+        log = self.root / "installation.log"
+        log.write_bytes(b"")
+        binding = measurement.idle_worker_binding(ready_idle_plan(self.root))
+        for after in (False, True):
+            records = b"".join(access_record(binding, event) for event in (
+                "capabilities", "worker", "capabilities", "worker", "capabilities",
+            ))
+
+            def during():
+                with log.open("ab") as stream:
+                    stream.write(records)
+
+            clock = ReaderClock(during)
+            calls = 0
+            actual_read = measurement._read_process
+
+            def read_process(*args):
+                nonlocal calls
+                calls += 1
+                if calls == (5 if after else 1):
+                    clock.now += 60_000_000_000
+                return actual_read(*args)
+
+            with self.subTest(after=after), patch.object(measurement, "_read_process", side_effect=read_process):
+                with self.assertRaisesRegex(AssertionError, "deadline"):
+                    measurement.idle_process_sample(self.manager, self.commands, self.directories, proc=self.proc,
+                        clock=clock, sleep=clock.sleep, log_path=log, binding=binding)
+
+    def test_clock_regression_after_witness_cannot_export_impossible_interval(self):
+        log = self.root / "installation.log"
+        log.write_bytes(b"")
+        binding = measurement.idle_worker_binding(ready_idle_plan(self.root))
+        records = b"".join(access_record(binding, event) for event in (
+            "capabilities", "worker", "capabilities", "worker", "capabilities",
+        ))
+
+        def during():
+            with log.open("ab") as stream:
+                stream.write(records)
+
+        clock = ReaderClock(during)
+        calls = 0
+        actual_read = measurement._read_process
+
+        def read_process(*args):
+            nonlocal calls
+            calls += 1
+            if calls == 5:
+                clock.now = 100  # Back before the witnessed C3, after every initial counter.
+            return actual_read(*args)
+
+        with patch.object(measurement, "_read_process", side_effect=read_process), \
+                self.assertRaisesRegex(AssertionError, "regressed after"):
+            measurement.idle_process_sample(self.manager, self.commands, self.directories, proc=self.proc,
+                clock=clock, sleep=clock.sleep, log_path=log, binding=binding)
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "Linux /proc ownership fixture")
     def test_real_owned_process_cohort_uses_linux_counters(self):
