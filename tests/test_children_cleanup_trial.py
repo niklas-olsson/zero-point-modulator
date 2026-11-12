@@ -3,11 +3,13 @@
 from contextlib import ExitStack
 from copy import deepcopy
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import sqlite3
 import sys
+import tarfile
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import threading
@@ -17,6 +19,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent / "contracts"))
 try:
     import check_cleanup as cleanup
+    import check_managed_public_stack as public_trial
 finally:
     sys.path.pop(0)
 
@@ -201,7 +204,7 @@ class CleanupEvidenceTests(unittest.TestCase):
                     with self.assertRaises(AssertionError):
                         cleanup.owned_resources(self.worker)
 
-    def exercise_phase(self, *, fail=None, cleanup_failure=False, stored_progress=DEFAULT_PROGRESS):
+    def exercise_phase(self, *, fail=None, cleanup_failure=False, stored_progress=DEFAULT_PROGRESS, manifest_evidence=None):
         events, requests, authority_reads = [], [], []
         processes = SimpleNamespace(running={})
 
@@ -251,7 +254,7 @@ class CleanupEvidenceTests(unittest.TestCase):
             try:
                 result = cleanup.qualify_owned_cleanup(self.bundle, {"polyphony": "original-polyphony", "openjules": "original-openjules"},
                     self.scope, self.worker, self.idle, {}, processes, self.artifacts, canonical,
-                    canonical_proof=self.canonical_proof)
+                    canonical_proof=self.canonical_proof, **(manifest_evidence or {}))
             finally:
                 self.assertEqual(events[-1], ("stop", "cleanup-authority"))
                 self.assertEqual(processes.running, {})
@@ -307,6 +310,273 @@ class CleanupEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "controlled canonical failure") as caught:
             self.exercise_phase(fail="verification", cleanup_failure=True)
         self.assertEqual(caught.exception.__notes__, ["cleanup could not reap its temporary owned authority"])
+
+
+    def public_capture(self):
+        # Literal projection fixture. The installed public reader separately
+        # derives and validates this shape from the actual frozen six tables.
+        extension = {
+            "schema_version": 1, "protocol": "managed-public-pull-v1",
+            "topic": "cleanup-public-fixture", "snapshot_sha256": "c" * 64,
+            "actors": [{"role": "root", "binding_digest": "d" * 64,
+                        "status": "closed", "admission_closed": True}],
+            "slots": [], "records": [], "counts": {"actors": 1, "slots": 0},
+        }
+        original = json.dumps(json.loads(self.receipt["manifest"]), sort_keys=True, separators=(",", ":"))
+        self.receipt = self.receipt | {"manifest": original}
+        # Keep an actual connection open so these committed rows remain in WAL.
+        connection = sqlite3.connect(self.paths["runtime"])
+        self.addCleanup(connection.close)
+        self.assertEqual(connection.execute("PRAGMA journal_mode=WAL").fetchone()[0], "wal")
+        connection.execute("UPDATE workers SET receipt=? WHERE worker_id=?", (json.dumps(self.receipt), self.worker))
+        connection.commit()
+        self.assertGreater(Path(str(self.paths["runtime"]) + "-wal").stat().st_size, 0)
+        effective = json.loads(original) | {
+            "managed_public_v1": extension,
+            "managed_public_original_manifest_sha256": hashlib.sha256(original.encode()).hexdigest(),
+        }
+        self.artifacts = self.artifacts | {
+            "manifest": json.dumps(effective, sort_keys=True, separators=(",", ":"), allow_nan=False),
+        }
+        return original, extension
+
+    def test_public_extension_joins_retained_original_bytes_and_cleanup_replay(self):
+        ordinary = self.original_capture()
+        self.assertNotIn("runtime_manifest", ordinary)
+        original, extension = self.public_capture()
+        before = cleanup.retained_journals(self.paths, self.worker)
+        # Omission deliberately retains the original strict equality path.
+        with self.assertRaisesRegex(AssertionError, "local execution receipt differs"):
+            self.original_capture()
+        captured = cleanup.original_capture(
+            self.paths, self.worker, self.scope, self.artifacts, public_extension=extension,
+        )
+        self.assertEqual(captured["runtime_manifest"], original)
+        self.assertEqual({key: value for key, value in captured.items() if key != "runtime_manifest"}, ordinary)
+        self.assertEqual(cleanup.retained_journals(self.paths, self.worker), before)
+        witness = self.exercise_phase(manifest_evidence={
+            "runtime_manifest": captured["runtime_manifest"], "public_extension": extension,
+        })
+        self.assertEqual(witness["runtime_manifest"], original)
+        self.assertEqual(cleanup.retained_journals(self.paths, self.worker), before)
+        with sqlite3.connect(self.paths["runtime"]) as database:
+            receipt = json.loads(database.execute(
+                "SELECT receipt FROM workers WHERE worker_id=?", (self.worker,),
+            ).fetchone()[0])
+        self.assertEqual(receipt, self.receipt)
+        self.assertEqual(receipt["manifest"], original)
+        self.assertNotEqual(receipt["manifest"], self.artifacts["manifest"])
+        self.assertNotIn("runtime_manifest", witness["report"])
+        self.assertEqual(witness["report"]["retained_archive"], self.archive_id)
+        self.assertIs(witness["report"]["canonical_artifacts_unchanged"], True)
+
+    def test_public_join_rejects_changed_original_hash_fields_and_extension(self):
+        original, extension = self.public_capture()
+        effective = json.loads(self.artifacts["manifest"])
+        altered = {
+            "wrong original byte hash": effective | {"managed_public_original_manifest_sha256": "f" * 64},
+            "extra ordinary field": effective | {"caller_override": True},
+            "changed ordinary field": effective | {"archive_bytes": self.archive_id["bytes"] + 1},
+            "missing ordinary field": {key: value for key, value in effective.items() if key != "container_id"},
+            "wrong frozen extension": effective | {"managed_public_v1": extension | {"snapshot_sha256": "e" * 64}},
+            "boolean integer alias": effective | {"managed_public_v1": extension | {"schema_version": True}},
+            "extra nested extension field": effective | {"managed_public_v1": extension | {"caller_override": True}},
+        }
+        before = cleanup.retained_journals(self.paths, self.worker)
+        for name, value in altered.items():
+            with self.subTest(name=name), self.assertRaisesRegex(AssertionError, "exact original and frozen extension"):
+                cleanup.original_capture(
+                    self.paths, self.worker, self.scope,
+                    self.artifacts | {"manifest": json.dumps(value, sort_keys=True, separators=(",", ":"))},
+                    runtime_manifest=original, public_extension=extension,
+                )
+            self.assertEqual(cleanup.retained_journals(self.paths, self.worker), before)
+        # A caller-supplied replacement cannot substitute for the actual row.
+        changed = json.dumps(json.loads(original) | {"caller_override": True},
+                             sort_keys=True, separators=(",", ":"))
+        coherent = json.loads(changed) | {
+            "managed_public_v1": extension,
+            "managed_public_original_manifest_sha256": hashlib.sha256(changed.encode()).hexdigest(),
+        }
+        with self.assertRaisesRegex(AssertionError, "retained original manifest changed"):
+            cleanup.original_capture(
+                self.paths, self.worker, self.scope,
+                self.artifacts | {"manifest": json.dumps(coherent, sort_keys=True, separators=(",", ":"))},
+                runtime_manifest=changed, public_extension=extension,
+            )
+        # A later actual row rewrite cannot replace the original frozen bytes,
+        # even when both that row and the proposed effective manifest agree.
+        replacement = self.receipt | {"manifest": changed}
+        self.update("runtime", "UPDATE workers SET receipt=? WHERE worker_id=?", (json.dumps(replacement), self.worker))
+        rewritten = cleanup.retained_journals(self.paths, self.worker)
+        with self.assertRaisesRegex(AssertionError, "retained original manifest changed"):
+            cleanup.original_capture(
+                self.paths, self.worker, self.scope,
+                self.artifacts | {"manifest": json.dumps(coherent, sort_keys=True, separators=(",", ":"))},
+                runtime_manifest=original, public_extension=extension,
+            )
+        self.assertEqual(cleanup.retained_journals(self.paths, self.worker), rewritten)
+        self.update("runtime", "UPDATE workers SET receipt=? WHERE worker_id=?", (json.dumps(self.receipt), self.worker))
+        self.assertEqual(cleanup.retained_journals(self.paths, self.worker), before)
+
+    def test_public_join_requires_bounded_unambiguous_original_and_exact_effective_bytes(self):
+        original, extension = self.public_capture()
+        cases = {
+            "duplicate original field": '{"worker_id":"foreign","worker_id":"captured-worker"}',
+            "duplicate nested field": '{"nested":{"x":1,"x":2}}',
+            "nonfinite original": '{"x":NaN}',
+            "overflowed original": '{"x":1e999}',
+            "raw surrogate": '{"x":"\ud800"}',
+            "not an object": "[]",
+            "oversized original": " " * (cleanup.MAX_PUBLIC_MANIFEST_BYTES + 1),
+            "noncanonical original": original + "\n",
+            "already decorated extension": json.dumps(json.loads(original) | {"managed_public_v1": None},
+                                                      sort_keys=True, separators=(",", ":")),
+            "already decorated hash": json.dumps(
+                json.loads(original) | {"managed_public_original_manifest_sha256": "0" * 64},
+                sort_keys=True, separators=(",", ":")),
+        }
+        for name, value in cases.items():
+            with self.subTest(name=name):
+                replacement = self.receipt | {"manifest": value}
+                self.update("runtime", "UPDATE workers SET receipt=? WHERE worker_id=?", (json.dumps(replacement), self.worker))
+                before = cleanup.retained_journals(self.paths, self.worker)
+                with self.assertRaises(AssertionError):
+                    cleanup.original_capture(
+                        self.paths, self.worker, self.scope, self.artifacts, public_extension=extension,
+                    )
+                self.assertEqual(cleanup.retained_journals(self.paths, self.worker), before)
+        self.update("runtime", "UPDATE workers SET receipt=? WHERE worker_id=?", (json.dumps(self.receipt), self.worker))
+        for value in (self.artifacts["manifest"] + "\n", json.dumps(json.loads(self.artifacts["manifest"]), indent=2)):
+            with self.subTest(effective=value[:30]), self.assertRaisesRegex(AssertionError, "exact original and frozen extension"):
+                cleanup.original_capture(
+                    self.paths, self.worker, self.scope, self.artifacts | {"manifest": value},
+                    runtime_manifest=original, public_extension=extension,
+                )
+        self.assertEqual(cleanup.original_capture(
+            self.paths, self.worker, self.scope, self.artifacts,
+            runtime_manifest=original, public_extension=extension,
+        )["runtime_manifest"], original)
+
+    def test_public_join_keeps_patch_log_archive_and_original_scope_checks(self):
+        original, extension = self.public_capture()
+        for key, value in (
+            ("patch", "rewritten private patch"), ("log", "rewritten private log"),
+            ("termination_confirmed", 1), ("artifacts_captured", False), ("launch_fenced", False),
+            ("capture_path", str(self.archive.parent / "foreign.tar")), ("capture_sha256", "f" * 64),
+        ):
+            with self.subTest(key=key):
+                self.update("runtime", "UPDATE workers SET receipt=? WHERE worker_id=?",
+                            (json.dumps(self.receipt | {key: value}), self.worker))
+                with self.assertRaises(AssertionError):
+                    cleanup.original_capture(
+                        self.paths, self.worker, self.scope, self.artifacts,
+                        runtime_manifest=original, public_extension=extension,
+                    )
+        self.update("runtime", "UPDATE workers SET receipt=? WHERE worker_id=?", (json.dumps(self.receipt), self.worker))
+        with self.assertRaisesRegex(AssertionError, "scope or schema"):
+            cleanup.original_capture(
+                self.paths, self.worker, self.scope | {"deployment_id": "foreign"}, self.artifacts,
+                runtime_manifest=original, public_extension=extension,
+            )
+        saved = self.archive.read_bytes()
+        self.archive.write_bytes(b"changed retained archive")
+        with self.assertRaisesRegex(AssertionError, "archive differs"):
+            cleanup.original_capture(
+                self.paths, self.worker, self.scope, self.artifacts,
+                runtime_manifest=original, public_extension=extension,
+            )
+        self.archive.write_bytes(saved)
+        self.assertEqual(cleanup.original_capture(
+            self.paths, self.worker, self.scope, self.artifacts,
+            runtime_manifest=original, public_extension=extension,
+        )["archive_identity"], self.archive_id)
+
+    def test_public_cleanup_refuses_incomplete_or_changed_pair_before_owned_effects(self):
+        original, extension = self.public_capture()
+        cases = (
+            {"runtime_manifest": original},
+            {"public_extension": extension},
+            {"runtime_manifest": original + "\n", "public_extension": extension},
+            {"runtime_manifest": original, "public_extension": extension | {"snapshot_sha256": "e" * 64}},
+        )
+        for evidence in cases:
+            with self.subTest(fields=sorted(evidence)), patch("zpm.deployment.verify", return_value={"valid": True}), patch.object(
+                    cleanup, "owned_resources", side_effect=AssertionError("unexpected Docker observation")) as resources, patch.object(
+                    cleanup.subprocess, "run", side_effect=AssertionError("unexpected installed CLI")) as execute, patch.object(
+                    cleanup, "eventually", side_effect=AssertionError("unexpected canonical service")) as authority:
+                processes = SimpleNamespace(running={})
+                before = cleanup.retained_journals(self.paths, self.worker)
+                with self.assertRaisesRegex(AssertionError, "cleanup (public|effective|retained)"):
+                    cleanup.qualify_owned_cleanup(
+                        self.bundle, {}, self.scope, self.worker, self.idle, {}, processes, self.artifacts,
+                        lambda: self.fail("unexpected canonical callback"), canonical_proof=self.canonical_proof,
+                        **evidence,
+                    )
+                resources.assert_not_called()
+                execute.assert_not_called()
+                authority.assert_not_called()
+                self.assertEqual(cleanup.retained_journals(self.paths, self.worker), before)
+
+    def test_public_archive_phase_reuses_frozen_original_bytes_before_commands(self):
+        children = {"left": "child-left", "right": "child-right"}
+        entries = {
+            "workspace/run/repo/left.txt": (b"left implemented\n", 65532),
+            "workspace/run/repo/right.txt": (b"right implemented\n", 65532),
+        }
+        for index, (actor, child_id) in enumerate(children.items()):
+            prefix = "workspace/children/" + child_id + "/run/repo/"
+            entries[prefix + ".git/HEAD"] = (b"original-head\n", 60000 + index)
+            for name in ("left", "right"):
+                entries[prefix + name + ".txt"] = (
+                    (name + " implemented\n").encode() if actor == name else b"old\n", 60000 + index,
+                )
+        with tarfile.open(self.archive, "w") as archive:
+            for name, (content, uid) in entries.items():
+                item = tarfile.TarInfo(name)
+                item.size, item.uid = len(content), uid
+                archive.addfile(item, io.BytesIO(content))
+        self.archive_id = {"sha256": hashlib.sha256(self.archive.read_bytes()).hexdigest(),
+                           "bytes": self.archive.stat().st_size}
+        manifest = json.loads(self.receipt["manifest"]) | {
+            "archive_sha256": self.archive_id["sha256"], "archive_bytes": self.archive_id["bytes"],
+        }
+        self.receipt = self.receipt | {"manifest": json.dumps(manifest), "capture_sha256": self.archive_id["sha256"]}
+        original, extension = self.public_capture()
+        root = self.bundle.parent / "public-archive-fixture"
+        (root / "source").mkdir(parents=True)
+        for name in ("left", "right"):
+            (root / "source" / (name + ".txt")).write_bytes(b"old\n")
+        context = {"root": root, "scope": self.scope, "retained_paths": self.paths,
+                   "processes": SimpleNamespace(running={})}
+        captured = {
+            "artifacts": self.artifacts, "manifest": json.loads(self.artifacts["manifest"]),
+            "original_runtime_manifest": original,
+            "attempt": {"captured_artifacts": {"patch": hashlib.sha256(self.artifacts["patch"].encode()).hexdigest()}},
+        }
+        peer = SimpleNamespace(checkouts={"zpm": root})
+        # Command observers deliberately do not claim Git, guest or Docker work.
+        with patch.object(public_trial, "command", return_value=b"") as commands:
+            result = public_trial.archive_and_patch_evidence(
+                context, SimpleNamespace(child_ids=children), {"worker_id": self.worker}, captured, object(), peer,
+            )
+            self.assertEqual([call.args[1] for call in commands.call_args_list], [
+                "managed-public-artifact-clone", "managed-public-artifact-check",
+                "managed-public-artifact-apply", "managed-public-artifact-test",
+            ])
+            self.assertEqual(result["archive_sha256"], self.archive_id["sha256"])
+            self.assertEqual((root / "captured-root.patch").read_text(), self.artifacts["patch"])
+            commands.reset_mock()
+            with self.assertRaisesRegex(AssertionError, "retained original manifest changed"):
+                public_trial.archive_and_patch_evidence(
+                    context, SimpleNamespace(child_ids=children), {"worker_id": self.worker},
+                    captured | {"original_runtime_manifest": original + "\n"}, object(), peer,
+                )
+            commands.assert_not_called()
+        self.assertEqual(cleanup.original_capture(
+            self.paths, self.worker, self.scope, self.artifacts,
+            runtime_manifest=original, public_extension=extension,
+        )["archive_identity"], self.archive_id)
 
 
 if __name__ == "__main__":

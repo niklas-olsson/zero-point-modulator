@@ -298,7 +298,7 @@ credential exclusively in the trusted OpenJules process.
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/74429feda1f3991ce528678b74d6db5e3b3b250c).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/c925dee46765d2b22c9e38b55f614fc29f8068c1).
 A valid generic source pin alone is insufficient. Require the component's CI and
 all eight ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
@@ -406,7 +406,7 @@ exact optional loopback bootstrap endpoint. Its
 passed 726 tests and four subtests on both Python versions with all Docker gates
 enabled and no skips.
 
-The operative OpenJules revision is
+The preceding cold-capable OpenJules revision was
 `74429feda1f3991ce528678b74d6db5e3b3b250c`, tree
 `9694e7450f12da3c162c62d220f782914902d7be`, from
 [OpenJules #33](https://github.com/niklas-olsson/OpenJules/pull/33).
@@ -423,8 +423,9 @@ default child command and at least two child slots. It does not enable itself
 when the option is omitted, change the canonical four-field child policy, or
 reuse a physical child. The [installed cold trial](managed-children-stack-trial.md#explicit-cold-clarification)
 requires two fresh grants, separate charges and captures, the frozen predecessor
-and earlier deadline, retained capacity, cleanup and restart. Its three-report
-child job also retains the unchanged default and initial-outcome scenes.
+and earlier deadline, retained capacity, cleanup and restart. The child job
+retains its default, initial-outcome, cold and acknowledged-failed scenes; the
+managed-public attachment supplies a separate fifth report.
 
 The original installed public-discussion delivery is ZPM
 `43a18ac50b1e2798ff37b8a8113731af32769872`, paired with OpenJules
@@ -437,6 +438,42 @@ the original signed proposal, decline and follow-up through replay, reaped all
 44 retained leaders and preserved protected installation state. This evidence
 stays bound to that preceding set; it is not cold-child discussion evidence.
 
+The selected OpenJules revision is
+`c925dee46765d2b22c9e38b55f614fc29f8068c1`, tree
+`aefcaea19ad77963d5136b11056ad98ad9132a9e`, from
+[OpenJules #42](https://github.com/niklas-olsson/OpenJules/pull/42).
+Its [head and relevant-base qualification](https://github.com/niklas-olsson/OpenJules/pull/42#issuecomment-6818893339)
+and [actual-main run](https://github.com/niklas-olsson/OpenJules/actions/runs/43184843146)
+passed the complete 1285-test suite and 4 subtests on both supported
+Python versions with the required Docker gates. The
+linked component qualification record retains every earlier failed head, its
+complete native logs and each separately reviewed correction. Later passing
+results do not relabel those failed attempts. These are component results with
+explicitly named authority, provider and conversation fixtures.
+
+This runtime connects the approved managed-public descriptor to the original
+root and child Unix identities, shared inference allowance, restricted
+conversation profile and frozen canonical capture. Omitted policy keeps the
+existing behavior. The [installed managed-public scene](managed-children-stack-trial.md#managed-public-discussion-during-private-work)
+requires real installed Polyphony authority and transport, two confined children,
+an independently running peer, original signed effects, scoped private-read
+controls, owned cleanup and full service reopening. Its report and the complete
+eight-job workflow are required for every new installed set. Neither component
+fixtures nor the independent public-peer scene substitute for that result.
+
+The preceding fully qualified installed set is ZPM
+`55dfd6a8f275a6b649fda86b2fe6f48b2321daf5` with OpenJules
+`74429feda1f3991ce528678b74d6db5e3b3b250c` and Polyphony
+`0cf8b4772b04269505e3e1cd41324e41409b80f9`. Its
+[head, relevant-base and actual-main evidence](https://github.com/niklas-olsson/zero-point-modulator/pull/36#issuecomment-6816512407)
+contains all 24 successful jobs; [actual-main run43165296956](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43165296956)
+confirms the same 273 passing test identities on both Python versions, four child
+scenes and the independent public-peer scene. It preserves the unchanged
+qualified runtime from `3abded40` and adds only the historical cold-measurement
+record and its link. Earlier results retain their original revisions. These
+reports do not qualify the new producer or close the separate completed-cycle
+measurement criterion.
+
 The unchanged positive Polyphony revision is
 `0cf8b4772b04269505e3e1cd41324e41409b80f9`, tree
 `ca53939281041c98e1d36294078d183862c71cbd`, from
@@ -445,10 +482,11 @@ It provides the separately invoked restricted public-conversation profile with
 durable signed records, bounded stdio/native transport and fixed child
 environments. The [native component qualification](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43143564993)
 passed 1320 tests without skips on the identical delivered tree. That component
-evidence is distinct from the new
-[installed public-discussion attachment](public-discussion-stack-trial.md),
+evidence is distinct from the
+[independent public-discussion attachment](public-discussion-stack-trial.md),
 which reuses the stopped managed bundle and must produce its own passing report.
-No live provider or confined-child discussion is implied.
+Those component and independent-peer results do not establish live-provider
+judgment or replace the managed root-and-child report.
 
 All normal and manual checkouts, the publisher's source assertion and the
 historical-admission probe select this operative revision. The probe retains
@@ -662,10 +700,125 @@ candidate component pins and required qualification gates. It exercises graceful
 target-zero draining while the root and both children remain active. It retains the worker reservation until
 final canonical captures exist, then verifies restart without new inference.
 
+## Opt in to a managed public discussion profile
+
+The optional `child_policy.public_discussion` block selects an approved public
+topic and a finite set of host-provided personas, instructions and invitations.
+It requires an OpenJules revision implementing `managed-public-pull-v1`, the
+matching managed-agent image, an existing `model_policy`, `outcome_protocol` set to
+`initial-v1`, the default child runner and `max_children` of at least two.
+Use a new approved profile and worker incarnation. The option cannot coexist
+with `session_protocol` in the same profile. A schema-2 installation can carry
+separate public, cold-session and omitted-option profiles.
+
+For example, add this block to that profile's existing child policy:
+
+```json
+{
+  "public_discussion": {
+    "protocol": "managed-public-pull-v1",
+    "public_approved": true,
+    "topic": "an-operator-approved-public-topic",
+    "server": {
+      "scope_key_file": "/srv/approved-public/original-scope.key"
+    },
+    "personas": {
+      "reviewer": "Contribute independent reasoning about the approved public question."
+    },
+    "instructions": {
+      "question": "Discuss the explicitly approved public question."
+    },
+    "invitations": {}
+  }
+}
+```
+
+All seven public-block fields are required. `public_approved` must be the JSON
+boolean `true`. Omitting the whole block preserves the existing policy and
+generated configuration; an explicit `null` is invalid. Raw deployment input
+and retained manifests containing this option reject duplicate JSON keys and
+nonfinite numbers before preparation or service operations.
+
+| Field | Accepted shape |
+| --- | --- |
+| `protocol` | Exactly `managed-public-pull-v1` |
+| `topic` | Nonempty text, at most 256 UTF-8 bytes, without NUL or control characters |
+| `personas` | One to three approved keys mapped to public text |
+| `instructions` | One to eight approved keys mapped to public text |
+| `invitations` | Zero or one approved key mapped to exactly `target` and `content`; target is a 16-character lowercase hexadecimal public author |
+| `server` | Original private `scope_key_file`, optional exact `scope_key_sha256` and optional literal-loopback `bootstrap` |
+
+Approval keys match `[A-Za-z0-9][A-Za-z0-9._:-]{0,63}`. Persona, instruction
+and invitation content must contain non-whitespace text and fit within 4,096
+UTF-8 bytes each. ZPM preserves their exact spelling and whitespace. The
+generated public block must also fit within 65,536 bytes of the existing
+ASCII-escaped canonical child-policy JSON. This leaves existing canonical
+fingerprints unchanged when the option is omitted.
+
+The original scope path must be canonical and absolute, with no symlink
+component. The file must belong to the effective user running these commands, have exactly
+mode 0400 or 0600 and one hard link, and contain 1–4,096 valid UTF-8 bytes without
+NUL. Preparation checks the original directory and file descriptors, reads
+bounded bytes, verifies the optional supplied SHA256, then copies those same
+checked bytes into a derived mode-0600 file under the bundle's `secrets`
+directory. It preserves trailing newlines and other valid bytes exactly.
+Normalized configuration retains only the original path and hash. Neither the
+scope value nor caller-selected Python or checkout paths enter that normalized
+server block.
+
+The generated OpenJules server selects the original installed Polyphony
+interpreter at `environments/polyphony/bin/python`, the approved immutable
+Polyphony checkout, and the sealed scope copy and hash. Each copy name binds
+the deployment, canonical repository and profile. The original virtualenv
+launch path is retained even when that executable is a symlink. Optional
+bootstrap is exactly `{"host": "127.0.0.1", "port": 41001}` with an explicit
+integer port from 1 through 65,535; no other host spelling is accepted.
+
+**Retain the original external scope file for the installation's lifetime.**
+Verify, bootstrap, start, doctor and repeated preparation require that original
+file to remain private, readable and hash-identical. Runtime conversation
+processes read the sealed copy. A missing, changed, linked or unreadable
+original or copy refuses operation and preserves the retained installation.
+Repeated preparation never rotates the scope or credentials, adopts a changed
+profile, restores a removed enrollment, or rewrites captures.
+
+Supply the root command explicitly with this fixed prefix and all three socket
+pairs. Flag order may vary, but flags cannot repeat:
+
+```json
+[
+  "python3", "-I", "-S", "/opt/openjules/managed_root_runner.py",
+  "--socket", "/run/openjules-model/model.sock",
+  "--control-socket", "/run/openjules-model/control.sock",
+  "--public-socket", "/run/openjules-model/public.sock"
+]
+```
+
+The only optional pairs are `--max-turns` with an integer from 1 through
+1,000, `--control-timeout-seconds` with a finite positive value at most 120,
+and `--verify-json` with a JSON list of at most 128 nonempty, NUL-free strings
+of at most 4,096 UTF-8 bytes each. Existing overall command bounds still apply.
+The child command remains the default trusted managed runner. ZPM does not
+rewrite an arbitrary root command to enable public tools.
+
+The option changes the complete OpenJules policy fingerprint and sealed
+configuration. Polyphony still receives only the existing child count, seconds,
+turn and capability projection, alongside its existing root requirements.
+Existing root model allowances, canonical child grants and ZPM worker capacity
+continue to bound execution. Public contributions confer no execution,
+verification or publication authority.
+
+Preparation is an offline configuration check. Qualification must exercise the
+exact producer, image and installed component set before promotion through the
+[managed-public trial](managed-children-stack-trial.md#managed-public-discussion-during-private-work).
+The independent public-discussion trial and its historical reports retain
+their recorded scope and revisions. This configuration option alone does not
+prove a managed public turn, child participation or delivery to a live peer.
+
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/74429feda1f3991ce528678b74d6db5e3b3b250c/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/c925dee46765d2b22c9e38b55f614fc29f8068c1/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -683,7 +836,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/74429feda1f3991ce528678b74d6db5e3b3b250c/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/c925dee46765d2b22c9e38b55f614fc29f8068c1/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature

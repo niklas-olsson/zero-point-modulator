@@ -24,6 +24,7 @@ SPEC_FIELDS = {"schema_version", "deployment_id", "repository", "slot_id", "gene
 VOLUME_FIELDS = ("Name", "CreatedAt", "Driver", "Scope", "Labels", "Options")
 MAX_ARCHIVE_BYTES = 16777216  # The installed controlled profile's unchanged bound.
 MAX_PROGRESS_BYTES = 65536  # One root and two child lineages in this controlled scene.
+MAX_PUBLIC_MANIFEST_BYTES = 4_000_000  # The producer's existing original/effective manifest bound.
 
 
 def journal_paths(bundle, config):
@@ -69,7 +70,56 @@ def retained_journals(paths, worker):
     return result
 
 
-def original_capture(paths, worker, scope, artifacts):
+def _public_runtime_artifacts(artifacts, runtime_manifest, public_extension):
+    """Join exact runtime bytes to the independently frozen public extension.
+
+    This is a capture oracle, not a caller-selected manifest replacement. The
+    retained runtime receipt stays original; only the canonical manifest has
+    the producer's two additional fields. All other artifact bytes must agree.
+    """
+    require(isinstance(runtime_manifest, str) and isinstance(public_extension, dict)
+            and isinstance(artifacts, dict) and set(artifacts) == {"patch", "log", "manifest"},
+            "cleanup public manifest inputs are incomplete")
+
+    def pairs(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise ValueError("duplicate manifest field")
+            value[key] = item
+        return value
+
+    def constant(_value):
+        raise ValueError("nonfinite manifest field")
+
+    try:
+        raw = runtime_manifest.encode("utf-8")
+        require(0 < len(raw) <= MAX_PUBLIC_MANIFEST_BYTES,
+                "cleanup original public manifest exceeds its bound")
+        original = json.loads(raw, object_pairs_hook=pairs, parse_constant=constant)
+        require(isinstance(original, dict), "cleanup original public manifest is not an object")
+        normalized = json.dumps(
+            original, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False,
+        ).encode("utf-8")
+        require(normalized == raw, "cleanup original public manifest is not the retained canonical bytes")
+        require(not {"managed_public_v1", "managed_public_original_manifest_sha256"} & set(original),
+                "cleanup original public manifest was already decorated")
+        effective = original | {
+            "managed_public_v1": public_extension,
+            "managed_public_original_manifest_sha256": hashlib.sha256(raw).hexdigest(),
+        }
+        encoded = json.dumps(
+            effective, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False,
+        ).encode("utf-8")
+        require(len(encoded) <= MAX_PUBLIC_MANIFEST_BYTES
+                and artifacts["manifest"] == encoded.decode("utf-8"),
+                "cleanup effective public manifest differs from its exact original and frozen extension")
+    except (TypeError, ValueError, UnicodeError, OverflowError, RecursionError):
+        raise AssertionError("cleanup public manifest cannot be normalized") from None
+    return artifacts | {"manifest": runtime_manifest}
+
+
+def original_capture(paths, worker, scope, artifacts, *, runtime_manifest=None, public_extension=None):
     with read_journal(paths["lifecycle"]) as database:
         rows = database.execute("SELECT spec FROM managed_workers WHERE worker_id=?", (worker,)).fetchall()
     require(len(rows) == 1, "cleanup lacks the original lifecycle identity")
@@ -83,9 +133,18 @@ def original_capture(paths, worker, scope, artifacts):
             "cleanup original runtime identity is absent, active or already cleaned")
     row = dict(rows[0])
     receipt = json.loads(row["receipt"])
+    runtime_artifacts = artifacts
+    if public_extension is None:
+        require(runtime_manifest is None, "cleanup original public manifest lacks its frozen extension")
+    else:
+        retained_manifest = receipt.get("manifest")
+        require(runtime_manifest is None or retained_manifest == runtime_manifest,
+                "cleanup retained original manifest changed after capture")
+        runtime_manifest = retained_manifest
+        runtime_artifacts = _public_runtime_artifacts(artifacts, runtime_manifest, public_extension)
     manifest = json.loads(artifacts["manifest"])
     require(all(receipt.get(key) is True for key in ("termination_confirmed", "artifacts_captured", "launch_fenced"))
-            and {key: receipt.get(key) for key in ("patch", "log", "manifest")} == artifacts
+            and {key: receipt.get(key) for key in ("patch", "log", "manifest")} == runtime_artifacts
             and manifest.get("worker_id") == worker and manifest.get("container_id") == row["container_id"],
             "cleanup local execution receipt differs from canonical capture")
     archive = paths["runtime"].parent / "captures" / (hashlib.sha256(worker.encode()).hexdigest() + ".tar")
@@ -94,8 +153,11 @@ def original_capture(paths, worker, scope, artifacts):
     expected = {"sha256": manifest.get("archive_sha256"), "bytes": manifest.get("archive_bytes")}
     require(type(expected["bytes"]) is int and archive_identity(archive) == expected,
             "cleanup retained archive differs from its canonical manifest")
-    return {"spec": spec, "archive": archive, "archive_identity": expected, "container": row["container_id"],
-            "volume_identity": json.loads(row["volume_identity"])}
+    result = {"spec": spec, "archive": archive, "archive_identity": expected, "container": row["container_id"],
+              "volume_identity": json.loads(row["volume_identity"])}
+    if public_extension is not None:
+        result["runtime_manifest"] = runtime_manifest  # Private caller evidence, never exported in the cleanup report.
+    return result
 
 
 def archive_identity(path):
@@ -147,7 +209,8 @@ def require_retained(paths, worker, witness):
 
 
 def qualify_owned_cleanup(bundle, source_paths, scope, worker, idle_worker, source_environment,
-                          processes, artifacts, verify_canonical, *, canonical_proof):
+                          processes, artifacts, verify_canonical, *, canonical_proof,
+                          runtime_manifest=None, public_extension=None):
     from zpm.deployment import _command, _environment, verify
 
     require("installation" not in processes.running, "cleanup requires the owned installation manager to be reaped")
@@ -155,7 +218,13 @@ def qualify_owned_cleanup(bundle, source_paths, scope, worker, idle_worker, sour
     configuration = json.loads((bundle / "manifest.json").read_text())["configuration"]
     config = json.loads((bundle / "config/openjules.json").read_text())
     paths = journal_paths(bundle, config)
-    witness = original_capture(paths, worker, scope, artifacts)
+    if runtime_manifest is None and public_extension is None:
+        witness = original_capture(paths, worker, scope, artifacts)
+    else:
+        require(runtime_manifest is not None and public_extension is not None,
+                "cleanup public capture requires its previously frozen original and extension")
+        witness = original_capture(paths, worker, scope, artifacts,
+                                   runtime_manifest=runtime_manifest, public_extension=public_extension)
     # Freeze the independently verified canonical attempt, never a post-cleanup
     # response or the mutable progress row. Canonical JSON also rejects bool/int
     # aliases, extra fields and incomplete or foreign completed receipts.

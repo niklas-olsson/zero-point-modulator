@@ -151,11 +151,264 @@ def _model_policy(value: Any) -> dict:
     return data
 
 
+def _decode_configuration_json(raw: str) -> Any:
+    """Reject ambiguous public opt-ins without changing omitted JSON behavior."""
+    duplicate = public = nonfinite = False
+
+    def pairs(items):
+        nonlocal duplicate, public
+        value = {}
+        for key, item in items:
+            public = public or key == "public_discussion"
+            duplicate = duplicate or key in value
+            value[key] = item
+        return value
+
+    def constant(value):
+        nonlocal nonfinite
+        nonfinite = True
+        return {"NaN": float("nan"), "Infinity": float("inf"), "-Infinity": float("-inf")}[value]
+
+    def floating(value):
+        nonlocal nonfinite
+        number = float(value)
+        nonfinite = nonfinite or not -float("inf") < number < float("inf")
+        return number
+
+    try:
+        value = json.loads(raw, object_pairs_hook=pairs, parse_constant=constant, parse_float=floating)
+        if public and (duplicate or nonfinite):
+            raise ConfigurationError("public discussion configuration requires unambiguous finite JSON")
+        return value
+    except ConfigurationError:
+        raise
+    except (ValueError, TypeError, RecursionError, OverflowError):
+        raise ConfigurationError("cannot read the requested deployment JSON configuration") from None
+
+
+def _public_text(value: Any, limit: int, name: str, *, nonblank: bool = True) -> str:
+    try:
+        valid = (type(value) is str and bool(value.strip() if nonblank else value) and "\x00" not in value
+                 and len(value.encode("utf-8")) <= limit)
+    except UnicodeError:
+        valid = False
+    if not valid:
+        raise ConfigurationError("public discussion " + name + " must be bounded nonempty UTF-8 text")
+    return value
+
+
+def _public_scope_directory(path: Path) -> int:
+    """Open every original directory component without following symlinks."""
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        for name in path.parts[1:]:
+            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                            dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _public_scope_file(value: Any, expected: str | None = None) -> tuple[Path, bytes]:
+    """Read one original private scope file without following or copying a race.
+
+    Both parsing and stage generation use this same bounded reader. Generation
+    writes the bytes returned by the hash-checked descriptor, never a path reread.
+    """
+    parent = descriptor = checked_parent = None
+    reason = "public discussion scope file must remain an unchanged private owned UTF-8 file"
+    try:
+        if (type(value) is not str or not value or "\x00" in value
+                or len(value.encode("utf-8")) > 4096):
+            raise ConfigurationError(reason)
+        path = Path(value)
+        if (not path.is_absolute() or path.anchor != "/" or str(path) != value
+                or ".." in path.parts):
+            raise ConfigurationError(reason)
+        # Inspect the original components and leaf before any resolution could
+        # erase a symlink. Bind all reads to this exact parent descriptor.
+        parent = _public_scope_directory(path.parent)
+        supplied = os.stat(path.name, dir_fd=parent, follow_symlinks=False)
+        if (not stat.S_ISREG(supplied.st_mode)
+                or supplied.st_uid != os.geteuid()
+                or stat.S_IMODE(supplied.st_mode) not in {0o400, 0o600}
+                or supplied.st_nlink != 1 or not 1 <= supplied.st_size <= 4096):
+            raise ConfigurationError(reason)
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+                             dir_fd=parent)
+        before = os.fstat(descriptor)
+
+        def identity(info):
+            return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns,
+                    info.st_ctime_ns, info.st_uid, info.st_mode, info.st_nlink)
+
+        if identity(before) != identity(supplied):
+            raise ConfigurationError(reason)
+        chunks = bytearray()
+        while len(chunks) <= 4096:
+            part = os.read(descriptor, 4097 - len(chunks))
+            if not part:
+                break
+            chunks.extend(part)
+        raw = bytes(chunks)
+        checked_parent = _public_scope_directory(path.parent)
+        original_parent, current_parent = os.fstat(parent), os.fstat(checked_parent)
+        if (not 1 <= len(raw) <= 4096 or len(raw) != before.st_size
+                or b"\x00" in raw or identity(os.fstat(descriptor)) != identity(before)
+                or identity(os.stat(path.name, dir_fd=parent, follow_symlinks=False)) != identity(before)
+                or (original_parent.st_dev, original_parent.st_ino)
+                != (current_parent.st_dev, current_parent.st_ino)):
+            raise ConfigurationError(reason)
+        raw.decode("utf-8")
+        actual = hashlib.sha256(raw).hexdigest()
+        if expected is not None and (type(expected) is not str
+                or re.fullmatch(r"[0-9a-f]{64}", expected) is None or expected != actual):
+            raise ConfigurationError("public discussion scope hash does not match the approved bytes")
+        return path, raw
+    except ConfigurationError:
+        raise
+    except (OSError, ValueError, UnicodeError, RuntimeError):
+        raise ConfigurationError(reason) from None
+    finally:
+        for owned in (descriptor, parent, checked_parent):
+            if owned is not None:
+                os.close(owned)
+
+
+def _public_discussion(value: Any) -> dict:
+    fields = {"protocol", "public_approved", "topic", "server", "personas", "instructions", "invitations"}
+    data = _object(value, fields, "public_discussion")
+    if type(data["protocol"]) is not str or data["protocol"] != "managed-public-pull-v1" or data["public_approved"] is not True:
+        raise ConfigurationError("public discussion requires the explicit approved managed-public-pull-v1 protocol")
+    topic = _public_text(data["topic"], 256, "topic", nonblank=False)
+    if any(ord(character) < 32 for character in topic):
+        raise ConfigurationError("public discussion topic contains a control character")
+
+    def approved_map(name, minimum, maximum):
+        values = data[name]
+        if type(values) is not dict or not minimum <= len(values) <= maximum:
+            raise ConfigurationError("public discussion " + name + " has unsupported cardinality")
+        result = {}
+        for key, text in values.items():
+            if type(key) is not str or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}", key) is None:
+                raise ConfigurationError("public discussion approval key is invalid")
+            if name == "invitations":
+                invitation = _object(text, {"target", "content"}, "public invitation")
+                target = invitation["target"]
+                if type(target) is not str or re.fullmatch(r"[0-9a-f]{16}", target) is None:
+                    raise ConfigurationError("public invitation target must be an explicit public author")
+                result[key] = {"target": target, "content": _public_text(invitation["content"], 4096, "invitation")}
+            else:
+                result[key] = _public_text(text, 4096, name)
+        return result
+
+    personas = approved_map("personas", 1, 3)
+    instructions = approved_map("instructions", 1, 8)
+    invitations = approved_map("invitations", 0, 1)
+    supplied = _object(data["server"], {"scope_key_file", "scope_key_sha256", "bootstrap"},
+                       "public discussion server", {"scope_key_file"})
+    if "scope_key_sha256" in supplied and (type(supplied["scope_key_sha256"]) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", supplied["scope_key_sha256"]) is None):
+        raise ConfigurationError("public discussion scope hash must be an exact lowercase SHA256")
+    server = {}
+    if "bootstrap" in supplied:
+        bootstrap = _object(supplied["bootstrap"], {"host", "port"}, "public discussion bootstrap")
+        if type(bootstrap["host"]) is not str or bootstrap["host"] != "127.0.0.1":
+            raise ConfigurationError("public discussion bootstrap must use the literal loopback host")
+        _number(bootstrap["port"], "public discussion bootstrap port", 1, 65535, integer=True)
+        server["bootstrap"] = {"host": bootstrap["host"], "port": bootstrap["port"]}
+    path, raw = _public_scope_file(supplied["scope_key_file"], supplied.get("scope_key_sha256"))
+    server.update(scope_key_file=str(path), scope_key_sha256=hashlib.sha256(raw).hexdigest())
+    return {"protocol": data["protocol"], "public_approved": True, "topic": topic, "server": server,
+            "personas": personas, "instructions": instructions, "invitations": invitations}
+
+
+def _public_root_command(command: list[str]) -> None:
+    reason = "public discussion requires the approved managed root command and original socket options"
+    prefix = ["python3", "-I", "-S", "/opt/openjules/managed_root_runner.py"]
+    required = {"--socket": "/run/openjules-model/model.sock",
+                "--control-socket": "/run/openjules-model/control.sock",
+                "--public-socket": "/run/openjules-model/public.sock"}
+    optional = {"--max-turns", "--control-timeout-seconds", "--verify-json"}
+    tail = command[len(prefix):]
+    if command[:len(prefix)] != prefix or len(tail) % 2:
+        raise ConfigurationError(reason)
+    options = {}
+    for flag, value in zip(tail[::2], tail[1::2]):
+        if flag not in required.keys() | optional or flag in options:
+            raise ConfigurationError(reason)
+        options[flag] = value
+    if any(options.get(flag) != value for flag, value in required.items()):
+        raise ConfigurationError(reason)
+    try:
+        if "--max-turns" in options:
+            value = options["--max-turns"]
+            if re.fullmatch(r"[0-9]+", value) is None or not 1 <= int(value) <= 1000:
+                raise ConfigurationError(reason)
+        if "--control-timeout-seconds" in options and not 0 < float(options["--control-timeout-seconds"]) <= 120:
+            raise ConfigurationError(reason)
+        if "--verify-json" in options:
+            argv = json.loads(options["--verify-json"])
+            if (type(argv) is not list or len(argv) > 128
+                    or any(type(item) is not str or not item or "\x00" in item
+                           or len(item.encode("utf-8")) > 4096 for item in argv)):
+                raise ConfigurationError(reason)
+    except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+        raise ConfigurationError(reason) from None
+
+
+def _public_scope_name(data: dict, entry: dict) -> str:
+    binding = [data["deployment_id"], entry["binding"]["repository"], entry["binding"]["profile"]]
+    digest = hashlib.sha256(json.dumps(binding, separators=(",", ":"), allow_nan=False).encode("utf-8")).hexdigest()
+    return "secrets/public-scope-" + digest + ".key"
+
+
+def _render_child_policy(data: dict, entry: dict, root: Path, final: Path) -> dict:
+    child = entry["child_policy"]
+    if "public_discussion" not in child:
+        return child
+    approved = child["public_discussion"]
+    original = approved["server"]
+    relative = _public_scope_name(data, entry)
+    server = {"python": str(final / "environments/polyphony/bin/python"),
+              "cwd": data["sources"]["polyphony"]["checkout"],
+              "scope_key_file": str(final / relative),
+              "scope_key_sha256": original["scope_key_sha256"]}
+    if "bootstrap" in original:
+        server["bootstrap"] = original["bootstrap"].copy()
+    generated = approved | {"server": server}
+    # Use the existing ChildPolicy ASCII-escaped canonical representation.
+    if len(json.dumps(generated, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+                      allow_nan=False).encode("utf-8")) > 65536:
+        raise ConfigurationError("generated public discussion policy exceeds its 65536-byte canonical bound")
+    _, raw = _public_scope_file(original["scope_key_file"], original["scope_key_sha256"])
+    _write(root / relative, raw.decode("utf-8"))
+    return child | {"public_discussion": generated}
+
+
+def _verify_public_scope_files(root: Path, data: dict, files: dict) -> dict[str, str]:
+    scopes = {}
+    for entry in _entries(data):
+        public = entry.get("child_policy", {}).get("public_discussion")
+        if public is None:
+            continue
+        relative = _public_scope_name(data, entry)
+        digest = public["server"]["scope_key_sha256"]
+        if files.get(relative) != digest:
+            raise ConfigurationError("public discussion scope copy is not bound to the original sealed hash")
+        _public_scope_file(str(root / relative), digest)
+        scopes[relative] = digest
+    return scopes
+
+
 def _child_policy(value: Any, runtime: dict, root_seconds: float, root_capabilities: list[str]) -> dict:
     required = {"max_children", "max_child_seconds", "max_child_turns", "capabilities"}
     defaults = {"uid_start": 60000, "command": ["python3", "-I", "-S", "/opt/openjules/managed_runner.py"],
                 "verify_argv": [], "max_result_bytes": 4_000_000}
-    data = defaults | _object(value, required | set(defaults) | {"outcome_protocol", "session_protocol"}, "child_policy", required)
+    data = defaults | _object(value, required | set(defaults) | {"outcome_protocol", "session_protocol", "public_discussion"}, "child_policy", required)
     count = _number(data["max_children"], "child max_children", 1, 64, integer=True)
     seconds = data["max_child_seconds"]
     if type(seconds) not in {int, float} or not 0 < seconds <= min(86400, root_seconds):
@@ -183,6 +436,10 @@ def _child_policy(value: Any, runtime: dict, root_seconds: float, root_capabilit
             raise ConfigurationError(
                 "child session_protocol requires cold-clarification-v1, initial-v1 and at least two lifetime slots"
             )
+    if "public_discussion" in data:
+        if data.get("outcome_protocol") != "initial-v1" or count < 2 or "session_protocol" in data:
+            raise ConfigurationError("public discussion requires initial-v1, at least two child slots and no cold session protocol")
+        data["public_discussion"] = _public_discussion(data["public_discussion"])
     return data
 
 
@@ -274,6 +531,8 @@ def _parse_single_configuration(value: Any, *, validated_sources: dict | None = 
         if "model_policy" not in model:
             raise ConfigurationError("child_policy requires an explicit model_policy")
         model["child_policy"] = _child_policy(data["child_policy"], runtime, seconds, capabilities)
+        if "public_discussion" in model["child_policy"]:
+            _public_root_command(command)
         for name, entrypoints in CHILD_ENTRYPOINTS.items():
             if any(not (Path(sources[name]["checkout"]) / entrypoint).is_file() for entrypoint in entrypoints):
                 raise ConfigurationError(f"{name} revision lacks the required managed child entry points")
@@ -449,7 +708,7 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
             if not root.is_dir() or not (root / "manifest.json").is_file():
                 raise ConfigurationError("existing destination is not a complete deployment; retain its data and use a new directory")
             verify(root)
-            manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+            manifest = _decode_configuration_json((root / "manifest.json").read_text(encoding="utf-8"))
             if manifest["configuration"] != data:
                 raise ConfigurationError("existing deployment has different configuration; preparation cannot upgrade or replace it")
             # Reuse only a verified complete bundle. Do not rotate credentials,
@@ -532,7 +791,7 @@ def _prepare_files(data: dict, root: Path, final: Path) -> None:
             **data["model_policy"], "token_ref": "env:" + MODEL_TOKEN_ENV,
         }}]
     if "child_policy" in data:
-        openjules["children"] = [{**scope, "profile": profile, "policy": data["child_policy"]}]
+        openjules["children"] = [{**scope, "profile": profile, "policy": _render_child_policy(data, data, root, final)}]
     _write(root / "config/openjules.json", openjules)
     _write(root / "config/provider.json", ProviderConfig.parse({
         "schema_version": 1, "endpoint": f"http://127.0.0.1:{data['ports']['openjules']}",
@@ -580,7 +839,7 @@ def _prepare_multiple_files(data: dict, root: Path, final: Path) -> None:
             child = entry["child_policy"]
             canonical_profile.update({name: child[name] for name in ("max_children", "max_child_seconds", "max_child_turns")})
             canonical_profile["child_capabilities"] = child["capabilities"]
-            children.append({**scope, "profile": profile, "policy": child})
+            children.append({**scope, "profile": profile, "policy": _render_child_policy(data, entry, root, final)})
         policies[repository] = {
             "checks": policy["checks"], "reviewers": policy["reviewers"], "max_attempts": policy["max_attempts"],
             "budget_seconds": policy["budget_seconds"], "profiles": {profile: canonical_profile},
@@ -664,6 +923,11 @@ from zpm.deployment import manage
 raise SystemExit(manage(root, sys.argv[1:]))
 '''
     _write(root / "manage.py", manager, executable=True)
+    if any("public_discussion" in entry.get("child_policy", {}) for entry in _entries(data)):
+        readme += "\nPublic discussion is explicitly enabled only for its approved profiles.\n"
+        readme += "The original external scope file must remain private, readable and hash-identical\n"
+        readme += "for verify, bootstrap, start, doctor and repeated preparation. The runtime uses\n"
+        readme += "only the sealed private scope copy. Preparation never rotates either binding.\n"
     _write(root / "README.txt", readme)
     sealed = [str(path.relative_to(root)) for folder in ("config", "secrets") for path in sorted((root / folder).iterdir())]
     sealed.extend(["manage.py", "README.txt", "preparation.json"])
@@ -689,7 +953,7 @@ def verify(directory: str | Path) -> dict:
     if manifest_path.is_symlink() or manifest_path.stat().st_mode & 0o077:
         raise ConfigurationError("manifest must be a private regular file")
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest = _decode_configuration_json(manifest_path.read_text(encoding="utf-8"))
     except (ValueError, OSError):
         raise ConfigurationError("cannot read the deployment manifest") from None
     if not isinstance(manifest, dict):
@@ -704,10 +968,17 @@ def verify(directory: str | Path) -> dict:
     files = manifest.get("files")
     if not isinstance(files, dict) or not files:
         raise ConfigurationError("deployment manifest has no integrity records")
+    # Public scope bytes must enter through the bounded descriptor reader on
+    # their first verification read, including any equivalent relative spelling.
+    public_scopes = _verify_public_scope_files(root, data, files)
     for name, digest in files.items():
         relative = Path(name)
         if relative.is_absolute() or ".." in relative.parts or root / relative == manifest_path:
             raise ConfigurationError("invalid deployment manifest path")
+        if str(relative) in public_scopes:
+            if digest != public_scopes[str(relative)]:
+                raise ConfigurationError("public discussion scope copy has an inconsistent integrity record")
+            continue
         path = root / relative
         if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077:
             raise ConfigurationError("bundle files must be private regular files")
@@ -894,7 +1165,7 @@ def manage(directory: str | Path, argv: list[str] | None = None) -> int:
     try:
         report = verify(directory)
         root = Path(report["directory"])
-        data = json.loads((root / "manifest.json").read_text())["configuration"]
+        data = _decode_configuration_json((root / "manifest.json").read_text())["configuration"]
         if args.operation == "start":
             return _start(root, data)
         if args.operation == "bootstrap":
