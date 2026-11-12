@@ -572,6 +572,16 @@ qualify another. The job retains the cold scene's own report and redacted
 diagnostics without uploading private state. It adds no job, image build,
 credential or provider service.
 
+If one of the six direct enrollment or held-work observation requests fails,
+`cold_request_failure` in the existing failure diagnostic retains only its first
+fixed operation label and exception category. It is `null` when none of those
+requests failed. The observation contains no request arguments, identifiers,
+response bodies, exception messages or dynamic exception names. The original
+request executes once with the same three-second client timeout and expected
+status, then the original exception propagates through the existing cleanup.
+Polling requests keep their existing handling. This identifies a failing call;
+it does not establish the cause of a timeout or change trial acceptance.
+
 ### Separate work, grants and original deadlines
 
 The deterministic fixture supplies six root responses and two responses for each
