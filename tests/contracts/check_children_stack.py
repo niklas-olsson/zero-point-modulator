@@ -20,7 +20,9 @@ import time
 
 from check_cleanup import journal_paths, qualify_owned_cleanup, require_retained
 from check_model_stack import ModelFixture, TOKEN_SOURCE
-from operational_measurement import Measurements, RequestMeasurements, idle_process_sample
+from operational_measurement import (
+    Measurements, RequestMeasurements, confirm_idle_reconciliation, idle_process_sample, idle_worker_binding,
+)
 from check_historical_authority import qualify_historical_authority
 from check_stack import (
     Client, Processes, clean_environment, diagnostics, eventually, port,
@@ -710,15 +712,26 @@ def run(args):
             measurements.start("target_one_converged")
             target(1)
             measurements.stop("target_one_converged")
+            idle_binding = idle_worker_binding(plan())
+            require({key: idle_binding[key] for key in ("deployment_id", "repository", "profile")}
+                    == scope | {"profile": profile}, "idle measurement changed its installed scope")
             with model.lock:
-                require(not model.requests and not model.errors, "idle worker performed unrequested inference")
+                idle_counts_before = {"requests": len(model.requests), "errors": len(model.errors)}
+                require(not any(idle_counts_before.values()), "idle worker performed unrequested inference")
+            # The prior doctor/target calls have returned. No other scoped
+            # lifecycle caller runs while the original watch is observed.
             idle_measurement = idle_process_sample(
                 installation, service_commands | {"manager": manager + ["start"]},
                 {name: Path(installation_data["sources"][name]["checkout"]) for name in service_commands}
                 | {"manager": bundle.resolve()},
+                log_path=processes.root / "installation.log", binding=idle_binding,
             )
+            idle_plan_after = plan()
             with model.lock:
-                require(not model.requests and not model.errors, "idle observation performed unrequested inference")
+                idle_counts_after = {"requests": len(model.requests), "errors": len(model.errors)}
+            confirm_idle_reconciliation(
+                idle_measurement, idle_binding, idle_plan_after, idle_counts_before, idle_counts_after,
+            )
             storage_phase("idle_before_enrollment")
             checks.append("generated installation starts three real services with aligned child policies and no idle inference")
 
@@ -1057,7 +1070,7 @@ def run(args):
                     worker_id=worker, task_id=task, attempt_id=attempt["id"],
                 )
             operational_measurements = measurements.report(idle_measurement, request_measurements)
-            checks.append("bounded operational observations retain exact service PID/starttime identities, zero idle inference, canonical child timing lineage, logical request sizes and stat-only journal/capture storage")
+            checks.append("bounded operational observations contain a complete idle controller cycle with unchanged worker and PID/starttime identities, zero inference, canonical child timing lineage, logical request sizes and stat-only journal/capture storage")
             report = {"passed": True, "schema_version": 1, "deployment_id": scope["deployment_id"], "image": image,
                       "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed", "checks": checks,
                       "canonical_task": task, "root_attempt": attempt["id"], "candidate": candidate["id"],

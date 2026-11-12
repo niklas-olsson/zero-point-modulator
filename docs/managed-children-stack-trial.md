@@ -470,9 +470,33 @@ canonical authority by itself.
 ### One idle sample
 
 After the existing target-one capacity convergence and before enrollment, the
-trial takes one fixed two-second idle sample. Model requests and fixture errors
-must both be empty before and after it. This is a passive observation; it does
-not invoke an extra reconciliation, model call or Docker statistics command.
+trial observes an idle interval containing a complete controller cycle. The
+target, binding revision/profile, original ready worker and its reservation
+must remain unchanged. Model requests and fixture errors must both be zero
+before and after it. This passive observation invokes no extra doctor,
+capability check, reconciliation, model call or Docker statistics command.
+
+The existing private installation log supplies the witness. After every initial
+process counter has been read, the observer takes a fresh log offset and waits
+for exact successful scoped capability/worker/capability/worker/capability
+access records. The original watch process is the only scoped lifecycle caller
+during this interval; all prior doctor transports have returned and been reaped.
+Each watch pass checks the single binding, observes the single retained worker,
+returns, then sleeps before starting the next pass. The access logger flushes
+each record at response start, so the third capability record proves the middle
+pass has returned. Two capability records would not prove a whole pass inside
+the window. At most one correct leading worker record is ignored when the fresh
+offset splits a prior cycle; it supplies no witness.
+
+One 60-second observation cutoff, 131,072 appended bytes, 4,096-byte lines and
+1,024 complete lines bound the reader. Old or partial prefix records cannot be
+replayed as new evidence. Incorrect or duplicate relevant records, changed
+scope/worker/status, observed file replacement/truncation, incomplete sequences
+or exhausted bounds fail qualification. The deadline never renews, including
+under unrelated traffic. Raw log lines stay private; exported evidence contains
+only event roles, byte offsets, reader observation intervals and the already
+retained worker binding. These times are not server request timestamps or an
+isolated controller duration. Original task, child and model limits stay fixed.
 
 The cohort is the owned installation manager and exactly its three direct
 Polyphony, OpenJules and ZPM service children. Their actual command vectors and
@@ -480,6 +504,11 @@ working directories must match the generated installation. Each process is
 fenced by its PID and Linux process start time, with parent identity and the
 complete child cohort checked again at the second endpoint. Missing, replaced,
 reparented or mismatched processes and counter regressions fail qualification.
+All final counters are read after the final complete witness record. The report
+sets `completed_reconcile_tick_proven: true` only after the complete witness,
+unchanged local worker/binding/cohort and explicit zero request/error controls.
+The generic two-second process sampler still reports this flag as false when
+used without the installed witness; historical reports retain their false flags.
 
 The report retains user/system CPU tick deltas, the observed wall interval,
 clock ticks per second, page size and RSS byte observations at both endpoints.
@@ -488,7 +517,10 @@ exclude descendants, the Docker daemon and unrelated host or kernel work.
 RSS is an approximate endpoint observation, not a peak or precise memory
 snapshot; Linux documents the asynchronous nature of this accounting in its
 [proc filesystem reference](https://docs.kernel.org/filesystems/proc.html).
-The sample does not prove that a complete controller cycle occurred within it.
+CPU covers the entire observed interval containing a completed pass, including
+watch sleeps and other service work. It is not isolated CPU cost per cycle or a
+performance threshold. The four installed child scenes each retain their own
+measurements and exact component revisions.
 
 ### Context and storage units
 
@@ -1004,9 +1036,10 @@ The existing generic two-second process sample reports self CPU and sampled RSS
 and explicitly keeps `completed_reconcile_tick_proven: false`. Storage changes
 use the existing six-phase measurement format. These observations do not
 establish a complete idle watch cycle, peak RSS, full host CPU or total network
-traffic. The separately owned completed-cycle measurement criterion remains
-open until its own qualification; it is not a prerequisite for this public
-behavior trial.
+traffic. The four child scenes above require their own complete-cycle witness
+and native qualification. Their evidence does not establish a completed cycle
+for this public scene's generic two-second sample. Completed-cycle measurement
+is not a prerequisite for this public behavior trial.
 
 The focused source tests distinguish coherent retained-record rewrites,
 original cutoff renewal, private-route false positives, trickled HTTP deadlines,

@@ -204,8 +204,10 @@ class CleanupEvidenceTests(unittest.TestCase):
                     with self.assertRaises(AssertionError):
                         cleanup.owned_resources(self.worker)
 
-    def exercise_phase(self, *, fail=None, cleanup_failure=False, stored_progress=DEFAULT_PROGRESS, manifest_evidence=None):
+    def exercise_phase(self, *, fail=None, cleanup_failure=False, stored_progress=DEFAULT_PROGRESS, manifest_evidence=None,
+                       cli_failure_invocation=1, cli_stdout=None, cli_stderr=""):
         events, requests, authority_reads = [], [], []
+        self.cleanup_requests = requests
         processes = SimpleNamespace(running={})
 
         def start(name, command, cwd, environment):
@@ -239,7 +241,10 @@ class CleanupEvidenceTests(unittest.TestCase):
             payload = expected if fail != "receipt" else expected | {"worker_id": "foreign"}
             if fail == "boolean":
                 payload = expected | {"container_removed": 1}
-            return SimpleNamespace(returncode=1 if fail == "cli" else 0, stdout=json.dumps(payload))
+            cli_failed = fail == "cli" and len(requests) == cli_failure_invocation
+            return SimpleNamespace(returncode=1 if cli_failed else 0,
+                                   stdout=cli_stdout if cli_failed and cli_stdout is not None else json.dumps(payload),
+                                   stderr=cli_stderr if cli_failed else "")
 
         processes.start = start
         with ExitStack() as stack:
@@ -310,6 +315,130 @@ class CleanupEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "controlled canonical failure") as caught:
             self.exercise_phase(fail="verification", cleanup_failure=True)
         self.assertEqual(caught.exception.__notes__, ["cleanup could not reap its temporary owned authority"])
+
+
+    def test_cleanup_failure_observation_projects_only_a_scoped_receipt(self):
+        receipt = {"schema_version": 1, **self.scope, "worker_id": self.worker,
+                   "state": "retained", "reason": "container_removal_unresolved",
+                   "container_removed": False, "volume_removed": False, "archives_retained": True}
+        stdout = json.dumps(receipt)
+        stderr = "private-cleanup-token-\u03b3" * 4096
+        result = SimpleNamespace(returncode=1, stdout=stdout, stderr=stderr)
+        observed = cleanup.cleanup_cli_observation(2, result, self.scope, self.worker)
+        self.assertEqual(observed, {
+            "invocation": 2, "returncode": 1,
+            "stdout": {"characters": len(stdout), "utf8_bytes": len(stdout.encode("utf-8")),
+                       "sha256_utf8": hashlib.sha256(stdout.encode("utf-8")).hexdigest()},
+            "stderr": {"characters": len(stderr), "utf8_bytes": len(stderr.encode("utf-8")),
+                       "sha256_utf8": hashlib.sha256(stderr.encode("utf-8")).hexdigest()},
+            "receipt": {"schema_version": 1, "state": "retained", "reason": "container_removal_unresolved",
+                        "container_removed": False, "volume_removed": False, "archives_retained": True},
+        })
+        exported = json.dumps(observed)
+        self.assertLess(len(exported.encode()), cleanup.MAX_CLEANUP_DIAGNOSTIC_BYTES)
+        for private in ("private-cleanup-token", self.worker, *self.scope.values()):
+            self.assertNotIn(private, exported)
+        # A contradictory exit status remains an observation, never a success proof.
+        cleaned = receipt | {"state": "cleaned", "reason": "", "container_removed": True, "volume_removed": True}
+        result.stdout = json.dumps(cleaned)
+        self.assertEqual(cleanup.cleanup_cli_observation(1, result, self.scope, self.worker)["receipt"]["state"], "cleaned")
+
+    def test_cleanup_failure_observation_discards_untrusted_receipt_content(self):
+        secret = "private-cleanup-canary-must-not-be-exported"
+        receipt = {"schema_version": 1, **self.scope, "worker_id": self.worker,
+                   "state": "retained", "reason": "cleanup_unresolved",
+                   "container_removed": False, "volume_removed": False, "archives_retained": True}
+        valid = json.dumps(receipt)
+        cases = {
+            "malformed secret": "{" + secret,
+            "extra secret": json.dumps(receipt | {"detail": secret}),
+            "unrecognized reason": json.dumps(receipt | {"reason": secret}),
+            "foreign worker": json.dumps(receipt | {"worker_id": secret}),
+            "foreign repository": json.dumps(receipt | {"repository": secret}),
+            "foreign deployment": json.dumps(receipt | {"deployment_id": secret}),
+            "duplicate scope": valid[:-1] + ', "worker_id": ' + json.dumps(self.worker) + "}",
+            "nonfinite field": valid.replace('"container_removed": false', '"container_removed": NaN'),
+            "boolean schema": json.dumps(receipt | {"schema_version": True}),
+            "nonobject": json.dumps([receipt]),
+            "oversized": valid + " " * 4096,
+        }
+        cases.update({key + " integer alias": json.dumps(receipt | {key: 1})
+                      for key in ("container_removed", "volume_removed", "archives_retained")})
+        for name, stdout in cases.items():
+            with self.subTest(name=name):
+                observed = cleanup.cleanup_cli_observation(
+                    1, SimpleNamespace(returncode=1, stdout=stdout, stderr=secret), self.scope, self.worker)
+                self.assertIsNone(observed["receipt"])
+                self.assertEqual(observed["stdout"]["characters"], len(stdout))
+                self.assertEqual(observed["stdout"]["sha256_utf8"], hashlib.sha256(stdout.encode()).hexdigest())
+                exported = json.dumps(observed)
+                for private in (secret, self.worker, *self.scope.values()):
+                    self.assertNotIn(private, exported)
+                self.assertLess(len(exported.encode()), cleanup.MAX_CLEANUP_DIAGNOSTIC_BYTES)
+        # No boolean-as-exit-code or arbitrary object stringification fallback.
+        observed = cleanup.cleanup_cli_observation(
+            1, SimpleNamespace(returncode=True, stdout=object(), stderr=object()), self.scope, self.worker)
+        self.assertIsNone(observed["returncode"])
+        self.assertEqual(observed["stdout"], {"characters": None, "utf8_bytes": None, "sha256_utf8": None})
+        self.assertEqual(observed["stderr"], observed["stdout"])
+        self.assertIsNone(observed["receipt"])
+
+    def test_failed_first_or_replay_cli_keeps_failure_and_emits_bounded_scoped_evidence(self):
+        receipt = {"schema_version": 1, **self.scope, "worker_id": self.worker,
+                   "state": "retained", "reason": "volume_removal_unresolved",
+                   "container_removed": True, "volume_removed": False, "archives_retained": True}
+        secret = "private-cleanup-subprocess-stderr"
+        for invocation in (1, 2):
+            with self.subTest(invocation=invocation):
+                self.update("runtime", "UPDATE workers SET cleanup=NULL WHERE worker_id=?", (self.worker,))
+                output = io.StringIO()
+                with patch.object(cleanup.sys, "stderr", output), self.assertRaises(AssertionError) as caught:
+                    self.exercise_phase(fail="cli", cli_failure_invocation=invocation,
+                                        cli_stdout=json.dumps(receipt), cli_stderr=secret)
+                self.assertEqual(str(caught.exception), "installed cleanup CLI failed; inspect retained private state")
+                self.assertEqual(len(self.cleanup_requests), invocation)
+                for command, options in self.cleanup_requests:
+                    self.assertEqual(command[-6:], ["--cleanup-worker", self.worker, "--deployment-id",
+                                                   self.scope["deployment_id"], "--repository", self.scope["repository"]])
+                    self.assertEqual(options, {"cwd": "original-openjules", "env": {"PRIVATE_TOKEN": "fixture-only"},
+                                               "capture_output": True, "text": True, "timeout": 60})
+                lines = output.getvalue().splitlines()
+                self.assertEqual(len(lines), 1)
+                self.assertTrue(lines[0].startswith(cleanup.CLEANUP_DIAGNOSTIC_PREFIX))
+                self.assertLessEqual(len(output.getvalue().encode()), cleanup.MAX_CLEANUP_DIAGNOSTIC_BYTES)
+                observed = json.loads(lines[0][len(cleanup.CLEANUP_DIAGNOSTIC_PREFIX):])
+                self.assertEqual(observed["invocation"], invocation)
+                self.assertEqual(observed["returncode"], 1)
+                self.assertEqual(observed["receipt"]["reason"], "volume_removal_unresolved")
+                self.assertEqual(observed["stderr"]["sha256_utf8"], hashlib.sha256(secret.encode()).hexdigest())
+                self.assertNotIn(secret, output.getvalue())
+        # Preserve silence on successful replay and when no CompletedProcess exists.
+        for failure in (None, "timeout"):
+            self.update("runtime", "UPDATE workers SET cleanup=NULL WHERE worker_id=?", (self.worker,))
+            output = io.StringIO()
+            with self.subTest(failure=failure), patch.object(cleanup.sys, "stderr", output):
+                if failure is None:
+                    self.exercise_phase()
+                    self.assertEqual(len(self.cleanup_requests), 2)
+                else:
+                    with self.assertRaises(cleanup.subprocess.TimeoutExpired):
+                        self.exercise_phase(fail="timeout")
+                    self.assertEqual(len(self.cleanup_requests), 1)
+            self.assertEqual(output.getvalue(), "")
+
+    def test_cleanup_observation_io_failure_keeps_original_error_and_owned_cleanup(self):
+        class BrokenDiagnostic:
+            def write(self, _value):
+                raise OSError("private-diagnostic-write-failure")
+
+            def flush(self):
+                raise OSError("private-diagnostic-flush-failure")
+
+        with patch.object(cleanup.sys, "stderr", BrokenDiagnostic()), self.assertRaises(AssertionError) as caught:
+            self.exercise_phase(fail="cli", cli_stderr="private-subprocess-value")
+        self.assertEqual(str(caught.exception), "installed cleanup CLI failed; inspect retained private state")
+        self.assertEqual(len(self.cleanup_requests), 1)
+        self.assertNotIn("private", repr(getattr(caught.exception, "__notes__", [])))
 
 
     def public_capture(self):
