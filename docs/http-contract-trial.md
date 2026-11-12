@@ -19,10 +19,13 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`57f62d1e108c61a21698c7d23936dc44e83b3092`](https://github.com/niklas-olsson/OpenJules/commit/57f62d1e108c61a21698c7d23936dc44e83b3092) |
+| OpenJules | [`a1547a7743996d2db9866013135e5adb75c0ec7c`](https://github.com/niklas-olsson/OpenJules/commit/a1547a7743996d2db9866013135e5adb75c0ec7c) |
 
-This is the same merged bounded socket-denial and scoped-diagnostic runtime used by all
-five installed-stack jobs. Their common merged Polyphony pin is
+This is the same merged public-discussion component and shared HTTP transport used by
+all five installed-stack jobs. The existing bounded socket denial and scoped
+unsupported-capability diagnostic remain in that source. This HTTP lifecycle job
+does not start a discussion participant or a restricted conversation service.
+Their common merged Polyphony pin is
 `143d77c92ca8699ad7ccad4de98a540da6540a09`;
 this HTTP-only trial does not run Polyphony. Its merged ancestry includes
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15)

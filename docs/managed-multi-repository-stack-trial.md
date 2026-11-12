@@ -21,7 +21,7 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `57f62d1e108c61a21698c7d23936dc44e83b3092` |
+| OpenJules | `a1547a7743996d2db9866013135e5adb75c0ec7c` |
 | Keystone Polyphony | `143d77c92ca8699ad7ccad4de98a540da6540a09`, merged initial child outcome authority |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
@@ -56,9 +56,14 @@ fresh B progress checkpoints, an unchanged single B worker, both canonical
 captures through restart and zero final reservations. The complete exact-head
 aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
 
-The workflow now selects the [merged bounded socket-denial correction](https://github.com/niklas-olsson/OpenJules/pull/30)
-[`57f62d1e108c61a21698c7d23936dc44e83b3092`](https://github.com/niklas-olsson/OpenJules/commit/57f62d1e108c61a21698c7d23936dc44e83b3092).
-It preserves the scoped unsupported-capability diagnostic from OpenJules #27.
+The workflow now selects the [merged public-discussion component](https://github.com/niklas-olsson/OpenJules/pull/31)
+[`a1547a7743996d2db9866013135e5adb75c0ec7c`](https://github.com/niklas-olsson/OpenJules/commit/a1547a7743996d2db9866013135e5adb75c0ec7c).
+It adds an explicitly invoked participant, a pinned MCP SDK and the shared bounded
+HTTP transport used by the managed model broker. This shared-service trial does
+not start that participant or supply the separately required restricted conversation
+service. Native discussion fixtures do not qualify an installed conversation or a
+live provider. The runtime preserves the [bounded socket-denial correction](https://github.com/niklas-olsson/OpenJules/pull/30)
+and the scoped unsupported-capability diagnostic from OpenJules #27.
 It retains the merged managed-context implementation. Its dedicated-interpreter
 selector refuses legacy execution before owned effects,
 while canonical service, publication and cleanup retain their authority checks.
@@ -82,14 +87,20 @@ durable replay. The positive Polyphony pin is the actual merged revision
 Earlier Polyphony `653c0a71` results above remain historical. The preceding diagnostic
 component `e50d501cc81975d25e367be3ba1d6de9169207c1` passed both Python suites in
 [its actual-main CI](https://github.com/niklas-olsson/OpenJules/actions/runs/43119302563).
-The current bounded socket runtime passed 636 tests and four subtests on both
-Python versions in [its actual-main CI](https://github.com/niklas-olsson/OpenJules/actions/runs/43125104912).
-This new integration set still requires its own
-complete eight-job ZPM qualification. Historical reports,
-including those for the previous operative pin, remain bound to their recorded
-revisions; they do not qualify this changed set.
-Record the refreshed set's actual outcome in
-[ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
+The preceding bounded socket component `57f62d1e108c61a21698c7d23936dc44e83b3092` passed
+636 tests and four subtests on both Python versions in
+[its actual-main CI](https://github.com/niklas-olsson/OpenJules/actions/runs/43125104912).
+The later ZPM #28 delivery culminated in `e3b15538f25b9c6bd2a4b46a9ab8ddca0c1e2853`
+with that OpenJules revision and the unchanged positive Polyphony pin. Its
+[head and relevant-base qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/28#issuecomment-6810872810)
+passed sixteen jobs, and its
+[actual-main qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/28#issuecomment-6811017999)
+passed all eight jobs. Those are retained results for the preceding installed set.
+Every candidate in this set must pass the complete eight-job ZPM workflow before
+promotion. [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3)
+retains the exact-head, relevant-base and actual-main evidence. Historical
+reports, including those for previous operative pins, remain bound to their
+recorded revisions and do not qualify a different set.
 
 The current extension adds concurrent production CLI ingress, explicit
 re-enrollment after A's removal, a second A capture and stricter resource/history
