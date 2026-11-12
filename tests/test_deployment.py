@@ -366,7 +366,9 @@ class DeploymentTests(unittest.TestCase):
         self.assertNotIn("uid_start", canonical)
         self.assertNotIn("command", canonical)
         self.assertNotIn("outcome_protocol", data["child_policy"])
+        self.assertNotIn("session_protocol", data["child_policy"])
         self.assertNotIn("outcome_protocol", canonical)
+        self.assertNotIn("session_protocol", canonical)
         self.assertEqual(runtime["profiles"][0]["environment_refs"], {})
         self.assertEqual(self.read("config/provider.json")["max_workers"], configuration["max_workers"])
         with Store(self.bundle / "state/zpm.sqlite3", data["deployment_id"]) as store:
@@ -399,6 +401,96 @@ class DeploymentTests(unittest.TestCase):
                 "outcome_protocol": "initial-v1", "command": ["python3", "custom.py"],
             }}, self.bundle)
         self.assertFalse(self.bundle.exists())
+
+    def test_cold_child_sessions_propagate_only_to_the_runtime_policy(self):
+        configuration = self.child_configuration()
+        configuration["child_policy"].update({
+            "outcome_protocol": "initial-v1", "session_protocol": "cold-clarification-v1",
+        })
+        prepare(configuration, self.bundle)
+        self.assertTrue(verify(self.bundle)["valid"])
+        normalized = self.read("manifest.json")["configuration"]
+        policy = self.read("config/openjules.json")["children"][0]["policy"]
+        self.assertEqual(policy, normalized["child_policy"])
+        self.assertEqual(policy["session_protocol"], "cold-clarification-v1")
+        self.assertEqual(policy["outcome_protocol"], "initial-v1")
+        self.assertEqual(policy["command"], ["python3", "-I", "-S", "/opt/openjules/managed_runner.py"])
+        canonical = self.read("config/polyphony.json")["repositories"]["github:github.com/owner/project"]["profiles"]["approved"]
+        self.assertEqual(canonical, {
+            "base": configuration["source"]["revision"], "attempt_seconds": 60, "capabilities": ["python"],
+            "max_children": 2, "max_child_seconds": 30, "max_child_turns": 6, "child_capabilities": ["python"],
+        })
+        self.assertEqual(self.read("config/provider.json")["max_workers"], configuration["max_workers"])
+
+    def test_cold_child_sessions_reject_invalid_opt_in_before_writing(self):
+        configuration = self.child_configuration()
+        variants = [
+            {"outcome_protocol": "initial-v1", "session_protocol": value}
+            for value in (None, False, True, 1, 1.0, "", "future-v2", "cold-clarification-v1 ", [], {})
+        ]
+        variants.extend((
+            {"session_protocol": "cold-clarification-v1"},
+            {"session_protocol": "cold-clarification-v1", "outcome_protocol": None},
+            {"session_protocol": "cold-clarification-v1", "outcome_protocol": "initial-v1", "max_children": 1},
+            {"session_protocol": "cold-clarification-v1", "outcome_protocol": "initial-v1",
+             "command": ["python3", "custom.py"]},
+        ))
+        for variant in variants:
+            with self.subTest(variant=variant), self.assertRaises(ConfigurationError):
+                prepare(configuration | {"child_policy": configuration["child_policy"] | variant}, self.bundle)
+            self.assertFalse(self.bundle.exists())
+        no_model = deepcopy(configuration)
+        no_model.pop("model_policy")
+        no_model["child_policy"].update({
+            "outcome_protocol": "initial-v1", "session_protocol": "cold-clarification-v1",
+        })
+        with self.assertRaisesRegex(ConfigurationError, "requires an explicit model_policy"):
+            prepare(no_model, self.bundle)
+        self.assertFalse(self.bundle.exists())
+
+    def test_cold_child_session_opt_in_cannot_change_an_existing_bundle(self):
+        configuration = self.child_configuration()
+        configuration["child_policy"]["outcome_protocol"] = "initial-v1"
+        for enabled in (False, True):
+            with self.subTest(enabled=enabled):
+                self.bundle = self.root / ("sessions-" + str(enabled))
+                selected = deepcopy(configuration)
+                if enabled:
+                    selected["child_policy"]["session_protocol"] = "cold-clarification-v1"
+                prepare(selected, self.bundle)
+                manifest = self.read("manifest.json")
+                names = ("manifest.json", *manifest["files"])
+                sealed = {name: (self.bundle / name).read_bytes() for name in names}
+                if not enabled:
+                    expected = {
+                        "max_children": 2, "max_child_seconds": 30, "max_child_turns": 6,
+                        "capabilities": ["python"], "uid_start": 60000,
+                        "command": ["python3", "-I", "-S", "/opt/openjules/managed_runner.py"],
+                        "verify_argv": ["python3", "-m", "unittest", "discover"],
+                        "max_result_bytes": 4_000_000, "outcome_protocol": "initial-v1",
+                    }
+                    self.assertEqual(manifest["configuration"]["child_policy"], expected)
+                    self.assertNotIn(b'"session_protocol"', sealed["config/openjules.json"])
+                with Store(self.bundle / "state/zpm.sqlite3") as store:
+                    store.change("owner/project", "target", 1)
+                    store.change("owner/project", "remove")
+                    retained_rows = store.bindings()
+                artifact = self.bundle / "state/openjules/retained-session-evidence"
+                artifact.write_bytes(b"retained capture")
+                changed = deepcopy(selected)
+                if enabled:
+                    changed["child_policy"].pop("session_protocol")
+                else:
+                    changed["child_policy"]["session_protocol"] = "cold-clarification-v1"
+                with patch("zpm.deployment.secrets.token_urlsafe", side_effect=AssertionError("credential rotation")), \
+                        patch("zpm.deployment.Store", side_effect=AssertionError("state mutation")):
+                    self.assertTrue(prepare(selected, self.bundle)["reused"])
+                    with self.assertRaisesRegex(ConfigurationError, "different configuration"):
+                        prepare(changed, self.bundle)
+                self.assertEqual(sealed, {name: (self.bundle / name).read_bytes() for name in names})
+                self.assertEqual(artifact.read_bytes(), b"retained capture")
+                with Store(self.bundle / "state/zpm.sqlite3") as store:
+                    self.assertEqual(store.bindings(), retained_rows)
 
     def test_children_reject_invalid_limits_identity_overlap_and_expanded_capabilities_before_writing(self):
         configuration = self.child_configuration()

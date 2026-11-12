@@ -298,7 +298,7 @@ credential exclusively in the trusted OpenJules process.
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/5bdda3de5bc3b2f8afb8de9abc191661245fe8ba).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/74429feda1f3991ce528678b74d6db5e3b3b250c).
 A valid generic source pin alone is insufficient. Require the component's CI and
 all eight ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
@@ -396,7 +396,7 @@ experimental labels do not confer managed acceptance or release authority.
 The [component acceptance record](https://github.com/niklas-olsson/keystone-polyphony/issues/109#issuecomment-6812159757)
 keeps component and controller evidence separate from a new installed-set result.
 
-The current candidate advances OpenJules to
+The preceding public-discussion component is
 `5bdda3de5bc3b2f8afb8de9abc191661245fe8ba`, tree
 `ffeeef5d45bf34af4a9c460b43777ed518b08fa5`, from
 [OpenJules #32](https://github.com/niklas-olsson/OpenJules/pull/32).
@@ -406,7 +406,38 @@ exact optional loopback bootstrap endpoint. Its
 passed 726 tests and four subtests on both Python versions with all Docker gates
 enabled and no skips.
 
-The matching positive Polyphony revision is
+The operative OpenJules revision is
+`74429feda1f3991ce528678b74d6db5e3b3b250c`, tree
+`9694e7450f12da3c162c62d220f782914902d7be`, from
+[OpenJules #33](https://github.com/niklas-olsson/OpenJules/pull/33).
+The exact current-head and relevant-base Python 3.11/3.12 suites each passed
+849 tests and four subtests, including the real Docker cold-session case in each
+of those four jobs.
+The retained component record preserves the earlier configuration, observer and
+parser-fixture failures and their narrow corrections. Component results do not
+qualify a different installed set.
+
+Cold clarification requires the explicit sealed
+`session_protocol: cold-clarification-v1` option, initial outcomes, the trusted
+default child command and at least two child slots. It does not enable itself
+when the option is omitted, change the canonical four-field child policy, or
+reuse a physical child. The [installed cold trial](managed-children-stack-trial.md#explicit-cold-clarification)
+requires two fresh grants, separate charges and captures, the frozen predecessor
+and earlier deadline, retained capacity, cleanup and restart. Its three-report
+child job also retains the unchanged default and initial-outcome scenes.
+
+The original installed public-discussion delivery is ZPM
+`43a18ac50b1e2798ff37b8a8113731af32769872`, paired with OpenJules
+`5bdda3de5bc3b2f8afb8de9abc191661245fe8ba` and Polyphony
+`0cf8b4772b04269505e3e1cd41324e41409b80f9`. Its
+[actual-main managed-stack job](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43149758935/job/130956180524)
+passed the original canonical scene and independent public-peer attachment.
+The public scene used exactly three deterministic HTTP responses, preserved
+the original signed proposal, decline and follow-up through replay, reaped all
+44 retained leaders and preserved protected installation state. This evidence
+stays bound to that preceding set; it is not cold-child discussion evidence.
+
+The unchanged positive Polyphony revision is
 `0cf8b4772b04269505e3e1cd41324e41409b80f9`, tree
 `ca53939281041c98e1d36294078d183862c71cbd`, from
 [Polyphony #135](https://github.com/niklas-olsson/keystone-polyphony/pull/135).
@@ -430,7 +461,8 @@ guards and restricted profile do not add canonical capabilities or alter the
 probed modules. Existing canonical scenes retain their assertions, while the
 separate attachment starts two independent installed public peers with exactly
 three deterministic provider requests and original signed remote receipt.
-The complete changed set remains unqualified until all ZPM gates pass.
+Every changed set requires its own complete ZPM qualification; historical
+reports retain their original component identities.
 
 Every change to the integration set must pass all eight ZPM jobs before promotion.
 Earlier `9e6aaa49` / OpenJules `d3d50b32` runtime reports, the 612-test component
@@ -633,7 +665,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/5bdda3de5bc3b2f8afb8de9abc191661245fe8ba/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/74429feda1f3991ce528678b74d6db5e3b3b250c/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -651,7 +683,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/5bdda3de5bc3b2f8afb8de9abc191661245fe8ba/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/74429feda1f3991ce528678b74d6db5e3b3b250c/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature

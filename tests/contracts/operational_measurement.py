@@ -58,8 +58,11 @@ def json_bytes(value):
 class RequestMeasurements:
     """Called under the fixture lock after its request/authentication checks."""
 
-    def __init__(self, root_limit):
+    def __init__(self, root_limit, *, cold_session=False):
         require(type(root_limit) is int and root_limit in {6, 8}, "unexpected fixture limit")
+        require(type(cold_session) is bool and (not cold_session or root_limit == 6),
+                "unexpected cold fixture limit")
+        self.cold_session = cold_session
         self.limits = {"root": root_limit, "left": 2, "right": 2}
         self.rows = []
         self.first = {}
@@ -79,6 +82,8 @@ class RequestMeasurements:
                 and isinstance(payload.get("tools"), list), "request context is malformed")
         if actor != "root":
             require(actor in self.spawns, "child request precedes its spawn response")
+            require(isinstance(self.spawns[actor].get("instructions_digest"), str),
+                    "child request precedes its observed instruction binding")
             elapsed(self.spawns[actor]["prepared_ns"], timestamp)
         self.first.setdefault(actor, timestamp)
         self.rows.append({
@@ -88,13 +93,30 @@ class RequestMeasurements:
         })
 
     def spawn_prepared(self, actor, instructions, timestamp):
-        require(actor in {"left", "right"} and actor not in self.spawns
+        require(not self.cold_session and actor in {"left", "right"} and actor not in self.spawns
                 and isinstance(instructions, str) and instructions and integer(timestamp),
                 "spawn response anchor changed")
         self.spawns[actor] = {
             "prepared_ns": timestamp,
             "instructions_digest": hashlib.sha256(instructions.encode("utf-8")).hexdigest(),
         }
+
+    def session_prepared(self, actor, timestamp):
+        """Record the real earlier model response anchor, before host identity exists."""
+        require(self.cold_session and actor in {"left", "right"}
+                and actor not in self.spawns and integer(timestamp),
+                "session response anchor changed")
+        self.spawns[actor] = {"prepared_ns": timestamp, "instructions_digest": None}
+
+    def session_instructions(self, actor, instructions, timestamp):
+        """Bind once from the actual first request, never invent an early envelope."""
+        require(self.cold_session and actor in self.spawns and actor not in self.first
+                and self.spawns[actor]["instructions_digest"] is None
+                and isinstance(instructions, str) and instructions and integer(timestamp),
+                "session instruction observation changed")
+        elapsed(self.spawns[actor]["prepared_ns"], timestamp)
+        self.spawns[actor]["instructions_digest"] = hashlib.sha256(
+            instructions.encode("utf-8")).hexdigest()
 
     def report(self, child_ids, canonical_children, *, worker_id, task_id, attempt_id):
         require(self.enrollment is not None and set(self.first) == set(self.limits)
@@ -128,7 +150,8 @@ class RequestMeasurements:
             children.append({
                 "actor": actor, "child_id": child_id, "grant_digest": binding["grant_digest"],
                 "instructions_digest": anchor["instructions_digest"],
-                "spawn_response_prepared_to_first_request_ns": elapsed(
+                ("session_response_prepared_to_first_request_ns" if self.cold_session
+                 else "spawn_response_prepared_to_first_request_ns"): elapsed(
                     anchor["prepared_ns"], self.first[actor]),
             })
         return {
@@ -137,6 +160,7 @@ class RequestMeasurements:
             "enrollment_to_first_root_request_ns": elapsed(self.enrollment, self.first["root"]),
             "requests": list(self.rows), "request_count": len(self.rows),
             "fresh_children": children,
+            **({"child_session_protocol": "cold-clarification-v1"} if self.cold_session else {}),
         }
 
 
@@ -337,7 +361,9 @@ def storage_snapshot(bundle, journals, captures):
 
 
 class Measurements:
-    def __init__(self, *, clock=time.monotonic_ns):
+    def __init__(self, *, clock=time.monotonic_ns, cold_session=False):
+        require(type(cold_session) is bool, "invalid cold measurement mode")
+        self.cold_session = cold_session
         self.clock, self.started, self.timings, self.storage = clock, {}, {}, []
 
     def start(self, name):
@@ -360,6 +386,8 @@ class Measurements:
                 "required observations are incomplete")
         require(idle["observation_ns"] > 0 and requests["request_count"] in {10, 12},
                 "required idle/request observations are invalid")
+        require(not self.cold_session or requests.get("child_session_protocol") == "cold-clarification-v1",
+                "cold observations lack their explicit request protocol")
         deltas = []
         for before, after in zip(self.storage, self.storage[1:]):
             deltas.append({
@@ -381,7 +409,9 @@ class Measurements:
                 "fresh child delegation includes canonical grant, scheduling and broker work",
                 "storage stats are separate observations, not an atomic snapshot or allocated disk blocks",
                 "WAL and SHM can shrink or disappear without data loss",
-                "no warm child session, second instruction round, public dialogue or live provider measurement",
+                ("two cold instruction rounds use fresh physical children; no warm/process reuse, public dialogue or live provider measurement"
+                 if self.cold_session else
+                 "no warm child session, second instruction round, public dialogue or live provider measurement"),
                 "no provider token usage, monetary cost or performance threshold is inferred",
             ],
         }

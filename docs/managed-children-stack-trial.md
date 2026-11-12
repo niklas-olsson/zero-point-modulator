@@ -21,7 +21,7 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `5bdda3de5bc3b2f8afb8de9abc191661245fe8ba`, merged public-discussion participant with explicit loopback bootstrap |
+| OpenJules | `74429feda1f3991ce528678b74d6db5e3b3b250c`, merged cold clarification and public-discussion runtime |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
@@ -534,6 +534,158 @@ The existing privacy checks cover the added object before it is written.
 There is no invented performance acceptance threshold. Actual measurements
 must first be obtained from the exact delivered component revision set, and any
 later threshold requires separately reviewed evidence.
+
+## Explicit cold clarification
+
+A separate invocation of `tests/contracts/check_cold_children_stack.py` qualifies
+the opt-in `cold-clarification-v1` protocol. It uses the same existing child-job
+image and a new private installation. The default ten-call scene and the
+twelve-call initial-outcome scene above keep their original source, policies,
+commands and measurements. Omitting `session_protocol` does not enable a session
+or add its optional journal tables.
+
+The sealed OpenJules child policy must explicitly select
+`session_protocol: cold-clarification-v1`, `outcome_protocol: initial-v1`,
+the trusted default child command and at least two child slots. ZPM retains that
+opt-in in the immutable installation configuration. Polyphony receives only its
+existing four-field child-policy projection. The session is a runtime
+correlation over ordinary canonical grants, not another task, budget or
+acceptance authority.
+
+Run this third scene with a complete reviewed component set that includes the
+cold producer and consumer:
+
+```sh
+python tests/contracts/check_cold_children_stack.py \
+  --polyphony-checkout /path/to/polyphony \
+  --openjules-checkout /path/to/openjules \
+  --image "$IMAGE_ID" \
+  --work-dir /new/private/managed-cold-children-trial
+```
+
+The existing `managed-children-stack` job runs it after the two original scenes.
+All three reports are distinct required results; one successful scene does not
+qualify another. The job retains the cold scene's own report and redacted
+diagnostics without uploading private state. It adds no job, image build,
+credential or provider service.
+
+### Separate work, grants and original deadlines
+
+The deterministic fixture supplies six root responses and two responses for each
+physical child, for ten total calls. The root begins one logical session.
+Round one writes a distinct provisional change to `left.txt` and explicitly asks
+for clarification. Its actual exec returns zero and its patch and report are
+retained, but no configured-verification success is claimed for that round.
+
+The root receives the actual provisional status and predecessor digest, then
+explicitly requests one follow-up for `right.txt`. The successor receives the
+original instruction and frozen predecessor in its effective instruction
+envelope. It has a new canonical child ID, grant, ordinary delivery intent,
+physical exec, UID and checkout. Its configured test proves that `left.txt` is
+still the original `old` value. The earlier provisional checkout is not copied
+into the successor. The root applies only the second patch and implements
+`left.txt` itself before independently testing the combined result.
+
+| Allocation | Canonical allowance | Evidence |
+| --- | --- | --- |
+| Root attempt | 180 seconds | One original task and attempt |
+| First physical child | 90 seconds and two turns | Separate grant, UID 60000, exec and provisional clarification |
+| Second physical child | 90 seconds and two turns | Fresh grant, UID 60001, exec and configured verification |
+| Task total | 360 seconds | Actual canonical task charge, including both complete child allocations |
+| Model budget | Ten calls, at most 1,024 output tokens each | One shared durable allowance, 6 + 2 + 2 observed calls |
+
+Both physical children have their own canonical work ordinal one. Logical
+rounds one and two do not turn them into one reused child or a second root
+attempt. The canonical `polyphony-child:` launch identity and the ordinary
+`openjules-child:` delivery identity are checked against their separate original
+formulas.
+
+A fresh canonical allocation does not renew the predecessor's earlier local
+watchdog. The trial freezes the first child's actual armed monotonic deadline
+before final capture. The second round's retained cutoff and armed deadline must
+not exceed it, even when the successor's nominal permission deadline and the
+root's remaining cutoff are later. Subsequent observations may shorten the
+root cutoff; they cannot extend the original round cutoffs or replace exec,
+grant, request, instruction or report identities.
+
+### Model fence, capacity and final evidence
+
+The first model endpoint is deliberately closed and absent after follow-up
+promotion. Its durable `model_closed` and `fence_established` fields must agree.
+This is a model-admission fence, not canonical permission revocation. Both
+outcome endpoints remain separate, and the successor's model endpoint remains
+live. Actual root-UID probes must be denied by those live child endpoints.
+The original first model socket must stay absent.
+
+Read-only root commands poll status outside inference. The fixture holds the
+fifth root response only after both physical execs have returned and all four
+child model calls have finished. This avoids asking a child to make inference
+while the root occupies their shared inference gate. At that barrier, the
+actual canonical snapshot must still show live child permission, one reserved
+worker and three unreleased execution references.
+
+The target is then set to zero while the root remains held. The worker must
+drain and reject new child admission without releasing those original
+references. After the response is released, final root and child captures and
+the shared container fence must complete before capacity reaches zero. The
+report includes each physical child's separate artifact hashes and semantic
+outcome, the root's review-pending candidate and the unchanged original task
+charge. A semantic outcome alone does not authorize capacity release or
+acceptance.
+
+The actual retained runtime archive supplies a second checkout oracle: the
+first provisional edit remains in the first private checkout, the second has
+the original left file and its own completed right file, and the root contains
+the combined result. The archive's child Git entries retain their distinct
+UIDs. No raw archive content or private outcome summary enters the shared
+report.
+
+### Retention, shutdown and measurements
+
+The trial freezes the complete private session/round correlation before final
+capture and compares it again after capture, exact scoped cleanup and full
+service restart. The existing all-table journal digest includes the optional
+session tables. Cleanup must retain original request keys, predecessor bytes,
+report payloads, grants, execs and armed cutoffs, along with canonical artifacts
+and a distinct idle non-target worker. Original ensure replay must return the
+same retired worker without resource resurrection or additional inference.
+
+A stopped process-map entry alone is insufficient shutdown evidence. The exact
+original installation manager must return its handled status 130 before
+cleanup and restart, confirming its normal path through separate service
+shutdown. Final owned cleanup is also required before a passed report is
+written. Cleanup failures preserve the original failure and cannot leave a
+new successful report artifact.
+
+The same bounded measurements described above are reused in explicit cold mode.
+For each child, `session_response_prepared_to_first_request_ns` starts when the
+root fixture prepares the corresponding session-tool response. The final
+effective instruction does not exist at that earlier point. Its digest is
+bound once from the actual first child request, then checked against the real
+canonical grant before publication. No invented early instruction envelope or
+host-chosen child identity is used. Ordinary scenes keep their original
+`spawn_response_prepared_to_first_request_ns` field.
+
+Six ordered storage phases retain the same seven journals, signed main/WAL/SHM
+differences and bounded capture inventories. The separate two-second idle
+sample retains the manager and three service PID/start-time identities and self
+CPU/RSS observations. It is not a claim of six process-cohort samples. Actual
+module origins and direct pinned Git bytes are checked with the generated
+interpreters before startup and again after restart; the report exports
+component revisions, trees and module hashes, not private paths or credentials.
+
+Focused tests cover literal committed SQLite WAL state, foreign or altered
+history, independent delivery keys, predecessor replacement, cutoff extension,
+real archive separation, the controlled HTTP fixture's sequencing, measurement
+anchors and failed manager shutdown. They are harness tests. Only the actual
+installed Docker job can qualify canonical allocation, kernel UIDs, model
+fencing, final capture and retirement for a delivered revision set.
+
+This scene does not qualify a warm child process, live provider judgment,
+forced crash during installed follow-up, automatic root-agent resumption,
+public-discussion peers, forge publication or merge authorization. Its root
+intentionally adds work beyond the child patches, so it makes no exact-union
+publication claim.
 
 ## Qualification limits and retained state
 

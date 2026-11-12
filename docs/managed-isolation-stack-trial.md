@@ -36,7 +36,7 @@ explicitly and cannot supply the shared-service acceptance evidence in
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `5bdda3de5bc3b2f8afb8de9abc191661245fe8ba`, merged public-discussion participant with explicit loopback bootstrap |
+| OpenJules | `74429feda1f3991ce528678b74d6db5e3b3b250c`, merged cold clarification and public-discussion runtime |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out revision, recorded in the report |
 

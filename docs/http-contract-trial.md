@@ -19,12 +19,14 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`5bdda3de5bc3b2f8afb8de9abc191661245fe8ba`](https://github.com/niklas-olsson/OpenJules/commit/5bdda3de5bc3b2f8afb8de9abc191661245fe8ba) |
+| OpenJules | [`74429feda1f3991ce528678b74d6db5e3b3b250c`](https://github.com/niklas-olsson/OpenJules/commit/74429feda1f3991ce528678b74d6db5e3b3b250c) |
 
-This is the same merged public-discussion participant, explicit loopback bootstrap
-binding and shared HTTP transport used by all five installed-stack jobs. The existing bounded socket denial and scoped
+This is the same merged cold-clarification runtime and public-discussion
+participant used by all five installed-stack jobs. The explicit loopback
+bootstrap binding, shared HTTP transport, bounded socket denial and scoped
 unsupported-capability diagnostic remain in that source. This HTTP lifecycle job
-does not start a discussion participant or a restricted conversation service.
+does not enable a child session or start a discussion participant or a restricted
+conversation service.
 Their common merged Polyphony pin is
 `0cf8b4772b04269505e3e1cd41324e41409b80f9`;
 this HTTP-only trial does not run Polyphony. Its merged ancestry includes
