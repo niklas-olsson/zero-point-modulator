@@ -22,7 +22,7 @@ topology and observations below.
 | Component | Revision used by the job |
 | --- | --- |
 | OpenJules | `a1547a7743996d2db9866013135e5adb75c0ec7c` |
-| Keystone Polyphony | `143d77c92ca8699ad7ccad4de98a540da6540a09`, merged initial child outcome authority |
+| Keystone Polyphony | `dc18c3fb585e00a90706b04095bc278ee3ff1106`, merged authority and managed-task refusal on legacy paths |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
 
@@ -83,7 +83,15 @@ claim-versus-drain regressions, actual Docker
 [versioned creation proof](https://github.com/niklas-olsson/OpenJules/pull/20),
 strict cleanup transport checks, explicit owned cleanup, child outcomes and
 durable replay. The positive Polyphony pin is the actual merged revision
-`143d77c92ca8699ad7ccad4de98a540da6540a09`, containing the initial child outcomes.
+`dc18c3fb585e00a90706b04095bc278ee3ff1106`, tree `ef5587ab91ed6bf205b7fbfaaa731e0442495d78`.
+It retains the initial child outcomes and includes
+[Polyphony #133](https://github.com/niklas-olsson/keystone-polyphony/pull/133)'s
+managed-task refusal on legacy advisory and experimental paths, followed by
+[the merged boundary documentation](https://github.com/niklas-olsson/keystone-polyphony/pull/134).
+The canonical coordinator, managed runtime and child service, managed CLI and
+dependency requirements match the preceding positive pin. The existing installed
+trials exercise canonical service behavior; the component's refusal tests cover
+its legacy paths. Updating this pin does not add a legacy service or a new scenario.
 Earlier Polyphony `653c0a71` results above remain historical. The preceding diagnostic
 component `e50d501cc81975d25e367be3ba1d6de9169207c1` passed both Python suites in
 [its actual-main CI](https://github.com/niklas-olsson/OpenJules/actions/runs/43119302563).
@@ -91,11 +99,19 @@ The preceding bounded socket component `57f62d1e108c61a21698c7d23936dc44e83b3092
 636 tests and four subtests on both Python versions in
 [its actual-main CI](https://github.com/niklas-olsson/OpenJules/actions/runs/43125104912).
 The later ZPM #28 delivery culminated in `e3b15538f25b9c6bd2a4b46a9ab8ddca0c1e2853`
-with that OpenJules revision and the unchanged positive Polyphony pin. Its
+with that OpenJules revision and Polyphony
+`143d77c92ca8699ad7ccad4de98a540da6540a09`. Its
 [head and relevant-base qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/28#issuecomment-6810872810)
 passed sixteen jobs, and its
 [actual-main qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/28#issuecomment-6811017999)
-passed all eight jobs. Those are retained results for the preceding installed set.
+passed all eight jobs. Those are retained results for that preceding installed set.
+The later ZPM #30 delivery at `0f131ed664d346f3c63f10c24f9d8e376a6581d3`
+paired OpenJules `a1547a7743996d2db9866013135e5adb75c0ec7c` with that same
+Polyphony `143d77c92ca8699ad7ccad4de98a540da6540a09`. Its
+[head and relevant-base qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/30#issuecomment-6812183104)
+passed sixteen jobs, and its [actual-main run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43138570851)
+passed all eight jobs with 222 tests on both Python versions and all six installed
+reports. Those results qualify that recorded set, not the later Polyphony pin.
 Every candidate in this set must pass the complete eight-job ZPM workflow before
 promotion. [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3)
 retains the exact-head, relevant-base and actual-main evidence. Historical

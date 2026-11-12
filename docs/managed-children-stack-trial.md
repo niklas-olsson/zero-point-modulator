@@ -22,16 +22,20 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 | Component | Revision |
 | --- | --- |
 | OpenJules | `a1547a7743996d2db9866013135e5adb75c0ec7c`, merged public-discussion component and shared HTTP transport |
-| Keystone Polyphony | `143d77c92ca8699ad7ccad4de98a540da6540a09`, merged initial child outcome authority |
+| Keystone Polyphony | `dc18c3fb585e00a90706b04095bc278ee3ff1106`, merged authority and managed-task refusal on legacy paths |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
 The paired initial-outcome changes are [OpenJules #16](https://github.com/niklas-olsson/OpenJules/pull/16)
 and [Polyphony #122](https://github.com/niklas-olsson/keystone-polyphony/pull/122).
-Both changes are merged. The positive Polyphony pin is the actual #122 merge,
-tree `0a1462d969b739c4928667c1cd099a9e009369e1`, validated in
-[normal current-base CI](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125461545)
-and then [published by the controller](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125433077/attempts/2).
-The exact installed-set checks remain required for this changed combination.
+Both changes are merged. The initial outcome authority first merged at
+`143d77c92ca8699ad7ccad4de98a540da6540a09`, tree `0a1462d969b739c4928667c1cd099a9e009369e1`.
+Its [normal current-base CI](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125461545)
+and [controller publication](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125433077/attempts/2)
+remain evidence for that revision. The operative Polyphony pin now includes
+[managed-task refusal on legacy paths](https://github.com/niklas-olsson/keystone-polyphony/pull/133)
+and the [merged authority-boundary documentation](https://github.com/niklas-olsson/keystone-polyphony/pull/134).
+The six probed authority modules and dependency requirements are unchanged.
+Every changed component set must pass the complete installed workflow before promotion.
 The OpenJules ancestry also contains
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15).
 The current pin adds [explicit owned cleanup](https://github.com/niklas-olsson/OpenJules/pull/17)
@@ -177,7 +181,11 @@ ancestry. The six authority modules checked by
 the import probe and `requirements.txt` match their original `653c0a71` Git blobs.
 The full source trees differ: the later package exports the safe experimental
 receipt class without import-time I/O or managed capability/schema registration,
-and also contains opt-in sidecar measurement and repository automation changes.
+and contains opt-in sidecar measurement and repository automation changes. The
+operative revision also refuses managed task IDs through legacy advisory and
+experimental task or baton paths. Those guards do not change the six probed
+authority modules or dependency requirements. This phase still exercises the
+actual canonical service, not each legacy entry point.
 The additional historical checkout remains negative compatibility evidence and
 does not replace the operative positive revision.
 

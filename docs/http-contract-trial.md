@@ -26,7 +26,7 @@ all five installed-stack jobs. The existing bounded socket denial and scoped
 unsupported-capability diagnostic remain in that source. This HTTP lifecycle job
 does not start a discussion participant or a restricted conversation service.
 Their common merged Polyphony pin is
-`143d77c92ca8699ad7ccad4de98a540da6540a09`;
+`dc18c3fb585e00a90706b04095bc278ee3ff1106`;
 this HTTP-only trial does not run Polyphony. Its merged ancestry includes
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15)
 after an accepted drain or stop encounters a busy runtime lock. The deterministic
