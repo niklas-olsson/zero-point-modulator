@@ -857,6 +857,27 @@ failed in the broad `root-and-children` stage and skipped publication. That
 report does not identify the failing operation or its cause; elapsed time and
 later diagnostic changes cannot establish either retroactively.
 
+The separate manual [Managed publication execution qualification workflow](../.github/workflows/managed-publication-execution.yml)
+uses the same installed `execute` harness, exact component pins, image build,
+grants and model allowances with repository contents read permission only. It
+runs the real isolated parent and two children with deterministic model replies,
+performs the configured full repository unit suite, and retains only the safe
+`execution-report.json` or `failure-report.json`. It invokes no publisher; the
+execution process receives no forge publication credential. Checkout actions
+retain their normal read-only GitHub token context. Both manual workflows share
+one concurrency group without cancelling an active run.
+
+Dispatch this execution-only workflow from its reviewed main revision as a new
+source qualification. It is not a rerun or recovery of the first failed run;
+that run's cause remains unknown and its private execution state remains
+unavailable. An execution pass establishes no forge outcome, independent PR
+review or live-provider behavior. Private captures, handoff and journals are not
+uploaded and cannot be reused for publication by a later job. A future full
+publication trial is a separate authorized operation with its own execution and
+same-job original-journal replay. It still requires an owner decision on the
+repository's Actions PR creation permission; this read-only workflow changes no
+publication privilege.
+
 An execution failure now retains an optional `failure_observation`: the first
 observed operation and exception category from fixed allowlists. When observed
 before owned-process cleanup, it also records bounded local fixture turn/request
