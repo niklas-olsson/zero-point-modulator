@@ -423,6 +423,28 @@ def qualification_passed(exit_code, guest, expected):
             and not guest["diagnostics_unavailable"] and guest["unknown_ids"] == 0 and consistent)
 
 
+def arm_control(client, container_id, command, cutoff, observation):
+    """Dispatch once, then observe the production control exec until it exits."""
+    observation.update(running=None, exit_code=None)
+    require(time.monotonic() < cutoff)
+    control = client.api.exec_create(container_id, command, user="65534:65534", workdir="/",
+        environment={}, stdin=False, stdout=False, stderr=False, privileged=False)["Id"]
+    require(time.monotonic() < cutoff)
+    client.api.exec_start(control, detach=True)
+    while True:
+        require(time.monotonic() < cutoff)
+        state = client.api.exec_inspect(control)
+        running, code = state.get("Running"), state.get("ExitCode")
+        observation.update(running=running if type(running) is bool else None,
+                           exit_code=code if type(code) is int and -255 <= code <= 255 else None)
+        require(type(running) is bool)
+        if not running:
+            require(time.monotonic() < cutoff)
+            require(type(code) is int and code == 0)
+            return
+        time.sleep(0.01)
+
+
 def cleanup_owned(client, runtime, missing, container, volume, container_id, volume_identity, labels, intents):
     if (intents["volume"] and volume is None) or (intents["container"] and container is None):
         return False  # A lost creation reply is not proof that nothing exists.
@@ -537,18 +559,23 @@ def host_main(args):
                  "input.txt": (b"Synthetic confined suite; no task or model input.\n", 65532, 0o400)}
         report["stage"] = "archive-stage"
         require(container.put_archive("/workspace", runtime.ManagedDockerRuntime._tar(files)))
-        report["stage"] = "start-arm"
+        report["stage"] = "container-start"
         container.start()
         began = time.monotonic()
-        for command in (["python3", "-I", "-S", "-c", runtime._SET_DEADLINE, str(began + 180)],
-                        ["python3", "-I", "-S", "-c", child.ARM_CHILD, "synthetic-left", str(began + 90)],
-                        ["python3", "-I", "-S", "-c", child.ARM_CHILD, "synthetic-right", str(began + 90)]):
-            require(container.exec_run(command, user="65534:65534", workdir="/", stdout=False, stderr=False).exit_code == 0)
+        for stage, command in (
+            ("arm-root", ["python3", "-I", "-S", "-c", runtime._SET_DEADLINE, str(began + 180)]),
+            ("arm-child-left", ["python3", "-I", "-S", "-c", child.ARM_CHILD, "synthetic-left", str(began + 90)]),
+            ("arm-child-right", ["python3", "-I", "-S", "-c", child.ARM_CHILD, "synthetic-right", str(began + 90)]),
+        ):
+            report["stage"], report["control"] = stage, {}
+            arm_control(client, container.id, command, began + 90, report["control"])
         report["stage"] = "exec-launch"
+        require(time.monotonic() < began + 90)
         execution = client.api.exec_create(container.id, ["python3", "-I", "-S", "-c", runtime._RUN,
             json.dumps({"base": revision, "command": profile.command})], user="65532:65532", workdir="/workspace/run",
             environment={"OPENJULES_INPUT_FILE": "/workspace/input.txt", "OPENJULES_ATTEMPT_ID": "synthetic-confined-suite"},
             stdin=False, stdout=False, stderr=False, privileged=False)["Id"]
+        require(time.monotonic() < began + 90)
         client.api.exec_start(execution, detach=True)
         report["stage"] = "exec-wait"
         while True:

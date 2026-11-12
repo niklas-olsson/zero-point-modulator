@@ -317,6 +317,64 @@ class ConfinedSuiteTests(unittest.TestCase):
             self.assertFalse(trial.cleanup_owned(client, Mock(), Exception, None, None, None, None, {}, intents))
             self.assertEqual(client.mock_calls, [])
 
+    def test_control_dispatches_once_and_waits_for_terminal_zero(self):
+        api = Mock()
+        api.exec_create.return_value = {"Id": "owned-exec"}
+        api.exec_inspect.side_effect = [{"Running": True, "ExitCode": None},
+                                        {"Running": True, "ExitCode": None},
+                                        {"Running": False, "ExitCode": 0}]
+        observation = {}
+        command = ["python3", "-I", "-S", "-c", "fixed-control", "190"]
+        with patch.object(trial.time, "monotonic", return_value=101), patch.object(trial.time, "sleep") as sleep:
+            trial.arm_control(SimpleNamespace(api=api), "owned-container", command, 190, observation)
+        api.exec_create.assert_called_once_with("owned-container", command, user="65534:65534", workdir="/",
+            environment={}, stdin=False, stdout=False, stderr=False, privileged=False)
+        api.exec_start.assert_called_once_with("owned-exec", detach=True)
+        self.assertEqual(api.exec_inspect.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+        self.assertEqual(observation, {"running": False, "exit_code": 0})
+
+    def test_control_refuses_null_nonzero_unknown_and_expired_outcomes_without_redispatch(self):
+        for state in ({"Running": False, "ExitCode": None}, {"Running": False, "ExitCode": 1},
+                      {"Running": False, "ExitCode": False}, {"Running": None, "ExitCode": 0}):
+            api = Mock()
+            api.exec_create.return_value = {"Id": "owned-exec"}
+            api.exec_inspect.return_value = state
+            observation = {}
+            with patch.object(trial.time, "monotonic", return_value=101), patch.object(trial.time, "sleep") as sleep:
+                with self.assertRaises(ValueError):
+                    trial.arm_control(SimpleNamespace(api=api), "owned-container", ["fixed"], 190, observation)
+            self.assertEqual(api.exec_create.call_count, 1)
+            self.assertEqual(api.exec_start.call_count, 1)
+            self.assertEqual(api.exec_inspect.call_count, 1)
+            sleep.assert_not_called()
+            self.assertEqual(observation["exit_code"], state["ExitCode"] if type(state["ExitCode"]) is int else None)
+        api = Mock()
+        api.exec_create.return_value = {"Id": "owned-exec"}
+        api.exec_inspect.return_value = {"Running": True, "ExitCode": None}
+        observation = {}
+        with patch.object(trial.time, "monotonic", side_effect=[101, 101, 101, 190]), patch.object(trial.time, "sleep"):
+            with self.assertRaises(ValueError):
+                trial.arm_control(SimpleNamespace(api=api), "owned-container", ["fixed"], 190, observation)
+        self.assertEqual(api.exec_create.call_count, 1)
+        self.assertEqual(api.exec_start.call_count, 1)
+        self.assertEqual(api.exec_inspect.call_count, 1)
+        self.assertEqual(observation, {"running": True, "exit_code": None})
+        api.reset_mock()
+        api.exec_inspect.return_value = {"Running": False, "ExitCode": 0}
+        with patch.object(trial.time, "monotonic", side_effect=[101, 101, 101, 190]), patch.object(trial.time, "sleep"):
+            with self.assertRaises(ValueError):
+                trial.arm_control(SimpleNamespace(api=api), "owned-container", ["fixed"], 190, observation)
+        self.assertEqual(api.exec_create.call_count, 1)
+        self.assertEqual(api.exec_start.call_count, 1)
+        self.assertEqual(api.exec_inspect.call_count, 1)
+        self.assertEqual(observation, {"running": False, "exit_code": 0})
+        api.reset_mock()
+        with patch.object(trial.time, "monotonic", return_value=190):
+            with self.assertRaises(ValueError):
+                trial.arm_control(SimpleNamespace(api=api), "owned-container", ["fixed"], 190, {})
+        self.assertEqual(api.mock_calls, [])
+
 
 if __name__ == "__main__":
     unittest.main()
