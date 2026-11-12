@@ -850,6 +850,28 @@ promotion or merge. The generated manager does not publish automatically, and
 the installation trial uses no live forge credential. Completing that live
 workflow remains a separate qualification step.
 
+The manual [Managed publication qualification workflow](../.github/workflows/managed-publication.yml)
+runs execution without a forge credential before entering its separate publisher
+step. Its [first actual run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43266932548)
+failed in the broad `root-and-children` stage and skipped publication. That
+report does not identify the failing operation or its cause; elapsed time and
+later diagnostic changes cannot establish either retroactively.
+
+An execution failure now retains an optional `failure_observation`: the first
+observed operation and exception category from fixed allowlists. When observed
+before owned-process cleanup, it also records bounded local fixture turn/request
+counts, the two-child observation flag and a fixed category for the first fixture
+error. These are non-atomic diagnostic observations, not evidence that canonical
+grants, execution or capture completed. Unknown values are `null` or `other`;
+unavailable diagnostics cannot replace the original failure. A failure first
+observed after a cleanup attempt has an explicit timing label and no fixture
+snapshot; that label does not prove successful reaping.
+Exception text, unknown exception names, private paths, provider/tool payloads,
+raw fixture errors and captures remain private. The observer adds no requests,
+waits, retries or execution allowance. A failed trial does not authorize an
+automatic rerun or a replacement operation; reconcile the original operation
+and actual forge state first.
+
 The pinned standalone legacy webhook also refuses run commands delivered in a
 PR's general conversation with HTTP 409
 `pull_request_comment_requires_review_event`, before task construction or
