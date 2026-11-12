@@ -33,6 +33,14 @@ def environment():
     }
 
 
+def observed_fixture():
+    return types.SimpleNamespace(
+        root_turns=3, child_turns={"runbook": 2, "example": 2}, requests=[object()] * 7,
+        errors=["publication tool result is missing, repeated or failed"],
+        two_spawned=types.SimpleNamespace(is_set=lambda: True),
+    )
+
+
 def handoff(root):
     identity = trial.workflow_identity(environment())
     artifacts = dict.fromkeys(("patch", "log", "manifest"), "c" * 64)
@@ -128,6 +136,161 @@ class FakeForge:
 
 
 class PublicationTrialTests(unittest.TestCase):
+    def test_failure_observation_success_preserves_one_call_and_result(self):
+        observation = trial.ExecutionFailureObservation()
+        observation.operation = "active-worker"
+        observation.model = observed_fixture()
+        result, argument = object(), object()
+        with patch.object(trial.Client, "request", return_value=result) as request:
+            client = trial.Client("http://127.0.0.1:1", "private-token")
+            with observation.record():
+                actual = client.request("GET", "/private-worker", query=argument)
+            self.assertIs(actual, result)
+            request.assert_called_once_with("GET", "/private-worker", query=argument)
+        self.assertIsNone(observation.report())
+
+    def test_failure_observation_freezes_before_release_and_owned_cleanup(self):
+        observation = trial.ExecutionFailureObservation()
+        observation.operation = "active-worker"
+        observation.model = model = observed_fixture()
+        original = TimeoutError("private request and credential")
+        processes = types.SimpleNamespace(running={"owned": object()}, handles=[])
+        def failed_cleanup(*_):
+            model.root_turns = 6
+            model.errors[:] = ["private cleanup text"]
+            raise OSError("private cleanup path")
+        with patch.object(trial, "Processes", return_value=processes), \
+             patch("check_authority_admission.stop_owned", side_effect=failed_cleanup) as cleanup:
+            with self.assertRaises(TimeoutError) as caught:
+                with trial.owned_processes(Path("/unused")), observation.record():
+                    try:
+                        with observation.record():
+                            raise original
+                    finally:
+                        model.child_turns["runbook"] = 0
+        self.assertIs(caught.exception, original)
+        cleanup.assert_called_once_with(processes, "owned")
+        expected = {
+            "operation": "active-worker", "exception_kind": "timeout", "timing": "before-owned-cleanup",
+            "fixture": {"available": True, "root_turns": 3, "child_turns": {"runbook": 2, "example": 2},
+                        "accepted_requests": 7, "two_spawned": True, "error_observed": True,
+                        "first_error": "tool-result"},
+        }
+        self.assertEqual(observation.report(), expected)
+        observation.operation = "execution-cleanup"
+        observation.capture(OSError("later private error"), before_cleanup=False)
+        report = observation.report()
+        report["fixture"]["child_turns"]["runbook"] = 99
+        self.assertEqual(observation.report(), expected)
+
+    def test_failure_observation_redacts_unknown_types_text_and_invalid_scalars(self):
+        class PrivateExceptionName(Exception):
+            def __str__(self):
+                raise AssertionError("diagnostic must not stringify this private exception")
+        class PrivateText(str):
+            pass
+        secret = "private-credential-path-payload"
+        observation = trial.ExecutionFailureObservation()
+        observation.operation = secret
+        observation.model = types.SimpleNamespace(
+            root_turns=True, child_turns={"runbook": 3, "example": secret, secret: 2},
+            requests=[secret] * 11, errors=[PrivateText(secret), "publication fixture policy mismatch"],
+            two_spawned=types.SimpleNamespace(is_set=lambda: secret),
+        )
+        original = PrivateExceptionName(secret)
+        with self.assertRaises(PrivateExceptionName) as caught:
+            with observation.record():
+                raise original
+        self.assertIs(caught.exception, original)
+        report = observation.report()
+        self.assertEqual((report["operation"], report["exception_kind"]), ("other", "other"))
+        self.assertEqual(report["fixture"], {
+            "available": True, "root_turns": None, "child_turns": {"runbook": None, "example": None},
+            "accepted_requests": None, "two_spawned": None, "error_observed": True, "first_error": "other",
+        })
+        self.assertNotIn(secret, json.dumps(report))
+        self.assertNotIn("PrivateExceptionName", json.dumps(report))
+
+    def test_failure_observation_uses_only_fixed_fixture_reasons_and_bounded_counts(self):
+        observation = trial.ExecutionFailureObservation()
+        model = observation.model = observed_fixture()
+        for text, reason in observation.FIXTURE_ERRORS.items():
+            model.errors = [text, "private second error"]
+            with self.subTest(reason=reason):
+                self.assertEqual(observation.fixture_observation()["first_error"], reason)
+        for unknown in ("private first error", ValueError("private error"), None, 1):
+            model.errors = [unknown]
+            self.assertEqual(observation.fixture_observation()["first_error"], "other")
+        model.errors = []
+        self.assertEqual((observation.fixture_observation()["error_observed"],
+                          observation.fixture_observation()["first_error"]), (False, None))
+        for value in (-1, 7, True, 1.0, "private", None):
+            model.root_turns = value
+            with self.subTest(root=value):
+                self.assertIsNone(observation.fixture_observation()["root_turns"])
+        model.root_turns, model.child_turns, model.requests, model.errors = 6, [], "private", "private"
+        report = observation.fixture_observation()
+        self.assertEqual(report["root_turns"], 6)
+        self.assertEqual(report["child_turns"], {"runbook": None, "example": None})
+        self.assertIsNone(report["accepted_requests"])
+        self.assertIsNone(report["error_observed"])
+        self.assertEqual(report["first_error"], "other")
+
+    def test_failure_observation_cannot_mask_original_when_snapshot_fails(self):
+        original = ValueError("original private failure")
+        observation = trial.ExecutionFailureObservation()
+        observation.operation = "two-child-grants"
+        observation.model = object()
+        with self.assertRaises(ValueError) as caught:
+            with observation.record():
+                raise original
+        self.assertIs(caught.exception, original)
+        self.assertEqual(observation.report()["fixture"], {"available": False})
+        with patch.object(observation, "capture", side_effect=RuntimeError("broken diagnostic")):
+            with self.assertRaises(ValueError) as caught:
+                with observation.record():
+                    raise original
+        self.assertIs(caught.exception, original)
+
+    def test_failure_observation_exception_categories_are_fixed(self):
+        errors = [
+            (AssertionError("private"), "assertion"), (TimeoutError("private"), "timeout"),
+            (subprocess.TimeoutExpired(["private"], 3), "timeout"),
+            (HTTPError("private", 500, "private", {}, None), "http"),
+            (trial.URLError("private"), "url"), (ConnectionError("private"), "connection"),
+            (OSError("private"), "os"), (json.JSONDecodeError("private", "private", 0), "json"),
+            (subprocess.CalledProcessError(1, ["private"]), "process-exit"),
+            (ValueError("private"), "value"), (KeyError("private"), "key"),
+            (TypeError("private"), "type"), (KeyboardInterrupt("private"), "interrupted"),
+            (RuntimeError("private"), "other"),
+        ]
+        for error, kind in errors:
+            with self.subTest(kind=kind):
+                self.assertEqual(trial.ExecutionFailureObservation.exception_kind(error), kind)
+
+    def test_failure_report_cleanup_only_is_explicit_and_contains_no_fixture_values(self):
+        def fail(args):
+            args.stage = "root-and-children"
+            args.execution_observation = observation = trial.ExecutionFailureObservation()
+            observation.model = observed_fixture()
+            observation.operation = "execution-cleanup"
+            raise OSError("private cleanup path and token")
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(trial, "execute", side_effect=fail) as execute, \
+             patch.object(trial.os, "umask"), redirect_stdout(io.StringIO()) as output:
+            root = Path(temporary)
+            result = trial.main(["execute", "--work-dir", temporary, "--openjules-checkout", temporary,
+                                 "--polyphony-checkout", temporary, "--image", "fixed-test-image"])
+            self.assertEqual(result, 1)
+            execute.assert_called_once()
+            report = json.loads(output.getvalue())
+            self.assertEqual(json.loads((root / "failure-report.json").read_text()), report)
+        self.assertEqual(report["failure_observation"], {
+            "operation": "execution-cleanup", "exception_kind": "os", "timing": "after-cleanup-attempt", "fixture": None,
+        })
+        self.assertIs(report["automatic_retry_authorized"], False)
+        self.assertNotIn("private cleanup", json.dumps(report))
+
     def test_dispatch_identity_refuses_rerun_or_other_repository_base(self):
         valid = environment()
         self.assertEqual(trial.workflow_identity(valid)["repository_id"], 1453104676)

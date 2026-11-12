@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tarfile
 import time
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import ProxyHandler, Request, build_opener, HTTPRedirectHandler
 
@@ -33,6 +34,103 @@ MAX_API = 8_000_000
 PUBLISH_SECONDS = 120
 SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"[0-9a-f]{64}")
+
+
+class ExecutionFailureObservation:
+    """First-failure attribution only; never another runtime or model query."""
+
+    OPERATIONS = frozenset({
+        "two-child-grants", "active-root-lineage", "canonical-child-grants",
+        "child-executions", "active-worker", "admission-close", "root-termination",
+        "root-capture", "final-canonical-lineage", "root-artifacts", "combined-verification",
+        "child-artifacts", "child-union", "runtime-history", "inference-accounting",
+        "worker-retirement", "guest-isolation", "installation-integrity",
+        "execution-cleanup", "handoff", "execution-report",
+    })
+    FIXTURE_ERRORS = {
+        "publication fixture policy mismatch": "policy",
+        "publication fixture lacks canonical instructions": "instructions",
+        "publication fixture lacks original root requirements": "root-requirements",
+        "publication fixture tool boundary changed": "tool-boundary",
+        "publication tool result is missing, repeated or failed": "tool-result",
+        "publication child exceeded its two-call budget": "child-call-budget",
+        "publication root exceeded its six-call budget": "root-call-budget",
+        "publication child identity changed": "child-identity",
+        "publication child patch is incomplete or outside its assigned file": "child-patch",
+        "publication root did not compose the exact children": "child-composition",
+        "publication observation gate timed out": "observation-gate",
+    }
+
+    def __init__(self):
+        self.operation = None
+        self.model = None
+        self._failure = None
+
+    @staticmethod
+    def exception_kind(error):
+        for category, kind in (
+            (AssertionError, "assertion"), (subprocess.TimeoutExpired, "timeout"),
+            (TimeoutError, "timeout"), (HTTPError, "http"), (URLError, "url"),
+            (ConnectionError, "connection"), (OSError, "os"),
+            (json.JSONDecodeError, "json"), (subprocess.CalledProcessError, "process-exit"),
+            (ValueError, "value"), (KeyError, "key"), (TypeError, "type"),
+            (KeyboardInterrupt, "interrupted"),
+        ):
+            if isinstance(error, category):
+                return kind
+        return "other"
+
+    def fixture_observation(self):
+        # These are non-atomic observations of local fixture fields. They are
+        # not proof that any canonical grant, execution or capture completed.
+        def count(value, maximum):
+            return value if type(value) is int and 0 <= value <= maximum else None
+
+        model = self.model
+        requests, children, errors = model.requests, model.child_turns, model.errors
+        spawned = model.two_spawned.is_set()
+        first_error = (errors[0] if errors else None) if type(errors) is list else None
+        return {
+            "available": True,
+            "root_turns": count(model.root_turns, 6),
+            "child_turns": {name: count(children.get(name), 2) if type(children) is dict else None
+                            for name in ("runbook", "example")},
+            "accepted_requests": count(len(requests), 10) if type(requests) is list else None,
+            "two_spawned": spawned if type(spawned) is bool else None,
+            "error_observed": bool(errors) if type(errors) is list else None,
+            "first_error": (self.FIXTURE_ERRORS.get(first_error, "other") if type(first_error) is str
+                            else "other") if type(errors) is not list or errors else None,
+        }
+
+    def capture(self, error, *, before_cleanup):
+        if self._failure is not None or self.operation is None:
+            return
+        operation = self.operation if type(self.operation) is str and self.operation in self.OPERATIONS else "other"
+        self._failure = {
+            "operation": operation, "exception_kind": self.exception_kind(error),
+            "timing": "before-owned-cleanup" if before_cleanup else "after-cleanup-attempt",
+            "fixture": None,
+        }
+        if before_cleanup:
+            try:
+                self._failure["fixture"] = self.fixture_observation()
+            except BaseException:
+                # A diagnostic must not replace the original failure.
+                self._failure["fixture"] = {"available": False}
+
+    @contextmanager
+    def record(self):
+        try:
+            yield
+        except BaseException as error:
+            try:
+                self.capture(error, before_cleanup=True)
+            except BaseException:
+                pass
+            raise
+
+    def report(self):
+        return json.loads(json.dumps(self._failure))
 
 
 def canonical(value):
@@ -370,8 +468,11 @@ def execute(args):
     while authority_port == runtime_port:
         runtime_port = port()
     handoff = None
+    observation = ExecutionFailureObservation()
+    args.execution_observation = observation
     with PublicationFixture() as model:
-        with owned_processes(root) as processes:
+        observation.model = model
+        with owned_processes(root) as processes, observation.record():
             prepare({
                 "schema_version": 1, "deployment_id": scope["deployment_id"],
                 "binding": {"schema_version": 1, "repository": REPOSITORY, "profile": profile, "desired_workers": 0},
@@ -442,30 +543,38 @@ def execute(args):
             require(ingress.request("POST", "/managed/enroll", data=request)["task"]["id"] == task,
                     "publication original enrollment replay created another task")
             args.stage = "root-and-children"
+            observation.operation = "two-child-grants"
             eventually(lambda: model.two_spawned.is_set() and not model.errors,
                        processes, "publication two real grants", 60)
             try:
-                active = snapshot()
-                require(len(active["task"]) == len(active["attempt"]) == 1 and active["task"][0]["id"] == task,
-                        "publication created another root task or attempt")
-                attempt = active["attempt"][0]
-                worker = attempt["runtime_binding"]["worker_id"]
-                grants = children(attempt["id"])
-                require(len(grants["children"]) == 2
-                        and {item["child"]["id"] for item in grants["children"]} == set(model.child_ids.values()),
-                        "publication root did not receive both real canonical child grants")
-                eventually(lambda: child_execs_started(runtime_config, worker, model.child_ids.values()),
-                           processes, "publication real child execs", 10)
-                observed = runtime.request("GET", "/api/workers/" + worker, query=scope)
-                require(set(observed["active_executions"]) == {attempt["id"], *model.child_ids.values()}
-                        and plan()["reserved"] == 1, "publication did not retain one worker for root and both children")
-                # Close new admission before releasing the root, avoiding an idle replacement.
-                target(0)
-                def admission_closed():
-                    current = plan()
-                    return (current["reserved"] == 1 and current["repositories"][0]["effective_workers"] == 0
-                            and children(attempt["id"]).get("admission_closed") is True)
-                eventually(admission_closed, processes, "publication active drain admission closure", 10)
+                # Freeze a failure before the existing finally releases the root.
+                with observation.record():
+                    observation.operation = "active-root-lineage"
+                    active = snapshot()
+                    require(len(active["task"]) == len(active["attempt"]) == 1 and active["task"][0]["id"] == task,
+                            "publication created another root task or attempt")
+                    attempt = active["attempt"][0]
+                    worker = attempt["runtime_binding"]["worker_id"]
+                    observation.operation = "canonical-child-grants"
+                    grants = children(attempt["id"])
+                    require(len(grants["children"]) == 2
+                            and {item["child"]["id"] for item in grants["children"]} == set(model.child_ids.values()),
+                            "publication root did not receive both real canonical child grants")
+                    observation.operation = "child-executions"
+                    eventually(lambda: child_execs_started(runtime_config, worker, model.child_ids.values()),
+                               processes, "publication real child execs", 10)
+                    observation.operation = "active-worker"
+                    observed = runtime.request("GET", "/api/workers/" + worker, query=scope)
+                    require(set(observed["active_executions"]) == {attempt["id"], *model.child_ids.values()}
+                            and plan()["reserved"] == 1, "publication did not retain one worker for root and both children")
+                    # Close new admission before releasing the root, avoiding an idle replacement.
+                    observation.operation = "admission-close"
+                    target(0)
+                    def admission_closed():
+                        current = plan()
+                        return (current["reserved"] == 1 and current["repositories"][0]["effective_workers"] == 0
+                                and children(attempt["id"]).get("admission_closed") is True)
+                    eventually(admission_closed, processes, "publication active drain admission closure", 10)
             finally:
                 model.release_root.set()
 
@@ -475,21 +584,27 @@ def execute(args):
                 require(len(records) == 1 and records[0]["id"] == attempt["id"], "publication original attempt changed")
                 return records[0].get("termination_confirmed") is True
 
+            observation.operation = "root-termination"
             eventually(terminal, processes, "publication bounded whole-suite execution and capture", 190)
+            observation.operation = "root-capture"
             attempt, candidate = wait_for_capture(snapshot, scope, task, worker, identity["base"],
                                                   processes, "publication final candidate")
+            observation.operation = "final-canonical-lineage"
             evidence_snapshot = snapshot()
             final_children = children(attempt["id"])
             evidence = stable_evidence(evidence_snapshot, final_children)
             require(candidate["id"] == evidence_snapshot["candidate"][0]["id"],
                     "publication canonical candidate changed after capture")
+            observation.operation = "root-artifacts"
             artifacts = read_artifacts(authority, scope, attempt["captured_artifacts"], sensitive)
             root_manifest = json.loads(artifacts["manifest"])
             require(root_manifest.get("attempt_id") == attempt["id"] and root_manifest.get("worker_id") == worker
                     and root_manifest.get("base_commit") == identity["base"]
                     and root_manifest.get("termination_confirmed") is True and root_manifest.get("launch_fenced") is True,
                     "publication root manifest changed its original execution or fence")
+            observation.operation = "combined-verification"
             combined = completed_verification(artifacts["log"])
+            observation.operation = "child-artifacts"
             child_artifacts, child_patches = {}, {}
             for row in final_children["children"]:
                 child = row["child"]
@@ -508,12 +623,17 @@ def execute(args):
                 configured_result(values["log"], "PUBLICATION_CHILD_VERIFIED")
                 child_patches[child["id"]] = values["patch"]
                 child_artifacts[child["id"]] = child["captured_artifacts"]
+            observation.operation = "child-union"
             validate_task_patches(artifacts["patch"], child_patches)
+            observation.operation = "runtime-history"
             verification_log = single_runtime_execution(runtime_config, worker, attempt["id"], root_manifest)
+            observation.operation = "inference-accounting"
             allowance = inference_reservations(runtime_config, worker, attempt["id"], 10)
             require(len(model.requests) == 10 and not model.errors, "publication consumed unexpected inference")
+            observation.operation = "worker-retirement"
             wait_for_capacity(plan, processes, 0, retired_worker_ids={worker})
             require(plan()["repositories"][0]["desired_workers"] == 0, "publication target reopened")
+            observation.operation = "guest-isolation"
             inspected = json.loads(subprocess.check_output(["docker", "inspect", root_manifest["container_id"]],
                                                            text=True, timeout=10))[0]
             require(inspected["State"]["Running"] is False and inspected["HostConfig"]["NetworkMode"] == "none"
@@ -521,6 +641,7 @@ def execute(args):
                     and not any(name in json.dumps(inspected) for name in FORGE_NAMES)
                     and not any(token in json.dumps(inspected) for token in sensitive),
                     "publication guest violated its runtime or credential boundary")
+            observation.operation = "installation-integrity"
             verify(bundle)
             handoff = {"schema_version": 1, "phase": "captured_and_reaped", "identity": identity,
                        "scope": scope, "revisions": revisions, "image": image, "candidate": candidate["id"],
@@ -529,9 +650,12 @@ def execute(args):
                        "child_artifacts": child_artifacts, "combined_verification": combined, "verification_log": verification_log,
                        "inference": allowance,
                        "bundle": str(bundle), "source": str(paths["zpm"])}
+            observation.operation = "execution-cleanup"
     require_execution_reaped(processes, installation_process, model)
     # This is the sole handoff, written only after every phase-one process stops.
+    observation.operation = "handoff"
     write_private_json(root / "handoff.json", validate_handoff(handoff, identity, root))
+    observation.operation = "execution-report"
     report = {"passed": True, "phase": "execution", "component_revisions": revisions,
               "repository_id": REPOSITORY_ID, "base": identity["base"], "run_id": identity["run_id"],
               "candidate": handoff["candidate"], "root_attempt": handoff["attempt"], "children": handoff["children"],
@@ -808,11 +932,20 @@ def main(argv=None):
         if args.phase == "execute":
             require(isinstance(args.image, str), "publication execution requires its fixed image")
         result = {"execute": execute, "publish": publish, "observe": observe}[args.phase](args)
-    except (Exception, KeyboardInterrupt):
+    except (Exception, KeyboardInterrupt) as error:
         # Never serialize exception messages, raw provider output or private logs.
         result = {"passed": False, "phase": args.phase, "stage": args.stage,
                   "error": "qualification_failed", "next_action": "reconcile original private state and actual forge outcome",
                   "automatic_retry_authorized": False}
+        observation = getattr(args, "execution_observation", None)
+        if observation is not None:
+            try:
+                observation.capture(error, before_cleanup=False)
+                failure = observation.report()
+                if failure is not None:
+                    result["failure_observation"] = failure
+            except BaseException:
+                pass
         if args.phase != "observe" and args.work_dir.is_dir() and not args.work_dir.is_symlink():
             private_json(args.work_dir / "failure-report.json", result)
         print(json.dumps(result, sort_keys=True))
