@@ -298,7 +298,7 @@ credential exclusively in the trusted OpenJules process.
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/57f62d1e108c61a21698c7d23936dc44e83b3092).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/a1547a7743996d2db9866013135e5adb75c0ec7c).
 A valid generic source pin alone is insufficient. Require the component's CI and
 all eight ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
@@ -325,7 +325,7 @@ and four subtests with the actual Docker gates. The
 also preserves the earlier child-outcome failure; the later passing runs do not
 establish that failure's cause or a runtime fix.
 
-All normal and manual runtime references now select
+The preceding bounded socket component is
 `57f62d1e108c61a21698c7d23936dc44e83b3092`, tree
 `79fb000fa7d9ab1cdaf4bd39a0ffc506437acd9d`, from
 [OpenJules #30](https://github.com/niklas-olsson/OpenJules/pull/30). Its
@@ -339,6 +339,35 @@ The prior ZPM #28 candidate `d74628bcb45385a28b86b65cfb4b5b9c83a70b8e` remained
 unqualified after both child jobs timed out on the first model-socket response
 header during the fixed child verification. Those failures and the older
 cause-unknown measurement failure remain tied to their recorded revisions.
+
+All normal and manual runtime references now select
+`a1547a7743996d2db9866013135e5adb75c0ec7c`, tree
+`497ea47626e8c94a65340733acf7f08a1fd8d9e6`, from
+[OpenJules #31](https://github.com/niklas-olsson/OpenJules/pull/31). Its
+[head and relevant-base qualification](https://github.com/niklas-olsson/OpenJules/pull/31#issuecomment-6811709699)
+passed 703 tests and four subtests on each Python version. The
+[actual-main run](https://github.com/niklas-olsson/OpenJules/actions/runs/43135106888)
+then passed the same 703 tests and four subtests on Python 3.11 and 3.12, with
+all Docker gates enabled and no skips. This is merged-component evidence.
+
+This source adds the separately invoked bounded public-discussion participant,
+pins MCP 1.30.0, and extracts the managed model broker's bounded HTTP transport
+for shared use. Bootstrap installs the companion's requirements in its
+dedicated private environment. The normal installation trials still run the
+existing canonical work, recovery, cleanup and isolation scenes; they do not
+start the new participant. Its native tests use named stdio, HTTP, SQLite and
+signature fixtures. They do not supply or qualify the restricted Polyphony
+conversation service, a complete installed conversation, a live provider
+or live forge publication. The ordinary Polyphony service is not a fallback for
+the restricted conversation profile.
+
+The preceding installed delivery culminated in ZPM
+`e3b15538f25b9c6bd2a4b46a9ab8ddca0c1e2853`, with OpenJules
+`57f62d1e108c61a21698c7d23936dc44e83b3092` and the unchanged positive Polyphony pin below.
+Its [head and relevant-base qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/28#issuecomment-6810872810)
+passed sixteen jobs, and its
+[actual-main qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/28#issuecomment-6811017999)
+passed all eight jobs. These reports remain bound to that earlier delivery set.
 
 The positive Polyphony pin is the actual #122 merge
 `143d77c92ca8699ad7ccad4de98a540da6540a09`, tree
@@ -554,7 +583,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/57f62d1e108c61a21698c7d23936dc44e83b3092/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/a1547a7743996d2db9866013135e5adb75c0ec7c/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -572,7 +601,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/57f62d1e108c61a21698c7d23936dc44e83b3092/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/a1547a7743996d2db9866013135e5adb75c0ec7c/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature

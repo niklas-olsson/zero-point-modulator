@@ -36,7 +36,7 @@ explicitly and cannot supply the shared-service acceptance evidence in
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `57f62d1e108c61a21698c7d23936dc44e83b3092`, merged bounded socket denial, scoped diagnostics and managed-context runtime |
+| OpenJules | `a1547a7743996d2db9866013135e5adb75c0ec7c`, merged public-discussion component and shared HTTP transport |
 | Keystone Polyphony | `143d77c92ca8699ad7ccad4de98a540da6540a09`, merged initial child outcome authority |
 | ZPM | The workflow's checked-out revision, recorded in the report |
 
