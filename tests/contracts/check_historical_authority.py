@@ -29,8 +29,8 @@ RUNTIME_REASON = "Canonical managed authority is unsupported: child_initial_outc
 CONTROLLER_REASON = RUNTIME_REASON
 HISTORICAL_REVISION = "473df5a0406accfe5cb550877e7b28a602cb116c"
 HISTORICAL_TREE = "389ec80cb6a99edf2993d59e4540f6bdeaaa5f18"
-CURRENT_REVISION = "143d77c92ca8699ad7ccad4de98a540da6540a09"
-CURRENT_TREE = "0a1462d969b739c4928667c1cd099a9e009369e1"
+CURRENT_REVISION = "dc18c3fb585e00a90706b04095bc278ee3ff1106"
+CURRENT_TREE = "ef5587ab91ed6bf205b7fbfaaa731e0442495d78"
 MODULES = (
     "src.liminal_bridge.coordinator_service",
     "src.liminal_bridge.managed_service",

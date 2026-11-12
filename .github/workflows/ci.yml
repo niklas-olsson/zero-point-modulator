@@ -74,7 +74,7 @@ jobs:
         with:
           repository: niklas-olsson/keystone-polyphony
           # Same merged initial-outcome authority in every installed-stack gate.
-          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
+          ref: dc18c3fb585e00a90706b04095bc278ee3ff1106
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -123,7 +123,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
+          ref: dc18c3fb585e00a90706b04095bc278ee3ff1106
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -172,7 +172,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
+          ref: dc18c3fb585e00a90706b04095bc278ee3ff1106
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -222,7 +222,7 @@ jobs:
         with:
           repository: niklas-olsson/keystone-polyphony
           # Same merged initial-outcome authority in every installed-stack gate.
-          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
+          ref: dc18c3fb585e00a90706b04095bc278ee3ff1106
           path: polyphony
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -293,7 +293,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
+          ref: dc18c3fb585e00a90706b04095bc278ee3ff1106
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5

@@ -37,7 +37,7 @@ explicitly and cannot supply the shared-service acceptance evidence in
 | Component | Revision |
 | --- | --- |
 | OpenJules | `a1547a7743996d2db9866013135e5adb75c0ec7c`, merged public-discussion component and shared HTTP transport |
-| Keystone Polyphony | `143d77c92ca8699ad7ccad4de98a540da6540a09`, merged initial child outcome authority |
+| Keystone Polyphony | `dc18c3fb585e00a90706b04095bc278ee3ff1106`, merged authority and managed-task refusal on legacy paths |
 | ZPM | The workflow's checked-out revision, recorded in the report |
 
 The new job uses the same companion pins as every other installed-stack job.

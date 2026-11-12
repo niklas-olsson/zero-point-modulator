@@ -363,26 +363,50 @@ the restricted conversation profile.
 
 The preceding installed delivery culminated in ZPM
 `e3b15538f25b9c6bd2a4b46a9ab8ddca0c1e2853`, with OpenJules
-`57f62d1e108c61a21698c7d23936dc44e83b3092` and the unchanged positive Polyphony pin below.
+`57f62d1e108c61a21698c7d23936dc44e83b3092` and Polyphony
+`143d77c92ca8699ad7ccad4de98a540da6540a09`.
 Its [head and relevant-base qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/28#issuecomment-6810872810)
 passed sixteen jobs, and its
 [actual-main qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/28#issuecomment-6811017999)
 passed all eight jobs. These reports remain bound to that earlier delivery set.
 
-The positive Polyphony pin is the actual #122 merge
-`143d77c92ca8699ad7ccad4de98a540da6540a09`, tree
-`0a1462d969b739c4928667c1cd099a9e009369e1`, validated by
-[normal current-base CI](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125461545).
-[Controller publication](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125433077/attempts/2)
-retained that exact validated merge. All normal and manual checkouts,
-the publisher's source assertion and the historical-admission probe
-select this same revision. The probe retains historical `473df5a0` as the negative
-revision and validates both source trees and imported bytes. Six authority modules
-and the dependency requirements match the original `653c0a71` blobs; this is not
-an assertion that the whole repository is unchanged. The newer experimental
-receipt export does not register managed capabilities or perform import-time I/O.
+The later ZPM #30 delivery at `0f131ed664d346f3c63f10c24f9d8e376a6581d3`
+paired the current OpenJules revision with that same Polyphony revision.
+Its [head and relevant-base qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/30#issuecomment-6812183104)
+passed sixteen jobs, and its [actual-main run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43138570851)
+passed all eight jobs, including the unchanged 222-test suites and six installed
+reports. That evidence remains bound to the recorded pair.
 
-All eight ZPM jobs must still pass for this exact new integration combination.
+The initial child outcome authority first merged in Polyphony #122 as
+`143d77c92ca8699ad7ccad4de98a540da6540a09`, tree
+`0a1462d969b739c4928667c1cd099a9e009369e1`. Its
+[normal current-base CI](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125461545)
+and [controller publication](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125433077/attempts/2)
+remain historical evidence for that exact revision.
+
+The operative positive Polyphony revision is now
+`dc18c3fb585e00a90706b04095bc278ee3ff1106`, tree
+`ef5587ab91ed6bf205b7fbfaaa731e0442495d78`, the actual merged
+[boundary documentation](https://github.com/niklas-olsson/keystone-polyphony/pull/134)
+on [Polyphony #133](https://github.com/niklas-olsson/keystone-polyphony/pull/133)'s
+legacy refusal implementation. Legacy advisory and experimental task or baton
+paths refuse managed task IDs and managed backlog metadata. Caller-supplied
+experimental labels do not confer managed acceptance or release authority.
+The [component acceptance record](https://github.com/niklas-olsson/keystone-polyphony/issues/109#issuecomment-6812159757)
+keeps component and controller evidence separate from a new installed-set result.
+
+All normal and manual checkouts, the publisher's source assertion and the
+historical-admission probe select this operative revision. The probe retains
+historical `473df5a0` as the negative revision and validates both source trees and
+imported bytes. Its six authority modules and the dependency requirements match
+the original `653c0a71` blobs; the canonical child service and managed CLI also
+match the previous positive pin. This is not an assertion that the whole
+repository is unchanged. The safe experimental receipt export and the legacy
+refusal guards do not add canonical capabilities or alter the probed modules.
+The existing installed trials exercise canonical service behavior; they do not
+invoke every legacy facade or start the separately restricted conversation service.
+
+Every change to the integration set must pass all eight ZPM jobs before promotion.
 Earlier `9e6aaa49` / OpenJules `d3d50b32` runtime reports, the 612-test component
 results and the [measurement set with OpenJules `80a51b86`](https://github.com/niklas-olsson/zero-point-modulator/pull/27#issuecomment-6809671165)
 remain bound to their recorded revisions; they do not qualify the changed set.
