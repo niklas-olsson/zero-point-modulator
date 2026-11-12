@@ -3262,6 +3262,8 @@ def write_failure_diagnostic(root, error, checks, revisions, sensitive, *, actio
 def run(args):
     """One original action budget, two exact managers and no success before cleanup."""
     import signal
+    zpm = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(zpm))
     from zpm.deployment import verify
     from zpm.models import released, snapshot as worker_snapshot
 

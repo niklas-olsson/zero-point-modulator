@@ -703,6 +703,41 @@ def manager_fixture(processes, root):
 
 
 class ManagedPublicOracles(unittest.TestCase):
+    def test_direct_entry_resolves_its_checkout_before_any_trial_effect(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            foreign = root / "unrelated-working-directory"
+            prior = root / "retained-prior-trial"
+            evidence = root / "existing-evidence"
+            for path in (foreign, prior, evidence):
+                path.mkdir()
+                (path / "sentinel").write_bytes(path.name.encode("ascii"))
+            before = {str(path.relative_to(root)): path.read_bytes()
+                      for path in root.rglob("*") if path.is_file()}
+            # Direct-file CI invocation must resolve its own package without
+            # repository cwd, PYTHONPATH, user-site or an installed wheel.
+            completed = subprocess.run(
+                [sys.executable, "-E", "-S", "-B",
+                 str(CONTRACTS / "check_managed_public_stack.py"),
+                 "--managed-stack-dir", str(prior),
+                 "--image", "sha256:" + "1" * 64,
+                 "--work-dir", str(evidence)],
+                cwd=foreign, capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(completed.returncode, 1)
+            self.assertEqual(completed.stderr, "")
+            self.assertEqual(json.loads(completed.stdout), {
+                "passed": False,
+                "error": "managed public evidence directory must be new",
+            })
+            self.assertEqual(
+                {str(path.relative_to(root)): path.read_bytes()
+                 for path in root.rglob("*") if path.is_file()},
+                before,
+            )
+            self.assertEqual(sorted(path.name for path in root.iterdir()),
+                             sorted((foreign.name, prior.name, evidence.name)))
+
     def test_http_reply_requires_a_committed_shared_reservation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "calls.sqlite3"
