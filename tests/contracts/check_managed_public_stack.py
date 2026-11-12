@@ -493,6 +493,135 @@ def reservation_arrival(path, prior):
     return tuple(fresh[0])
 
 
+# These are source-owned diagnostic labels, never caller text or validation.
+# Unknown assertions remain private. Counters below are progress observations,
+# not proof that HTTP replies arrived or that inference/publication completed.
+FIXTURE_REJECTION_LABELS = frozenset({
+    "duplicate fixture JSON field",
+    "fixture JSON is not text",
+    "fixture JSON exceeds its byte bound",
+    "fixture JSON object is invalid or oversized",
+    "public record shape changed",
+    "public record binding changed",
+    "public record contains private or oversized content",
+    "public record changed its declared contribution",
+    "public record changed its approved reply or target",
+    "public effect did not return its original signed receipt",
+    "public receipt duplicates disagree",
+    "public slot response changed",
+    "public slot immutable input changed",
+    "public slot adopted another private actor",
+    "public model effect is not terminal",
+    "public publication changed its original key",
+    "managed public command did not finish successfully",
+    "managed public command output exceeds its bound",
+    "managed public command lacks one exact observation",
+    "guest source hashes are unavailable",
+    "unknown child command",
+    "independent peer author is unavailable",
+    "unknown managed public command",
+    "public slot changed an original binding or cutoff",
+    "public slot rewrote retained evidence",
+    "public actor changed",
+    "public actor identity changed",
+    "public actor admission reopened",
+    "private child patch changed its assigned work",
+    "HTTP arrival lacks one unique committed shared reservation",
+    "HTTP reservation identity was reused or replaced",
+    "HTTP arrival has ambiguous reservations",
+    "shared reservation metadata changed",
+    "a preceding shared inference is still unresolved or changed",
+    "HTTP dispatch preceded its committed reservation",
+    "unexpected managed fixture path",
+    "managed fixture credential changed",
+    "managed fixture request framing changed",
+    "managed fixture body deadline",
+    "managed fixture body ended early",
+    "root command rewrote a retained fixture observation",
+    "root did not retain two distinct actual canonical children",
+    "root proposal changed its original operation",
+    "root activation observation changed",
+    "child slot changed its original activation",
+    "approved invitation is not a terminal root-owned effect",
+    "invitation changed its original publication key",
+    "root completion observation changed",
+    "root signed-history observation changed its ownership or page bound",
+    "public dissent replaced or lost a private completed outcome",
+    "actual signed history lost or combined a distinct contribution",
+    "independent public actors share an identity",
+    "root composition observation changed",
+    "root follow-up replaced an actor or private patch",
+    "public provider body contains tools or an unapproved field",
+    "public provider roles changed",
+    "public provider context shape changed",
+    "public model made an extra or unknown request",
+    "public model did not use its exact approved persona",
+    "child public model preceded the actual root proposal",
+    "root follow-up preceded all distinct signed contributions",
+    "public provider request changed selected records or exposed private work",
+    "ordinary provider tool policy changed",
+    "ordinary provider task context is missing",
+    "ordinary repository rules are missing",
+    "ordinary actor received a changed tool or role surface",
+    "canonical private root requirements are missing",
+    "ordinary model repeated or skipped a tool result",
+    "ordinary model preceding tool failed or changed identity",
+    "child public command changed its private child identity",
+    "child pull preceded its actual original selected context",
+    "unexpected extra ordinary child inference",
+    "unexpected extra ordinary root inference",
+    "final root hold preceded another actor's inference or work",
+    "managed public fixture model/output policy changed",
+    "managed public fixture exceeded its exact allowance",
+    "managed public observation gate was not released before its original cutoff",
+    "nonfinite fixture JSON value",
+    "fixture JSON cannot be normalized",
+    "managed fixture connection handler failed",
+    "managed fixture internal failure",
+    "managed fixture response was not delivered",
+    "managed fixture accept failed",
+    "private fixture observation exceeds its bound",
+})
+
+
+def fixture_failure_observation(fixture):
+    """Freeze bounded evidence without waiting on a failed handler or cleanup."""
+    if fixture is None:
+        return {"available": False, "reason": "fixture_not_started"}
+    try:
+        if not fixture.lock.acquire(blocking=False):
+            return {"available": False, "reason": "fixture_lock_busy"}
+        try:
+            first = fixture.errors[0] if fixture.errors else None
+            label = (
+                first if type(first) is str and len(first) <= 160
+                and first in FIXTURE_REJECTION_LABELS else "unknown fixture rejection"
+            )
+
+            def count(value, maximum):
+                return value if type(value) is int and 0 <= value <= maximum else None
+
+            errors = len(fixture.errors)
+            return {
+                "available": True,
+                "first_rejection_label": label if errors else None,
+                "error_count": min(errors, 64),
+                "error_count_truncated": errors > 64,
+                "accepted_requests": count(len(fixture.requests), 13),
+                "reservation_observations": count(len(fixture.reservations), 13),
+                "accepted_public_requests": count(len(fixture.public_calls), 4),
+                "root_role_progress": count(fixture.root_turns, 5),
+                "child_role_progress": {
+                    name: count(fixture.child_turns[name], 2) for name in ("left", "right")
+                },
+            }
+        finally:
+            fixture.lock.release()
+    except BaseException:
+        # Final cleanup and the original failure must survive diagnostic failure.
+        return {"available": False, "reason": "fixture_snapshot_failed"}
+
+
 class ManagedPublicFixture:
     """One bounded HTTP handler and the exact declared13-call model transcript."""
 
@@ -3210,7 +3339,8 @@ class ActionFence:
 
 
 
-def write_failure_diagnostic(root, error, checks, revisions, sensitive, *, action_elapsed, cleanup):
+def write_failure_diagnostic(root, error, checks, revisions, sensitive, *, action_elapsed, cleanup,
+                             fixture_observation=None):
     """Write the complete fixed failure projection once, after all owned cleanup."""
     import stat
 
@@ -3227,6 +3357,8 @@ def write_failure_diagnostic(root, error, checks, revisions, sensitive, *, actio
         "owned_cleanup": cleanup, "action_budget_seconds": ACTION_SECONDS,
         "action_elapsed_seconds": action_elapsed, "logs": {},
     }
+    if fixture_observation is not None:
+        result["model_fixture"] = fixture_observation
     allowance = max((len(secret.encode("utf-8")) for secret in sensitive), default=0)
     for name in ("bootstrap", "installation", "cleanup-authority"):
         path = root / (name + ".log")
@@ -3463,11 +3595,13 @@ def run(args):
         # action work, mask the primary error or skip a later owned close.
         action_elapsed = (report["action_elapsed_seconds"] if report is not None
                           else round(time.monotonic() - owner.started, 3))
+        fixture_observation = fixture_failure_observation(fixture)
         cleanup = close_trial(
             processes, owner, peer, fixture, installation=installation, context=context, original=error,
         )
         return write_failure_diagnostic(
             root, error, checks, revisions, sensitive, action_elapsed=action_elapsed, cleanup=cleanup,
+            fixture_observation=fixture_observation,
         )
     finally:
         for signum, previous in prior_handlers.items():

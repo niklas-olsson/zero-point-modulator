@@ -141,6 +141,18 @@ def post(model, payload, *, token=None):
         return response.code, json.loads(response.read(524289))
 
 
+def failure_observation_after_response(model):
+    """Unit-only bounded wait for the completed HTTP handler to release its lock."""
+    cutoff = time.monotonic() + 2
+    while True:
+        value = trial.fixture_failure_observation(model)
+        if value.get("available") is True:
+            return value
+        if time.monotonic() >= cutoff:
+            raise AssertionError("named HTTP fixture did not release its observation lock")
+        time.sleep(0.01)
+
+
 @contextmanager
 def scope_server(respond):
     requests = []
@@ -932,6 +944,153 @@ print(json.dumps(observed,sort_keys=True))
                     trial.reservation_arrival(path, {first[:3]: first})
             finally:
                 connection.close()
+
+
+    def test_fixture_failure_observation_distinguishes_rejected_body_and_reserved_arrival(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            connection = database(root / "calls.sqlite3")
+            model = fixture()
+            model.reservation_path = root / "calls.sqlite3"
+            model.start()
+            try:
+                reserve(connection, 1)
+                payload = public_body()
+                payload["messages"][0]["content"] = "PRIVATE_WRONG_PERSONA_CANARY"
+                code, response = post(model, payload)
+                self.assertEqual((code, response), (
+                    400, {"error": "managed public fixture rejected the request"},
+                ))
+                observed = failure_observation_after_response(model)
+                self.assertEqual(observed, {
+                    "available": True,
+                    "first_rejection_label": "public model did not use its exact approved persona",
+                    "error_count": 1, "error_count_truncated": False,
+                    "accepted_requests": 0, "reservation_observations": 1,
+                    "accepted_public_requests": 0, "root_role_progress": 0,
+                    "child_role_progress": {"left": 0, "right": 0},
+                })
+                self.assertEqual(connection.execute(
+                    "SELECT status,response FROM calls"
+                ).fetchall(), [("reserved", None)])
+                self.assertFalse(model.requests)
+                # A later error cannot replace the already-frozen first cause.
+                with model.lock:
+                    model.errors.insert(0, "PRIVATE_LATER_CLEANUP_CANARY")
+                    model.root_turns = 5
+                self.assertEqual(observed["root_role_progress"], 0)
+                error = AssertionError("managed public model fixture rejected a request")
+                cleanup = {"confirmed": True}
+                value = trial.write_failure_diagnostic(
+                    root, error, [], {}, set(), action_elapsed=1.0, cleanup=cleanup,
+                    fixture_observation=observed,
+                )
+                self.assertEqual(value["error"], error.args[0])
+                self.assertIs(value["passed"], False)
+                self.assertIs(value["full_run_completed"], False)
+                self.assertEqual(value["model_fixture"], observed)
+                self.assertEqual(json.loads((root / "diagnostics.json").read_bytes()), value)
+                self.assertEqual((root / "diagnostics.json").stat().st_mode & 0o777, 0o600)
+                self.assertFalse((root / "report.json").exists())
+                exported = trial.canonical(value).decode("ascii")
+                for private in ("PRIVATE_WRONG_PERSONA_CANARY", "PRIVATE_LATER_CLEANUP_CANARY",
+                                model.token, "owned-worker", "original-attempt", "request-1"):
+                    self.assertNotIn(private, exported)
+            finally:
+                model.close(time.monotonic() + 5)
+                connection.close()
+
+    def test_fixture_failure_observation_never_exports_unknown_or_secret_errors(self):
+        errors = (
+            AssertionError("PRIVATE_EXCEPTION_CANARY /private/path credential=value"),
+            AssertionError("managed fixture credential changed PRIVATE_SUFFIX_CANARY"),
+            RuntimeError("PRIVATE_RUNTIME_EXCEPTION_CANARY"),
+        )
+        for error in errors:
+            with self.subTest(error_kind=type(error).__name__):
+                model = fixture().start()
+                try:
+                    # A named failing reply callback still crosses the actual HTTP
+                    # handler. No request text or arbitrary exception becomes a label.
+                    with patch.object(model, "_public_reply", side_effect=error):
+                        self.assertEqual(post(model, public_body())[0], 400)
+                    observed = failure_observation_after_response(model)
+                    self.assertEqual(observed["first_rejection_label"], (
+                        "unknown fixture rejection" if isinstance(error, AssertionError)
+                        else "managed fixture internal failure"
+                    ))
+                    self.assertEqual(observed["accepted_requests"], 0)
+                    self.assertEqual(observed["reservation_observations"], 0)
+                    self.assertEqual(observed["error_count"], 1)
+                    exported = trial.canonical(observed).decode("ascii")
+                    for private in (str(error), "PRIVATE_", "/private/path", model.token):
+                        self.assertNotIn(private, exported)
+                    with model.lock:
+                        model.errors[:] = ["PRIVATE_COUNT_CANARY"] * 65
+                        model.requests[:] = [public_body()] * 14
+                        model.root_turns = True
+                    bounded = failure_observation_after_response(model)
+                    self.assertEqual(bounded["error_count"], 64)
+                    self.assertIs(bounded["error_count_truncated"], True)
+                    self.assertIsNone(bounded["accepted_requests"])
+                    self.assertIsNone(bounded["root_role_progress"])
+                    self.assertNotIn("PRIVATE_", trial.canonical(bounded).decode("ascii"))
+                finally:
+                    model.close(time.monotonic() + 5)
+
+    @unittest.skipUnless(sys.platform == "linux" and hasattr(os, "WNOWAIT")
+                         and hasattr(signal, "ITIMER_REAL"), "Linux bounded failure cleanup")
+    def test_fixture_failure_snapshot_never_waits_or_replaces_primary_cleanup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            processes = trial.Processes(root)
+            events = []
+            owner = NamedCleanupOwner(events, fail=True)
+            model = fixture().start()
+            original = AssertionError("original installed scene failure")
+            try:
+                manager = manager_fixture(processes, root)
+                model.lock.acquire()
+                try:
+                    # A blocking snapshot would hit the real timer and return the
+                    # wrong fallback. This test cannot hang on its own held lock.
+                    with trial.ActionFence(time.monotonic() + 0.5):
+                        observed = trial.fixture_failure_observation(model)
+                    self.assertEqual(observed, {
+                        "available": False, "reason": "fixture_lock_busy",
+                    })
+                finally:
+                    model.lock.release()
+                self.assertEqual(signal.getitimer(signal.ITIMER_REAL), (0.0, 0.0))
+                with model.lock:
+                    model.errors.append("PRIVATE_AFTER_SNAPSHOT_CANARY")
+                cleanup = trial.close_trial(
+                    processes, owner, None, model, installation=manager, original=original,
+                )
+                self.assertEqual(manager.returncode, 130)
+                self.assertFalse(processes.running)
+                self.assertTrue(all(handle.closed for handle in processes.handles))
+                self.assertFalse(model.thread.is_alive())
+                self.assertTrue(model.release_root.is_set())
+                self.assertEqual(events, ["containment"])
+                self.assertEqual(original.args, ("original installed scene failure",))
+                self.assertIn("owned-final-containment", "\n".join(original.__notes__))
+                value = trial.write_failure_diagnostic(
+                    root, original, [], {}, set(), action_elapsed=0.5, cleanup=cleanup,
+                    fixture_observation=observed,
+                )
+                self.assertEqual(value["model_fixture"], {
+                    "available": False, "reason": "fixture_lock_busy",
+                })
+                self.assertEqual(value["error"], "original installed scene failure")
+                self.assertEqual(value["cleanup_notes"], original.__notes__)
+                self.assertNotIn("PRIVATE_", trial.canonical(value).decode("ascii"))
+                self.assertEqual(json.loads((root / "diagnostics.json").read_bytes()), value)
+                self.assertFalse((root / "report.json").exists())
+                self.assertEqual((root / "diagnostics.json").stat().st_mode & 0o777, 0o600)
+            finally:
+                model.close(time.monotonic() + 5)
+                processes.close()
 
     def test_http_fixture_refuses_duplicate_public_effect_and_wrong_credential(self):
         model = fixture()
