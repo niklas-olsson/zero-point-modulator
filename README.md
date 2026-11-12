@@ -287,7 +287,7 @@ The following guides own each separate integration procedure and its evidence:
 | [HTTP lifecycle](docs/http-contract-trial.md) | Actual client/API contract, lost replies and recovery with real subprocess fixtures; not production confinement. |
 | [Managed stack](docs/managed-stack-trial.md) | Installed capacity, crashes, watchdog termination and durable capture. |
 | [Independent public discussion](docs/public-discussion-stack-trial.md) | Separate public participants through the retained installed interpreters. |
-| [Model-backed root](docs/managed-model-stack-trial.md) | Real coding agent and broker with deterministic localhost provider replies. |
+| [Model-backed root and confined suite](docs/managed-model-stack-trial.md) | Real coding agent and broker with deterministic localhost provider replies; a separate full repository suite in the same managed image. |
 | [Children and managed public discussion](docs/managed-children-stack-trial.md) | Private child execution, outcomes, cold clarification, capture, scoped cleanup/restart and bounded public contributions. |
 | [Deployment isolation](docs/managed-isolation-stack-trial.md) | Two independent deployments on one Docker Engine; not a shared-service installation. |
 | [Shared-service installation](docs/managed-multi-repository-stack-trial.md) | Two repositories under one controller/service pair, scoped credentials, capacity and recovery. |

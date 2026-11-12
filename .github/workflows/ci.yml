@@ -357,6 +357,13 @@ jobs:
             --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
             --image "$(cat "$RUNNER_TEMP/managed-model-image.id")" \
             --work-dir "$RUNNER_TEMP/managed-model-stack-trial"
+      - name: Exercise the complete repository suite under managed confinement
+        run: |
+          "$RUNNER_TEMP/managed-model-stack-trial/installation/environments/openjules/bin/python" \
+            zpm/tests/contracts/check_confined_suite.py \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/managed-model-image.id")" \
+            --work-dir "$RUNNER_TEMP/confined-suite-trial"
       - name: Retain only the credential-free model trial report
         if: always()
         uses: actions/upload-artifact@v4
@@ -365,5 +372,6 @@ jobs:
           path: |
             ${{ runner.temp }}/managed-model-stack-trial/report.json
             ${{ runner.temp }}/managed-model-stack-trial/diagnostics.json
+            ${{ runner.temp }}/confined-suite-trial/report.json
           if-no-files-found: warn
           retention-days: 14

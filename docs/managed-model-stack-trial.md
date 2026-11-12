@@ -16,6 +16,11 @@ result qualifies this installation and protocol path. It does not qualify a
 provider's API behavior, model reasoning quality, delegated children, semantic
 review, forge publication or merge authorization.
 
+After this installed trial, the same CI job runs the complete ZPM unit suite in
+the managed image. This separate confined fixture exposes failures that ordinary
+host tests cannot reproduce. It adds no model requests and does not replace the
+actual parent-and-child publication trial.
+
 ## Components and host
 
 The separate `managed-model-stack` CI job pins these revisions:
@@ -75,6 +80,53 @@ schema and output limit, requires the exact canonical requirements and root
 repository instructions, and rejects extra calls or a failed preceding tool.
 Four deterministic replies direct read, write, test and finish operations.
 The agent and broker run their production implementations.
+
+## Confined repository suite
+
+The follow-on check reuses the installed OpenJules interpreter and the same
+immutable managed image built above. Run it only after the installed model trial
+has succeeded, with a new private work directory outside every checkout:
+
+```sh
+/absolute/private/managed-model-stack-trial/installation/environments/openjules/bin/python \
+  tests/contracts/check_confined_suite.py \
+  --openjules-checkout /absolute/checkouts/OpenJules \
+  --image "$(cat /absolute/private/managed-model-image-id)" \
+  --work-dir /absolute/private/confined-suite-trial
+```
+
+The fixture uses the approved Git source, a fresh owned Docker volume and the
+production-selected child watchdog as PID 1 under UID 65534. The root workload
+runs as UID 65532 through the pinned execution wrapper and the image's command
+tool. It retains the 512 MiB memory limit, one-CPU quota, 128-task limit, disabled
+external networking, read-only root, dropped capabilities, no-new-privileges and
+noexec `/tmp`. Executable test fixtures use fresh private workspace temporary
+storage, as in the publication verifier.
+
+The suite retains its 110-second bound and the command tool its 120-second bound.
+Synthetic immutable child deadline markers retain the earlier 90-second fence;
+the fixture does not extend a grant to obtain a passing result. It discovers and
+runs the whole checked-out suite once, preserving ordinary unittest failure,
+error, subtest and skip semantics. The fixture's complete-coverage acceptance
+also requires zero skipped or expected-failure methods, matching the established
+Linux test inventory. A missing or incomplete result, a failed test, or
+unconfirmed owned cleanup fails this check.
+
+The report retains approved test identifiers, fixed exception categories,
+allowlisted errno values and bounded numeric process/cgroup observations.
+Unavailable observations remain unknown. Bounded exception-context inspection
+can observe a context suppressed from rendered traceback text; it cannot recover
+errors that a separate helper process has already discarded. Exception messages,
+arguments, raw subtest values, process arguments and rendered suite logs are not
+exported. Only the exact safe `report.json` is added to the existing CI artifact.
+
+This is a fixture of the confined suite, with fixed document composition and
+synthetic deadline markers. It does not execute real child agents, model calls,
+canonical authority, publication or recovery. Its process history differs from
+the full parent-and-child trial. Low sampled resource counts do not rule out an
+earlier transient limit. Record its exact source, runtime and image identity and
+its actual outcome separately from installed-service and manual-publication
+evidence.
 
 ## Responsive coordinator without managed policy
 
