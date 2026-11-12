@@ -99,6 +99,19 @@ def public_body(key="proposal", context=()):
     }
 
 
+def ordinary_root_body():
+    names = trial.BASE_TOOLS | trial.CHILD_TOOLS | trial.ROOT_PUBLIC_TOOLS
+    return {
+        "model": trial.MODEL_NAME, "stream": False, "max_tokens": 1024,
+        "tool_choice": "auto",
+        "tools": [{"type": "function", "function": {"name": name}} for name in sorted(names)],
+        "messages": [
+            {"role": "system", "content": "Named ordinary-model fixture."},
+            {"role": "user", "content": trial.REQUIREMENTS + "\n" + trial.ROOT_RULES},
+        ],
+    }
+
+
 def fixture():
     return trial.ManagedPublicFixture(
         {"child_tools.py": "d" * 64, "public_tools.py": "e" * 64}, status("22"),
@@ -1024,6 +1037,253 @@ print(json.dumps(observed,sort_keys=True))
             finally:
                 connection.close()
 
+
+    def test_failed_command_projection_keeps_original_http_result_and_counts(self):
+        children = {"left": "child_" + "1" * 32, "right": "child_" + "2" * 32}
+        observation = {"children": children, "proposal": proposal()}
+        success = {
+            "state": "exited", "exit_code": 0,
+            "output": trial.OBSERVATION + trial.canonical(observation).decode("ascii") + "\n",
+        }
+        public_output = (
+            "PRIVATE_COMMAND_CANARY /private/path credential=value \u03c0\n"
+            "<run_path>.PublicError: public discussion unavailable: expired\n"
+        )
+        control_output = (
+            "PRIVATE_CONTROL_CANARY request-key=private\n"
+            "<run_path>.ControlError: child control unavailable: uncertain\n"
+        )
+        cases = (
+            ("valid", success, None),
+            ("nonzero-public", {"state": "exited", "exit_code": 1, "output": public_output},
+             "public_error:expired"),
+            ("nonzero-control", {"state": "exited", "exit_code": 2, "output": control_output},
+             "control_error:uncertain"),
+            ("timeout", {"state": "timed_out", "exit_code": -9, "output": "PRIVATE_TIMEOUT_CANARY\n"},
+             "unrecognized"),
+            ("malformed-fields", {"state": "PRIVATE_STATE_CANARY", "exit_code": True,
+                                  "output": {"private": "PRIVATE_OUTPUT_CANARY"}},
+             "unrecognized"),
+            ("malformed-json", "PRIVATE_UNPARSED_CANARY", None),
+        )
+        for name, result, category in cases:
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "calls.sqlite3"
+                connection = database(path)
+                model = fixture()
+                model.reservation_path = path
+                model.start()
+                try:
+                    reserve(connection, 1)
+                    payload = ordinary_root_body()
+                    code, first = post(model, payload)
+                    self.assertEqual(code, 200)
+                    message = first["choices"][0]["message"]
+                    self.assertEqual(message["tool_calls"][0]["function"]["name"], "run_command")
+                    connection.execute(
+                        "UPDATE calls SET status='complete',response='{}' WHERE request_id='request-1'"
+                    )
+                    connection.commit()
+                    reserve(connection, 2)
+                    payload["messages"].extend([message, {
+                        "role": "tool", "tool_call_id": message["tool_calls"][0]["id"],
+                        "content": result if isinstance(result, str) else trial.canonical(result).decode("ascii"),
+                    }])
+                    code, response = post(model, payload)
+                    observed = failure_observation_after_response(model)
+                    self.assertEqual(observed["reservation_observations"], 2)
+                    self.assertEqual(observed["accepted_public_requests"], 0)
+                    self.assertEqual(observed["child_role_progress"], {"left": 0, "right": 0})
+                    if name == "valid":
+                        self.assertEqual(code, 200)
+                        self.assertEqual(observed["accepted_requests"], 2)
+                        self.assertEqual(observed["root_role_progress"], 2)
+                        self.assertEqual(observed["error_count"], 0)
+                        self.assertNotIn("failed_command", observed)
+                        self.assertIsNone(model.failed_command_observation)
+                        self.assertEqual(model.observations["proposal"], observation)
+                        continue
+                    self.assertEqual((code, response), (
+                        400, {"error": "managed public fixture rejected the request"},
+                    ))
+                    self.assertEqual(observed["accepted_requests"], 1)
+                    self.assertEqual(observed["root_role_progress"], 1)
+                    self.assertEqual(observed["error_count"], 1)
+                    if name == "malformed-json":
+                        self.assertEqual(observed["first_rejection_label"], "fixture JSON cannot be normalized")
+                        self.assertNotIn("failed_command", observed)
+                        continue
+                    self.assertEqual(observed["first_rejection_label"],
+                                     "managed public command did not finish successfully")
+                    expected = {
+                        "available": True, "expected_role": "root", "expected_phase": "proposal",
+                        "runner_state": "unavailable" if name == "malformed-fields" else result["state"],
+                        "exit_code_type": "not_integer" if name == "malformed-fields" else "integer",
+                        "exit_code": None if name == "malformed-fields" else result["exit_code"],
+                        "output_type": "not_string" if name == "malformed-fields" else "string",
+                        "output_availability": "not_string" if name == "malformed-fields" else "available",
+                        "output_utf8_bytes": None if name == "malformed-fields" else len(result["output"].encode("utf-8")),
+                        "output_sha256": None if name == "malformed-fields" else hashlib.sha256(
+                            result["output"].encode("utf-8")).hexdigest(),
+                        "terminal_error_category": category,
+                    }
+                    self.assertEqual(observed["failed_command"], expected)
+                    # A later original-result rejection cannot overwrite the first.
+                    with model.lock:
+                        with self.assertRaisesRegex(AssertionError, "did not finish successfully"):
+                            model._command_observation(trial.canonical({
+                                "state": "exited", "exit_code": 9, "output": "PRIVATE_LATER_CANARY",
+                            }), "right", "child")
+                    self.assertEqual(model.failed_command_observation, expected)
+                    exported = trial.canonical(observed).decode("ascii")
+                    for private in ("PRIVATE_", "/private/path", "credential=", "request-key=",
+                                    model.token, "owned-worker", "original-attempt", "request-2"):
+                        self.assertNotIn(private, exported)
+                    self.assertEqual(connection.execute(
+                        "SELECT status,response FROM calls ORDER BY request_id"
+                    ).fetchall(), [("complete", "{}"), ("reserved", None)])
+                finally:
+                    model.close(time.monotonic() + 5)
+                    connection.close()
+
+    def test_failed_command_projection_bounds_private_fields_and_expected_phases(self):
+        unknown = (
+            "<run_path>.PublicError: public discussion unavailable: PRIVATE_SECRET",
+            "<run_path>.PublicError: public discussion unavailable: expired PRIVATE_SUFFIX",
+            "PRIVATE_PREFIX <run_path>.PublicError: public discussion unavailable: expired",
+            "OtherError: public discussion unavailable: expired",
+            "<run_path>.ControlError: child control unavailable: PRIVATE_SECRET",
+            "<run_path>.PublicError: public discussion unavailable: expired\nPRIVATE_LAST_LINE",
+        )
+        for output in unknown:
+            with self.subTest(output_kind=unknown.index(output)):
+                projected = trial.command_failure_observation(
+                    {"state": "exited", "exit_code": 1, "output": output}, "root", "proposal",
+                )
+                self.assertEqual(projected["terminal_error_category"], "unrecognized")
+                self.assertEqual(projected["output_utf8_bytes"], len(output.encode("utf-8")))
+                self.assertEqual(projected["output_sha256"], hashlib.sha256(output.encode("utf-8")).hexdigest())
+                self.assertNotIn("PRIVATE_", trial.canonical(projected).decode("ascii"))
+        for output, kind, availability in (
+            ({"secret": "PRIVATE_OBJECT"}, "not_string", "not_string"),
+            ("\ud800", "string", "invalid_unicode"),
+            ("x" * 262145, "string", "over_bound"),
+            ("\u03c0" * 131073, "string", "over_bound"),
+        ):
+            projected = trial.command_failure_observation(
+                {"state": "PRIVATE_STATE", "exit_code": True, "output": output},
+                "PRIVATE_ROLE", "PRIVATE_PHASE",
+            )
+            self.assertEqual(projected, {
+                "available": True, "expected_role": "unavailable", "expected_phase": "unavailable",
+                "runner_state": "unavailable", "exit_code_type": "not_integer", "exit_code": None,
+                "output_type": kind, "output_availability": availability,
+                "output_utf8_bytes": None, "output_sha256": None,
+                "terminal_error_category": "unrecognized",
+            })
+        for value in (-256, 256, 1.0, True, None):
+            projected = trial.command_failure_observation(
+                {"state": "unknown", "exit_code": value, "output": ""}, "root", "proposal",
+            )
+            self.assertIsNone(projected["exit_code"])
+            self.assertEqual(projected["exit_code_type"], "integer" if type(value) is int else "not_integer")
+        raw = trial.canonical({"state": "exited", "exit_code": 1, "output": "PRIVATE_PHASE_CANARY"})
+        for role, phase, previous in (
+            ("root", "proposal", 1), ("root", "activate", 2),
+            ("root", "observe", 3), ("root", "compose", 4),
+            ("left", "child", 1), ("right", "child", 1),
+        ):
+            with self.subTest(expected_role=role, expected_phase=phase):
+                model = fixture()
+                try:
+                    with model.lock:
+                        with self.assertRaisesRegex(AssertionError, "did not finish successfully"):
+                            if role == "root":
+                                model._root_result(previous, raw)
+                            else:
+                                model.child_turns[role] = 1
+                                payload = ordinary_root_body()
+                                payload["messages"][1]["content"] = trial.PRIVATE_INSTRUCTIONS[role] + "\n" + trial.ROOT_RULES
+                                names = trial.BASE_TOOLS | {"report_outcome"} | trial.CHILD_PUBLIC_TOOLS
+                                payload["tools"] = [{"function": {"name": name}} for name in sorted(names)]
+                                payload["messages"].append({
+                                    "role": "tool", "tool_call_id": "managed-public-" + role + "-1",
+                                    "content": raw.decode("ascii"),
+                                })
+                                model._coding_reply(payload)
+                    observed = trial.fixture_failure_observation(model)["failed_command"]
+                    self.assertEqual((observed["expected_role"], observed["expected_phase"]), (role, phase))
+                    self.assertNotIn("PRIVATE_", trial.canonical(observed).decode("ascii"))
+                finally:
+                    model.close(time.monotonic() + 5)
+
+    @unittest.skipUnless(sys.platform == "linux" and hasattr(os, "WNOWAIT")
+                         and hasattr(signal, "ITIMER_REAL"), "Linux bounded failure cleanup")
+    def test_failed_command_diagnostic_failure_preserves_primary_and_owned_cleanup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            model = fixture().start()
+            processes = trial.Processes(root)
+            owner = NamedCleanupOwner([], fail=True)
+            original = AssertionError("managed public model fixture rejected a request")
+            try:
+                manager = manager_fixture(processes, root)
+                payload = ordinary_root_body()
+                code, first = post(model, payload)
+                self.assertEqual(code, 200)
+                message = first["choices"][0]["message"]
+                payload["messages"].extend([message, {
+                    "role": "tool", "tool_call_id": message["tool_calls"][0]["id"],
+                    "content": trial.canonical({
+                        "state": "exited", "exit_code": 1, "output": "PRIVATE_ORIGINAL_OUTPUT",
+                    }).decode("ascii"),
+                }])
+                with patch.object(trial, "command_failure_observation",
+                                  side_effect=RuntimeError("PRIVATE_DIAGNOSTIC_EXCEPTION")):
+                    self.assertEqual(post(model, payload)[0], 400)
+                observed = failure_observation_after_response(model)
+                self.assertEqual(observed["first_rejection_label"],
+                                 "managed public command did not finish successfully")
+                self.assertEqual(observed["failed_command"], {
+                    "available": False, "reason": "command_snapshot_failed",
+                })
+                self.assertEqual((observed["accepted_requests"], observed["root_role_progress"]), (1, 1))
+                self.assertEqual(observed["error_count"], 1)
+                model.lock.acquire()
+                try:
+                    with trial.ActionFence(time.monotonic() + 0.5):
+                        self.assertEqual(trial.fixture_failure_observation(model), {
+                            "available": False, "reason": "fixture_lock_busy",
+                        })
+                finally:
+                    model.lock.release()
+                with model.lock:
+                    model.failed_command_observation = {"PRIVATE_CLEANUP_MUTATION": "PRIVATE_LATER"}
+                cleanup = trial.close_trial(
+                    processes, owner, None, model, installation=manager, original=original,
+                )
+                self.assertEqual(manager.returncode, 130)
+                self.assertFalse(processes.running)
+                self.assertTrue(all(handle.closed for handle in processes.handles))
+                self.assertFalse(model.thread.is_alive())
+                self.assertEqual(original.args, ("managed public model fixture rejected a request",))
+                self.assertIn("owned-final-containment", "\n".join(original.__notes__))
+                value = trial.write_failure_diagnostic(
+                    root, original, [], {}, set(), action_elapsed=1.0, cleanup=cleanup,
+                    fixture_observation=observed,
+                )
+                self.assertEqual(value["error"], original.args[0])
+                self.assertEqual(value["model_fixture"]["failed_command"], {
+                    "available": False, "reason": "command_snapshot_failed",
+                })
+                self.assertEqual(value["cleanup_notes"], original.__notes__)
+                self.assertNotIn("PRIVATE_", trial.canonical(value).decode("ascii"))
+                self.assertEqual(json.loads((root / "diagnostics.json").read_bytes()), value)
+                self.assertEqual((root / "diagnostics.json").stat().st_mode & 0o777, 0o600)
+                self.assertFalse((root / "report.json").exists())
+            finally:
+                model.close(time.monotonic() + 5)
+                processes.close()
 
     def test_fixture_failure_observation_distinguishes_rejected_body_and_reserved_arrival(self):
         with tempfile.TemporaryDirectory() as directory:

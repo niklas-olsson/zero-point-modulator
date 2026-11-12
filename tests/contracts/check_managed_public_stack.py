@@ -228,18 +228,96 @@ def slot_value(result, key, *, child_id=None, selected=(), reply_to=None, termin
     return slot
 
 
-def command_observation(tool_result):
-    result = object_value(tool_result)
-    require(result.get("state") == "exited" and type(result.get("exit_code")) is int
-            and result["exit_code"] == 0 and isinstance(result.get("output"), str),
-            "managed public command did not finish successfully")
-    lines = result["output"].splitlines()
-    require(len(lines) <= 512 and len(result["output"].encode("utf-8")) <= 262144,
-            "managed public command output exceeds its bound")
-    found = [line[len(OBSERVATION):] for line in lines if line.startswith(OBSERVATION)]
-    require(len(found) == 1, "managed public command lacks one exact observation")
-    return object_value(found[0], 196608)
+# These are exact terminal client-error grammars from the pinned trusted image.
+# They classify untrusted captured output only, not an authenticated host reason,
+# the command's independently observed execution stage or an established cause.
+COMMAND_PUBLIC_ERROR_CODES = frozenset({
+    "invalid_request", "not_authorized", "conflict", "request_limit",
+    "slot_limit", "transcript_limit", "expired", "actor_left",
+    "context_unavailable", "retry_later", "canonical_pending",
+    "provider_uncertain", "publication_uncertain", "transport_unavailable",
+    "state_conflict", "protocol_invalid",
+})
+COMMAND_CONTROL_ERROR_CODES = frozenset({
+    "conflict", "request_limit", "deadline_exceeded", "invalid_response", "uncertain",
+})
 
+
+def command_failure_observation(result, expected_role, expected_phase):
+    """Project an already bounded parsed result without retaining its text."""
+    role = expected_role if expected_role in {"root", "left", "right"} else "unavailable"
+    phase = expected_phase if expected_phase in {
+        "proposal", "activate", "observe", "compose", "child",
+    } else "unavailable"
+    state = result.get("state")
+    state = state if type(state) is str and state in {
+        "exited", "timed_out", "output_limit", "unknown",
+    } else "unavailable"
+    status = result.get("exit_code")
+    status_type = "integer" if type(status) is int else "not_integer"
+    status = status if type(status) is int and -255 <= status <= 255 else None
+    output = result.get("output")
+    output_type = "string" if type(output) is str else "not_string"
+    availability = "not_string"
+    encoded = None
+    if type(output) is str:
+        availability = "over_bound"
+        if len(output) <= 262144:
+            try:
+                candidate = output.encode("utf-8")
+            except UnicodeError:
+                availability = "invalid_unicode"
+            else:
+                if len(candidate) <= 262144:
+                    encoded = candidate
+                    availability = "available"
+    category = "unrecognized"
+    if encoded is not None and state == "exited" and status not in (None, 0):
+        # Only the complete final line can match. Prefix/suffix additions,
+        # arbitrary exception names and all unapproved codes remain unknown.
+        lines = output.splitlines()
+        final_line = lines[-1] if lines and len(lines[-1]) <= 160 else ""
+        for prefix, codes, family in (
+            ("<run_path>.PublicError: public discussion unavailable: ",
+             COMMAND_PUBLIC_ERROR_CODES, "public_error"),
+            ("<run_path>.ControlError: child control unavailable: ",
+             COMMAND_CONTROL_ERROR_CODES, "control_error"),
+        ):
+            if final_line.startswith(prefix) and final_line[len(prefix):] in codes:
+                category = family + ":" + final_line[len(prefix):]
+                break
+    return {
+        "available": True, "expected_role": role, "expected_phase": phase,
+        "runner_state": state, "exit_code_type": status_type, "exit_code": status,
+        "output_type": output_type, "output_availability": availability,
+        # LocalTools decodes captured bytes with replacement. These describe
+        # that returned string re-encoded as UTF-8, not the original raw stream.
+        "output_utf8_bytes": len(encoded) if encoded is not None else None,
+        "output_sha256": hashlib.sha256(encoded).hexdigest() if encoded is not None else None,
+        "terminal_error_category": category,
+    }
+
+
+def command_observation(tool_result, *, failure_observer=None):
+    result = object_value(tool_result)
+    try:
+        require(result.get("state") == "exited" and type(result.get("exit_code")) is int
+                and result["exit_code"] == 0 and isinstance(result.get("output"), str),
+                "managed public command did not finish successfully")
+        lines = result["output"].splitlines()
+        require(len(lines) <= 512 and len(result["output"].encode("utf-8")) <= 262144,
+                "managed public command output exceeds its bound")
+        found = [line[len(OBSERVATION):] for line in lines if line.startswith(OBSERVATION)]
+        require(len(found) == 1, "managed public command lacks one exact observation")
+        return object_value(found[0], 196608)
+    except AssertionError:
+        if failure_observer is not None:
+            try:
+                failure_observer(result)
+            except Exception:
+                # Diagnostics cannot replace the original validation failure.
+                pass
+        raise
 
 # A single ordinary model response returns this command before any nested public
 # or control request runs. Only trusted image modules are loaded under -I -S.
@@ -617,7 +695,7 @@ def fixture_failure_observation(fixture):
                 return value if type(value) is int and 0 <= value <= maximum else None
 
             errors = len(fixture.errors)
-            return {
+            observed = {
                 "available": True,
                 "first_rejection_label": label if errors else None,
                 "error_count": min(errors, 64),
@@ -630,6 +708,9 @@ def fixture_failure_observation(fixture):
                     name: count(fixture.child_turns[name], 2) for name in ("left", "right")
                 },
             }
+            if fixture.failed_command_observation is not None:
+                observed["failed_command"] = json.loads(canonical(fixture.failed_command_observation))
+            return observed
         finally:
             fixture.lock.release()
     except BaseException:
@@ -646,6 +727,7 @@ class ManagedPublicFixture:
         self.root_observer = root_observer
         self.token = "fixture-" + secrets.token_urlsafe(32)
         self.requests, self.errors, self.metrics = [], [], []
+        self.failed_command_observation = None
         self.lock = threading.Lock()
         self.release_root = threading.Event()
         self.two_returned = threading.Event()
@@ -763,10 +845,23 @@ class ManagedPublicFixture:
             self.thread.join(max(0, cutoff - time.monotonic()))
         require(not self.thread.is_alive(), "managed HTTP fixture did not stop inside cleanup")
 
+    def _command_observation(self, raw, expected_role, expected_phase):
+        # reply already holds the handler lock. No extra acquisition or wait
+        # is allowed here, and later validation/cleanup cannot replace this row.
+        def failed(result):
+            if self.failed_command_observation is None:
+                self.failed_command_observation = {
+                    "available": False, "reason": "command_snapshot_failed",
+                }
+                self.failed_command_observation = command_failure_observation(
+                    result, expected_role, expected_phase,
+                )
+        return command_observation(raw, failure_observer=failed)
+
     def _root_result(self, previous, raw):
         phases = {1: "proposal", 2: "activate", 3: "observe", 4: "compose"}
         phase = phases[previous]
-        value = command_observation(raw)
+        value = self._command_observation(raw, "root", phase)
         if previous > 1:
             before = self.observations[phases[previous - 1]]
             require(all(value.get(key) == item for key, item in before.items()),
@@ -938,7 +1033,7 @@ class ManagedPublicFixture:
                     and not results[-1]["content"].startswith("Tool error:"),
                     "ordinary model preceding tool failed or changed identity")
             if child:
-                value = command_observation(results[-1]["content"])
+                value = self._command_observation(results[-1]["content"], child, "child")
                 require(set(value) == {"child_id", "public", "context_observation"} and value["child_id"] == self.child_ids[child],
                         "child public command changed its private child identity")
                 proposal = self.observations["proposal"]["proposal"]["slot"]["receipt"]["message_id"]
