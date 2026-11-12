@@ -1885,7 +1885,7 @@ def private_execution_rows(database, fixture, scope, task_id, attempt_id, worker
         require(report == fixture.outcomes[actor]["report"]
                 and report["outcome"] == "completed" and report["summary"] == PRIVATE_SUMMARIES[actor]
                 and report["payload_digest"] == digest({
-                    key: report[key] for key in ("request_key", "outcome", "summary"),
+                    key: report[key] for key in ("request_key", "outcome", "summary")
                 }), "managed public private outcome was replaced by public dissent")
         if final:
             require(isinstance(row["capture"], str) and bool(object_value(row["capture"]))
