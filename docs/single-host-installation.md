@@ -940,6 +940,10 @@ root UID, non-child watchdog, private temporary directory and default isolation
 and resource limits are retained. Its 110-second suite and 120-second command
 guards do not extend the publication trial's bounds. All discovered test identities
 must execute once; skips, incomplete execution or failures prevent a pass.
+Guest preparation preserves the reviewed checkout, including publication files
+already present in source. Unit tests construct their own temporary repositories
+and publication fixtures; the guest's private temporary directory remains outside
+the checkout.
 
 Only `confined-suite-trial/report.json` is exported. It contains bounded
 exception categories, numeric error/exit codes, frame coordinates checked

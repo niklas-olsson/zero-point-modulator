@@ -1,6 +1,7 @@
 """Public fixture diagnostics preserve complete execution and private evidence."""
 
 import copy
+from contextlib import chdir
 import io
 import json
 import os
@@ -15,11 +16,80 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).parent / "contracts"))
 try:
     import check_confined_suite as trial
+    from publication_fixture import FILES as PUBLICATION_FILES
 finally:
     sys.path.pop(0)
 
 
 class ConfinedSuiteTests(unittest.TestCase):
+    def test_guest_preserves_source_and_propagates_suite_result(self):
+        # UID, fixed guest paths and run-directory ownership are modeled here.
+        # Source files, inode checks and private temporary creation are real;
+        # subprocess execution is observed separately from native Docker proof.
+        outcomes = (("success", 0), ("failure", 7),
+                    ("timeout", subprocess.TimeoutExpired(["suite"], trial.SUITE_SECONDS)))
+        for present in (False, True):
+            for label, outcome in outcomes:
+                with self.subTest(present=present, result=label), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    run = root / "run"
+                    run.mkdir(mode=0o700)
+                    repo = run / "repo"
+                    repo.mkdir()
+                    (repo / "README.md").write_bytes(b"Other reviewed source\n")
+                    for relative in PUBLICATION_FILES.values():
+                        target = repo / relative
+                        target.parent.mkdir(exist_ok=True)
+                        if present:
+                            target.write_bytes(b"Independently reviewed content: " + relative.encode())
+
+                    def source_state():
+                        observed = {}
+                        for path in (repo, *repo.rglob("*")):
+                            info = path.lstat()
+                            observed[str(path.relative_to(repo))] = (
+                                info.st_dev, info.st_ino, info.st_mode,
+                                path.read_bytes() if path.is_file() else None,
+                            )
+                        return observed
+
+                    before = source_state()
+                    directory_mode = run.lstat().st_mode
+
+                    class GuestRun:
+                        def lstat(self):
+                            return SimpleNamespace(st_mode=directory_mode, st_uid=65532)
+
+                        def __truediv__(self, name):
+                            return run / name
+
+                    locations = {"/workspace/run": GuestRun(), "/workspace/run/repo": repo,
+                                 "/var/run/docker.sock": root / "absent-docker.sock",
+                                 "/source/.git": root / "absent-source-git"}
+                    guest_path = Mock(side_effect=locations.__getitem__)
+                    guest_path.cwd.return_value = repo
+
+                    def execute(argv, **options):
+                        self.assertTrue(source_state() == before, "guest modified reviewed source")
+                        self.assertEqual(argv, ["python3", trial.__file__, "suite", "a" * 40])
+                        self.assertEqual(options, {
+                            "env": {"KEPT": "fixture-value", "TMPDIR": str(run / "publication-unittest-tmp")},
+                            "timeout": 110, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
+                        })
+                        self.assertEqual((run / "publication-unittest-tmp").stat().st_mode & 0o777, 0o700)
+                        if isinstance(outcome, subprocess.TimeoutExpired):
+                            raise outcome
+                        return SimpleNamespace(returncode=outcome)
+
+                    with chdir(repo), patch.object(trial, "Path", guest_path), \
+                            patch.object(trial.os, "getuid", return_value=65532), \
+                            patch.object(trial.os, "getgid", return_value=65532), \
+                            patch.dict(trial.os.environ, {"KEPT": "fixture-value"}, clear=True), \
+                            patch.object(trial.subprocess, "run", side_effect=execute) as command:
+                        self.assertEqual(trial.guest("a" * 40), 124 if label == "timeout" else outcome)
+                    command.assert_called_once()
+                    self.assertTrue(source_state() == before, "guest changed source bytes or inode identities")
+
     def test_private_exception_data_never_enters_projection(self):
         root = Path(__file__).resolve().parents[1]
         relative = str(Path(__file__).resolve().relative_to(root))

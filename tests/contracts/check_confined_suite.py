@@ -291,8 +291,6 @@ def run_suite(base, destination):
 
 
 def guest(base):
-    from publication_fixture import CONTENTS, FILES
-
     need(os.getuid() == os.getgid() == 65532 and Path.cwd() == Path("/workspace/run/repo"))
     need(not Path("/var/run/docker.sock").exists() and not Path("/source/.git").exists())
     run = Path("/workspace/run")
@@ -300,9 +298,6 @@ def guest(base):
     need(stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o700 and info.st_uid == os.getuid())
     temporary = run / "publication-unittest-tmp"
     temporary.mkdir(mode=0o700)
-    for name, relative in FILES.items():
-        with open(relative, "x") as output:
-            output.write(CONTENTS[name])
     environment = dict(os.environ, TMPDIR=str(temporary))
     # Whole-container termination fences descendants even if the suite process
     # prints a summary and then hangs in interpreter/thread shutdown.
