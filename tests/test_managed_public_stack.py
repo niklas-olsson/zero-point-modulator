@@ -989,6 +989,104 @@ print(json.dumps(observed,sort_keys=True))
         finally:
             model.close(time.monotonic() + 5)
 
+    def test_followup_answers_the_original_public_question_and_retains_both_declines(self):
+        original = proposal()
+        root_record = original["slot"]["receipt"]["record"]
+        proposal_id = root_record["message_id"]
+        left = record("criticism", actor=status("33"), reply_to=proposal_id,
+                      request_key="oj-public:" + "b" * 64)
+        right = record("dissent", actor=status("44"), reply_to=proposal_id,
+                       request_key="oj-public:" + "c" * 64)
+        invitation = record(actor=status(), target=status("22")["author"],
+                            request_key="oj-public-invite:original")
+        invitation["body"].update(kind="invite", content=trial.INVITATION)
+        invitation["message_id"] = trial.digest(invitation["body"])
+        peer = record("dissent", actor=status("22"), reply_to=invitation["message_id"],
+                      request_key="independent-original-decline")
+        peer["body"]["content"] = trial.PEER_DECLINE
+        peer["message_id"] = trial.digest(peer["body"])
+        question = (
+            "The proposal should not equate agreement with correctness; preserve my criticism. "
+            "Does considering contributions separately mean either can be rejected independently?"
+        )
+        answer = (
+            "Yes, either contribution can be rejected independently. I retain the left child's criticism, "
+            "the right child's decline and the independent peer's decline as distinct contributions; "
+            "I do not claim consensus."
+        )
+        # Independent literals make an old question-free/answer-free fixture fail.
+        self.assertEqual(left["body"]["content"], question)
+        self.assertEqual(len({item["body"]["author"] for item in (root_record, left, right, peer)}), 4)
+        selected = [root_record, left, right, peer]
+        observed = {
+            "proposal": original,
+            "public_slots": {"left": {"slot": {"receipt": receipt(left)}},
+                             "right": {"slot": {"receipt": receipt(right)}}},
+            "peer_decline": peer, "history": [root_record, invitation, left, right, peer],
+        }
+        changed_question = copy.deepcopy(left)
+        changed_question["body"]["content"] = "Can agreement substitute for independent assessment?"
+        changed_question["message_id"] = trial.digest(changed_question["body"])
+        # _root_result reaches this exact-content guard before a follow-up.
+        # Coherent record/receipt rewrites must fail even without a history mismatch.
+        trial.terminal_receipt(receipt(left), kind="message", content=question,
+                               author=left["body"]["author"], reply_to=proposal_id)
+        for replacement in (
+            "The proposal should not equate agreement with correctness; preserve my criticism.",
+            changed_question["body"]["content"],
+        ):
+            with self.subTest(question=replacement):
+                rewritten = copy.deepcopy(left)
+                rewritten["body"]["content"] = replacement
+                rewritten["message_id"] = trial.digest(rewritten["body"])
+                with self.assertRaisesRegex(AssertionError, "declared contribution"):
+                    trial.terminal_receipt(receipt(rewritten), kind="message", content=question,
+                                           author=left["body"]["author"], reply_to=proposal_id)
+        # These HTTP negatives separately bind the already retained selection.
+        for mode, records in (
+            ("missing-question", [root_record, right, peer]),
+            ("rehashed-question", [root_record, changed_question, right, peer]),
+            ("missing-child-decline", [root_record, left, peer]),
+            ("missing-peer-decline", [root_record, left, right]),
+        ):
+            with self.subTest(mode=mode):
+                model = fixture()
+                model.observations["observe"] = copy.deepcopy(observed)
+                model.start()
+                try:
+                    self.assertEqual(post(model, public_body("followup", records))[0], 400)
+                    self.assertEqual(model.requests, [])
+                    self.assertEqual(model.public_calls, {})
+                finally:
+                    model.close(time.monotonic() + 5)
+        model = fixture()
+        model.observations["observe"] = copy.deepcopy(observed)
+        model.start()
+        try:
+            code, response = post(model, public_body("followup", selected))
+            self.assertEqual(code, 200)
+            self.assertEqual(json.loads(response["choices"][0]["message"]["content"]),
+                             {"kind": "message", "content": answer})
+            self.assertEqual(len(model.requests), 1)
+            self.assertEqual(set(model.public_calls), {"followup"})
+            self.assertEqual(model.public_calls["followup"]["context_sha256"], trial.digest(selected))
+        finally:
+            model.close(time.monotonic() + 5)
+        followup = record("followup", reply_to=proposal_id, request_key="oj-public:" + "d" * 64)
+        trial.terminal_receipt(receipt(followup), kind="message", content=answer,
+                               author=root_record["body"]["author"], reply_to=proposal_id)
+        for replacement in (
+            "I retain the criticism and both declines as distinct contributions; I do not claim consensus.",
+            "Yes, either contribution can be rejected independently. All participants now agree.",
+        ):
+            with self.subTest(replacement=replacement):
+                rewritten = copy.deepcopy(followup)
+                rewritten["body"]["content"] = replacement
+                rewritten["message_id"] = trial.digest(rewritten["body"])
+                with self.assertRaisesRegex(AssertionError, "declared contribution"):
+                    trial.terminal_receipt(receipt(rewritten), kind="message", content=answer,
+                                           author=root_record["body"]["author"], reply_to=proposal_id)
+
     def test_terminal_receipt_requires_original_hash_scope_kind_and_reply(self):
         value = proposal()
         trial.slot_value(value, "proposal", terminal=True)

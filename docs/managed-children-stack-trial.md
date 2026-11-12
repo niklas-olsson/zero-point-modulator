@@ -864,20 +864,23 @@ The approved choreography is fixed:
    the child's public model.
 3. Each child observes its own offered slot, reads the selected original
    proposal, and pulls that exact slot under its original request key. The left
-   child publishes a criticism; the right child publishes a distinct decline.
-   Both still finish their independent private changes and report private
-   completion.
+   child criticizes the proposal and asks whether either contribution can be
+   rejected independently; the right child publishes a distinct decline. Both
+   still finish their independent private changes and report private completion.
 4. The independent author declines the invitation through its retained
-   connection. The root reads the signed proposal, criticism and both declines,
-   then publishes a follow-up that preserves their distinct authors and
-   disagreement. It applies the two actual private patches and runs the
-   combined repository tests.
+   connection. The root reads the signed proposal, clarification question and
+   both declines, then answers the question in its existing follow-up and
+   preserves the left criticism, right decline and independent peer decline
+   separately. It applies the two actual private patches and runs the combined
+   repository tests.
 5. During the final root hold, the independent author's same process remains
    live through a refused managed peer-control request and a positive voluntary
    leave. That leave is its own public operation, not a managed stop capability.
 
 Seven original signed records from four distinct authors must verify with the
 installed verifier: three messages, two declines, one invitation and one leave.
+Those same records must show proposal, rebuttal, public clarification and
+attributed follow-up synthesis while retaining both declines.
 The four public provider requests contain only the approved persona,
 instruction and selected original public records. They contain no coding tools,
 private task or child instructions, private outcome summaries, control

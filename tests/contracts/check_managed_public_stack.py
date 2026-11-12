@@ -54,15 +54,15 @@ PUBLIC_PERSONAS = {
 }
 PUBLIC_INSTRUCTIONS = {
     "proposal": "Propose discussing two independent contributions without claiming consensus.",
-    "criticism": "Criticize the proposal's assumption that agreement implies correctness.",
+    "criticism": "Criticize the proposal's assumption that agreement implies correctness and ask whether either contribution can be rejected independently.",
     "dissent": "Decline agreement with the proposal and state a distinct public reason.",
-    "followup": "Acknowledge the criticism and both declines without merging their authors.",
+    "followup": "Answer the left child's clarification question from the selected signed record, then retain its criticism and the right child's and independent peer's declines without merging their authors.",
 }
 PUBLIC_OUTPUTS = {
     "proposal": {"kind": "message", "content": "I propose considering two contributions separately; agreement is not required."},
-    "criticism": {"kind": "message", "content": "The proposal should not equate agreement with correctness; preserve my criticism."},
+    "criticism": {"kind": "message", "content": "The proposal should not equate agreement with correctness; preserve my criticism. Does considering contributions separately mean either can be rejected independently?"},
     "dissent": {"kind": "decline", "content": "I decline agreement with that premise and retain this distinct dissent."},
-    "followup": {"kind": "message", "content": "I retain the criticism and both declines as distinct contributions; I do not claim consensus."},
+    "followup": {"kind": "message", "content": "Yes, either contribution can be rejected independently. I retain the left child's criticism, the right child's decline and the independent peer's decline as distinct contributions; I do not claim consensus."},
 }
 INVITATION = "You may independently consider this public proposal; declining leaves your own work unchanged."
 PEER_DECLINE = "I independently decline this invitation. No participant may stop my profile."
