@@ -277,6 +277,16 @@ jobs:
             --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
             --image "$(cat "$RUNNER_TEMP/managed-children-image.id")" \
             --work-dir "$RUNNER_TEMP/managed-cold-children-trial"
+      - name: Install and recover an acknowledged failed child outcome
+        run: |
+          python zpm/tests/contracts/check_children_stack.py \
+            --initial-outcomes \
+            --right-outcome failed \
+            --historical-polyphony-checkout "$GITHUB_WORKSPACE/polyphony-historical" \
+            --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/managed-children-image.id")" \
+            --work-dir "$RUNNER_TEMP/managed-child-failed-outcome-trial"
       - name: Retain only the credential-free child trial report
         if: always()
         uses: actions/upload-artifact@v4
@@ -289,6 +299,8 @@ jobs:
             ${{ runner.temp }}/managed-child-outcomes-trial/diagnostics.json
             ${{ runner.temp }}/managed-cold-children-trial/report.json
             ${{ runner.temp }}/managed-cold-children-trial/diagnostics.json
+            ${{ runner.temp }}/managed-child-failed-outcome-trial/report.json
+            ${{ runner.temp }}/managed-child-failed-outcome-trial/diagnostics.json
           if-no-files-found: warn
           retention-days: 14
 
