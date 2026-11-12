@@ -439,6 +439,12 @@ def require_execution_reaped(processes, manager, model):
             "publication execution shutdown was forced, incomplete or unconfirmed")
 
 
+def active_drain_admission_closed(current, read_children):
+    """Check local capacity before reading canonical child admission."""
+    return (current["reserved"] == 1 and current["repositories"][0]["effective_target"] == 0
+            and read_children().get("admission_closed") is True)
+
+
 def execute(args):
     require(not any(name in os.environ for name in FORGE_NAMES),
             "runtime/model phase must not receive a forge credential")
@@ -571,9 +577,7 @@ def execute(args):
                     observation.operation = "admission-close"
                     target(0)
                     def admission_closed():
-                        current = plan()
-                        return (current["reserved"] == 1 and current["repositories"][0]["effective_workers"] == 0
-                                and children(attempt["id"]).get("admission_closed") is True)
+                        return active_drain_admission_closed(plan(), lambda: children(attempt["id"]))
                     eventually(admission_closed, processes, "publication active drain admission closure", 10)
             finally:
                 model.release_root.set()

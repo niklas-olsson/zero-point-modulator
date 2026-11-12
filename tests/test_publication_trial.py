@@ -16,8 +16,12 @@ import tarfile
 import tempfile
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.error import HTTPError
+
+from zpm.controller import Controller
+from zpm.models import Binding
+from zpm.store import Store
 
 CONTRACTS = Path(__file__).parent / "contracts"
 sys.path.insert(0, str(CONTRACTS))
@@ -39,6 +43,16 @@ def observed_fixture():
         errors=["publication tool result is missing, repeated or failed"],
         two_spawned=types.SimpleNamespace(is_set=lambda: True),
     )
+
+
+def retained_capacity_plan(reservations=1, target=0):
+    with tempfile.TemporaryDirectory() as directory, Store(Path(directory) / "state.sqlite3", "publication") as store:
+        binding = Binding(fixture.REPOSITORY, "publication", max(reservations, 1))
+        stored = store.enroll(binding)
+        for _ in range(reservations):
+            store.reserve(binding, stored["revision"])
+        store.change(binding.repository, "target", target)
+        return Controller(store).plan()
 
 
 def handoff(root):
@@ -136,6 +150,41 @@ class FakeForge:
 
 
 class PublicationTrialTests(unittest.TestCase):
+    def test_active_drain_uses_actual_controller_plan_and_canonical_closure(self):
+        current = retained_capacity_plan()
+        self.assertEqual(current["reserved"], 1)
+        self.assertEqual(current["repositories"][0]["effective_target"], 0)
+        self.assertNotIn("effective_workers", current["repositories"][0])
+        read_children = Mock(return_value={"admission_closed": True})
+        self.assertTrue(trial.active_drain_admission_closed(current, read_children))
+        read_children.assert_called_once_with()
+
+    def test_active_drain_skips_authority_until_capacity_matches(self):
+        for reservations, target in ((0, 0), (2, 0), (1, 1)):
+            with self.subTest(reservations=reservations, target=target):
+                current = retained_capacity_plan(reservations, target)
+                read_children = Mock(side_effect=AssertionError("premature authority read"))
+                self.assertFalse(trial.active_drain_admission_closed(current, read_children))
+                read_children.assert_not_called()
+
+    def test_active_drain_requires_exact_canonical_closure(self):
+        current = retained_capacity_plan()
+        for response in ({}, {"admission_closed": False}, {"admission_closed": None},
+                         {"admission_closed": 1}, {"admission_closed": "true"}):
+            with self.subTest(response=response):
+                read_children = Mock(return_value=response)
+                self.assertFalse(trial.active_drain_admission_closed(current, read_children))
+                read_children.assert_called_once_with()
+
+    def test_active_drain_preserves_authority_failure(self):
+        current = retained_capacity_plan()
+        original = TimeoutError("authority unavailable")
+        read_children = Mock(side_effect=original)
+        with self.assertRaises(TimeoutError) as caught:
+            trial.active_drain_admission_closed(current, read_children)
+        self.assertIs(caught.exception, original)
+        read_children.assert_called_once_with()
+
     def test_failure_observation_success_preserves_one_call_and_result(self):
         observation = trial.ExecutionFailureObservation()
         observation.operation = "active-worker"
