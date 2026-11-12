@@ -19,7 +19,7 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`c925dee46765d2b22c9e38b55f614fc29f8068c1`](https://github.com/niklas-olsson/OpenJules/commit/c925dee46765d2b22c9e38b55f614fc29f8068c1) |
+| OpenJules | [`34a005a731ee4614ab1f105669378fcf814f092d`](https://github.com/niklas-olsson/OpenJules/commit/34a005a731ee4614ab1f105669378fcf814f092d) |
 
 This is the same merged runtime used by all five installed-stack jobs, including
 the explicit managed-public profile. The cold-session option, loopback bootstrap,
@@ -53,12 +53,14 @@ To update the shared component pins:
 
 1. Select an immutable OpenJules commit whose full repository CI passes. Use a
    clean checkout of that commit for the local trial below.
-2. Change all operative checkout `ref` values in `.github/workflows/ci.yml` and
-   `.github/workflows/managed-publication.yml`, the matching revision constant in
-   `tests/contracts/check_publication_stack.py`, and the current HTTP, command,
-   model, child, isolation, shared-service, independent-public and installation
-   guide references
-   together. Keep one explicit three-repository delivery set. The separately
+2. Change all operative checkout `ref` values in `.github/workflows/ci.yml`,
+   `.github/workflows/managed-publication.yml` and
+   `.github/workflows/managed-publication-execution.yml`, the matching revision
+   constant in `tests/contracts/check_publication_stack.py`, its workflow-test
+   pin in `tests/test_publication_execution_workflow.py`, and the current HTTP,
+   command, model, child, isolation, shared-service, independent-public and
+   installation guide references together. Keep one explicit three-repository
+   delivery set. The separately
    labelled historical-authority negative checkout remains frozen at its own
    revision; retained historical results also keep their original revisions.
    Do not substitute a moving branch or tag.

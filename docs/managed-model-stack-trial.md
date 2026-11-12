@@ -22,7 +22,7 @@ The separate `managed-model-stack` CI job pins these revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `c925dee46765d2b22c9e38b55f614fc29f8068c1`, merged runtime with approved managed public turns |
+| OpenJules | `34a005a731ee4614ab1f105669378fcf814f092d`, merged runtime with approved managed public turns |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
@@ -42,6 +42,15 @@ The existing [command-based trial](managed-stack-trial.md) remains a separate CI
 gate using the same component pins. It continues to exercise API crashes, watchdog
 termination, uncertain reservations, capture recovery and capacity changes
 through zero, two, three, one and zero workers.
+
+After the model scene succeeds, this job reuses its installed OpenJules
+interpreter and image for the [confined complete-suite diagnostic](single-host-installation.md#publish-a-final-child-composition).
+That separate public-source fixture invokes the actual Docker producer with
+synthetic readiness and no authority, broker, children or forge credential. It
+requires the complete ZPM test inventory, normal process exit, native capture
+and confirmed fixture cleanup. Its safe report is retained alongside this
+scene's report; the private captures and unittest log are not uploaded. It does
+not qualify the separate parent-and-two-child publication scene.
 
 ## Build and run
 

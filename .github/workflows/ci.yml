@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: c925dee46765d2b22c9e38b55f614fc29f8068c1
+          ref: 34a005a731ee4614ab1f105669378fcf814f092d
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -67,7 +67,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged managed-public runtime, shared by every integration gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: c925dee46765d2b22c9e38b55f614fc29f8068c1
+          ref: 34a005a731ee4614ab1f105669378fcf814f092d
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -128,7 +128,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Same merged managed-public runtime as every other integration gate.
           # Update this pin with docs/managed-isolation-stack-trial.md.
-          ref: c925dee46765d2b22c9e38b55f614fc29f8068c1
+          ref: 34a005a731ee4614ab1f105669378fcf814f092d
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -177,7 +177,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Same merged managed-public runtime as every other integration gate.
           # Update with docs/managed-multi-repository-stack-trial.md.
-          ref: c925dee46765d2b22c9e38b55f614fc29f8068c1
+          ref: 34a005a731ee4614ab1f105669378fcf814f092d
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -226,7 +226,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged managed-public runtime, shared by every integration gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: c925dee46765d2b22c9e38b55f614fc29f8068c1
+          ref: 34a005a731ee4614ab1f105669378fcf814f092d
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -331,7 +331,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged managed-public runtime, shared by every integration gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: c925dee46765d2b22c9e38b55f614fc29f8068c1
+          ref: 34a005a731ee4614ab1f105669378fcf814f092d
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4

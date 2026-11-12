@@ -298,7 +298,7 @@ credential exclusively in the trusted OpenJules process.
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/c925dee46765d2b22c9e38b55f614fc29f8068c1).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/34a005a731ee4614ab1f105669378fcf814f092d).
 A valid generic source pin alone is insufficient. Require the component's CI and
 all eight ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
@@ -438,7 +438,7 @@ the original signed proposal, decline and follow-up through replay, reaped all
 44 retained leaders and preserved protected installation state. This evidence
 stays bound to that preceding set; it is not cold-child discussion evidence.
 
-The selected OpenJules revision is
+The managed-public runtime delivered by OpenJules #42 is
 `c925dee46765d2b22c9e38b55f614fc29f8068c1`, tree
 `aefcaea19ad77963d5136b11056ad98ad9132a9e`, from
 [OpenJules #42](https://github.com/niklas-olsson/OpenJules/pull/42).
@@ -450,6 +450,15 @@ linked component qualification record retains every earlier failed head, its
 complete native logs and each separately reviewed correction. Later passing
 results do not relabel those failed attempts. These are component results with
 explicitly named authority, provider and conversation fixtures.
+
+The current shared OpenJules pin is
+[`34a005a731ee4614ab1f105669378fcf814f092d`](https://github.com/niklas-olsson/OpenJules/commit/34a005a731ee4614ab1f105669378fcf814f092d),
+tree `c95c192e9a28e40f110b4468e1a13410465253c9`, from
+[OpenJules #45](https://github.com/niklas-olsson/OpenJules/pull/45).
+Both runtime watchdogs now reap exited children adopted by PID 1 using bounded,
+nonblocking waits. Resource limits, process identities, authority and execution
+deadlines are unchanged. The confined suite, all installed scenes and a fresh
+parent-and-two-child execution must qualify this consumer set separately.
 
 This runtime connects the approved managed-public descriptor to the original
 root and child Unix identities, shared inference allowance, restricted
@@ -818,7 +827,7 @@ prove a managed public turn, child participation or delivery to a live peer.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/c925dee46765d2b22c9e38b55f614fc29f8068c1/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/34a005a731ee4614ab1f105669378fcf814f092d/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -836,7 +845,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/c925dee46765d2b22c9e38b55f614fc29f8068c1/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/34a005a731ee4614ab1f105669378fcf814f092d/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature
@@ -914,9 +923,9 @@ The existing managed-model CI job now runs the complete public-source suite
 through the pinned OpenJules Docker producer and the same managed-agent image.
 This diagnostic uses a fresh, explicitly synthetic readiness fixture, no
 authority, broker, child grants or forge credential. The native source export,
-root UID, inert watchdog, private temporary directory and default isolation and
-resource limits are retained. Its 110-second suite and 120-second command guards
-do not extend the publication trial's bounds. All discovered test identities
+root UID, non-child watchdog, private temporary directory and default isolation
+and resource limits are retained. Its 110-second suite and 120-second command
+guards do not extend the publication trial's bounds. All discovered test identities
 must execute once; skips, incomplete execution or failures prevent a pass.
 
 Only `confined-suite-trial/report.json` is exported. It contains bounded
@@ -928,6 +937,18 @@ checks exact native container/volume identities and confirmed removal; uncertain
 cleanup fails. This fixture has fewer processes than a managed root and two
 children and uses the non-child watchdog. A pass does not qualify their combined
 deadlines, original failure cause, canonical candidate or publication outcome.
+
+The first [HEAD diagnostic](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43312151104/job/131511426492)
+and [proposed-merge diagnostic](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43312194656/job/131511595483)
+with OpenJules `c925dee46765d2b22c9e38b55f614fc29f8068c1` both executed all 422
+tests with no skips and 77 failure observations, including subtests. Initial
+PID usage was four with zero zombies; final usage reached the unchanged
+128-PID ceiling, with 123 zombies and 475 PID-ceiling rejection events. Bounded
+source coordinates also identified subprocess failures with error number 11.
+Both suites completed their test inventory but did not exit before the
+110-second process guard. Native capture, termination and exact fixture cleanup
+were confirmed. This records the reproduced producer defect; earlier private
+operations retain their original evidence limits.
 
 Dispatch this execution-only workflow from its reviewed main revision as a new
 source qualification. It is not a rerun or recovery of the original publication

@@ -36,7 +36,7 @@ explicitly and cannot supply the shared-service acceptance evidence in
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `c925dee46765d2b22c9e38b55f614fc29f8068c1`, merged runtime with approved managed public turns |
+| OpenJules | `34a005a731ee4614ab1f105669378fcf814f092d`, merged runtime with approved managed public turns |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out revision, recorded in the report |
 
