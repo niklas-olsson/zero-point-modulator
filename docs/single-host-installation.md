@@ -873,8 +873,13 @@ before owned cleanup. Source inspection identified a harness access to the
 nonexistent `effective_workers` field; `Controller.plan()` exposes
 `effective_target`. The corrected predicate reads that field while still
 requiring exactly one reservation and canonical `admission_closed is True`.
-The failed run did not qualify combined verification, final capture or reaping;
-the corrected source still requires an actual execution qualification.
+The failed run did not qualify combined verification, final capture or reaping.
+The [next new-source execution-only run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43285397910)
+on `6e422b62bd6e3c8effab5c6bc027d53a49f1aff8` advanced through admission and
+root-termination polling, then reported `root-capture` / `assertion`. Its local
+fixture observation contained all ten accepted requests and no fixture error.
+That report did not retain the exact assertion or verification result, so the
+underlying failure remains undetermined and execution qualification is incomplete.
 
 Dispatch this execution-only workflow from its reviewed main revision as a new
 source qualification. It is not a rerun or recovery of the original publication
@@ -896,9 +901,34 @@ grants, execution or capture completed. Unknown values are `null` or `other`;
 unavailable diagnostics cannot replace the original failure. A failure first
 observed after a cleanup attempt has an explicit timing label and no fixture
 snapshot; that label does not prove successful reaping.
+
+For `root-capture` only, the optional observation also records a fixed assertion
+category and a bounded summary of the latest existing canonical snapshot read.
+Invalid or unavailable collections retain `null` dependent fields; they do not
+become observed absence. At the first failure, read-only local inspection may
+summarize the original runtime receipt and its hash-bound capture. The worker,
+attempt, approved base, configured profile fingerprint and original manifest
+must agree before archive contents are interpreted. Busy, missing, changed or
+unsafe evidence remains unavailable without another read attempt.
+
+Only bounded verification states, nullable exit codes, numeric suite frames and
+up to sixteen failing test identities are exported. Test identities must match
+ASTs whose bytes match the approved Git base; this does not import or discover
+tests. Subtest parameters, messages and tracebacks remain private. A partial
+suite can report observed progress and its last approved test identity without
+claiming that test completed. Duplicate, out-of-order or truncated summaries
+are not an unambiguous complete result. In-range `<string>` frame numbers are
+observed numbers, not proof that a particular configured-script assertion ran.
+Receipt state `completed` and a nullable exit code do not establish success or
+timeout. These non-atomic diagnostic reads establish no recovery or reaping.
+
 Exception text, unknown exception names, private paths, provider/tool payloads,
-raw fixture errors and captures remain private. The observer adds no requests,
-waits, retries or execution allowance. A failed trial does not authorize an
+raw fixture errors and captures remain private. The observer adds no authority,
+runtime, model or forge requests, polling, retries or execution allowance. Its
+failure-only reads bound receipt JSON to 128 KiB, the root log to 256 KiB, the
+complete suite log to 2,000,000 bytes and the archive to the smaller of the
+approved profile limit and 64 MiB. Approved test ASTs are limited to 64 files,
+256 KiB per file, 2 MiB total and 1,024 identities. A failed trial does not authorize an
 automatic rerun or a replacement operation; reconcile the original operation
 and actual forge state first.
 

@@ -22,6 +22,7 @@ from urllib.parse import quote
 from urllib.request import ProxyHandler, Request, build_opener, HTTPRedirectHandler
 
 from check_stack import Client, Processes, clean_environment, eventually, private_json, require, wait_for_capacity
+from publication_capture_observation import RootCaptureObservation
 from publication_fixture import (
     CHILD_VERIFY, CONTENTS, EXAMPLE, EXPECTED_HASHES, FILES, FORGE_NAMES, MODEL,
     REPOSITORY, REPOSITORY_ID, REQUIREMENTS, ROOT_LAUNCHER, ROOT_VERIFY, TARGET_BRANCH,
@@ -65,6 +66,21 @@ class ExecutionFailureObservation:
         self.operation = None
         self.model = None
         self._failure = None
+        self.root_capture = RootCaptureObservation()
+
+    def bind_capture(self, **context):
+        try:
+            self.root_capture.bind(**context)
+        except BaseException:
+            pass
+
+    def observe_capture_snapshot(self, value):
+        try:
+            if self.operation == "root-capture":
+                self.root_capture.observe_snapshot(value)
+        except BaseException:
+            pass
+        return value
 
     @staticmethod
     def exception_kind(error):
@@ -117,6 +133,11 @@ class ExecutionFailureObservation:
             except BaseException:
                 # A diagnostic must not replace the original failure.
                 self._failure["fixture"] = {"available": False}
+            if operation == "root-capture":
+                try:
+                    self._failure["root_capture"] = self.root_capture.failure(error)
+                except BaseException:
+                    self._failure["root_capture"] = {"available": False}
 
     @contextmanager
     def record(self):
@@ -522,7 +543,7 @@ def execute(args):
                     store.change(REPOSITORY, "target", count)
 
             def snapshot():
-                return authority.request("GET", "/managed/snapshot", query=scope)
+                return observation.observe_capture_snapshot(authority.request("GET", "/managed/snapshot", query=scope))
 
             def children(attempt_id):
                 return authority.request("GET", "/managed/children", query=scope | {"attempt_id": attempt_id})
@@ -561,6 +582,8 @@ def execute(args):
                             "publication created another root task or attempt")
                     attempt = active["attempt"][0]
                     worker = attempt["runtime_binding"]["worker_id"]
+                    observation.bind_capture(config=runtime_config, scope=scope, task=task, worker=worker,
+                                             attempt=attempt["id"], base=identity["base"], source=paths["zpm"])
                     observation.operation = "canonical-child-grants"
                     grants = children(attempt["id"])
                     require(len(grants["children"]) == 2
