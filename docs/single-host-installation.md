@@ -867,16 +867,25 @@ execution process receives no forge publication credential. Checkout actions
 retain their normal read-only GitHub token context. Both manual workflows share
 one concurrency group without cancelling an active run.
 
+Its [first execution-only run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43280715096)
+on `c72e946e61e2f31017018b248d86807ede9437bd` reported `admission-close` / `key`
+before owned cleanup. Source inspection identified a harness access to the
+nonexistent `effective_workers` field; `Controller.plan()` exposes
+`effective_target`. The corrected predicate reads that field while still
+requiring exactly one reservation and canonical `admission_closed is True`.
+The failed run did not qualify combined verification, final capture or reaping;
+the corrected source still requires an actual execution qualification.
+
 Dispatch this execution-only workflow from its reviewed main revision as a new
-source qualification. It is not a rerun or recovery of the first failed run;
-that run's cause remains unknown and its private execution state remains
-unavailable. An execution pass establishes no forge outcome, independent PR
-review or live-provider behavior. Private captures, handoff and journals are not
-uploaded and cannot be reused for publication by a later job. A future full
-publication trial is a separate authorized operation with its own execution and
-same-job original-journal replay. It still requires an owner decision on the
-repository's Actions PR creation permission; this read-only workflow changes no
-publication privilege.
+source qualification. It is not a rerun or recovery of the original publication
+run `43266932548`; that run's cause remains unknown and its private execution
+state remains unavailable. An execution pass establishes no forge outcome,
+independent PR review or live-provider behavior. Private captures, handoff and
+journals are not uploaded and cannot be reused for publication by a later job.
+A future full publication trial is a separate authorized operation with its own
+execution and same-job original-journal replay. It still requires an owner
+decision on the repository's Actions PR creation permission; this read-only
+workflow changes no publication privilege.
 
 An execution failure now retains an optional `failure_observation`: the first
 observed operation and exception category from fixed allowlists. When observed
