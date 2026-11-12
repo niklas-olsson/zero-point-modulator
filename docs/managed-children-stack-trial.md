@@ -687,6 +687,90 @@ public-discussion peers, forge publication or merge authorization. Its root
 intentionally adds work beyond the child patches, so it makes no exact-union
 publication claim.
 
+## Explicit failed child outcome and full recovery
+
+A separate invocation of the initial-v1 trial covers an acknowledged semantic
+failure from one actual confined child:
+
+```bash
+python tests/contracts/check_children_stack.py \
+  --initial-outcomes \
+  --right-outcome failed \
+  --historical-polyphony-checkout /absolute/path/to/polyphony-historical \
+  --polyphony-checkout /absolute/path/to/polyphony \
+  --openjules-checkout /absolute/path/to/openjules \
+  --image sha256:<already-built-managed-agent-image> \
+  --work-dir /new/private/managed-child-failed-outcome-trial
+```
+
+The historical checkout is the same pinned prior revision used by the original
+initial-outcome scene. This invocation repeats that pre-work denial and recovery
+check; it does not bypass or redefine the authority requirement. The original
+default, completed/declined and cold commands retain their behavior. Omitting
+`--right-outcome` still selects decline for the initial scene. Either explicit
+value, `declined` or `failed`, requires `--initial-outcomes` and is rejected before
+trial effects when that flag is absent.
+
+The allocation remains one root attempt of 180 seconds, two separate 90-second
+child grants and a 360-second task charge. The same shared allowance covers
+eight root and four child calls, at most 1,024 output tokens each, for 12,288
+reserved output-token units. No provider, task, verification, polling, shutdown
+or CI timeout is extended. The existing child job reuses its image and immutable
+checkouts for this fourth scene.
+
+The left child completes its assigned change. The right child reads its file,
+then uses its actual bound `report_outcome` tool to submit `failed` with a fixed
+private canary. The runner must receive the acknowledgement, retain exactly one
+fixed failed-report event, skip configured verification and return exit code 2.
+It must leave an empty patch. This is an explicit semantic decision in a normal
+tool flow, not a fabricated provider, socket, Docker or verification outage.
+
+The parent receives the same provisional failure and preserves it. It applies
+the left patch, implements the right change itself, verifies the combined
+repository and creates its ordinary review-pending candidate. Parent success
+does not turn the child's report into completion. The child's final canonical
+lifecycle state is `exited`; its distinct semantic outcome remains `failed`, with
+its original ordinal-one instruction, payload digest and private capture
+references. Neither semantic outcome grants release or acceptance authority.
+
+While the original observation gate holds, target zero must retain the same
+worker and all three execution references with unchanged existing permissions.
+Final whole-worker fencing and both child receipts precede capacity release.
+A read-only, all-row inspection of the original child journal independently
+checks the actual left exit 0 and right exit 2, final local phase, UID/exec,
+grant, report, artifact mapping, original delivery intent and monotonic cutoffs.
+Missing, additional or foreign child histories fail the scene. The reader does
+not checkpoint, create or repair the database.
+
+The existing scoped cleanup includes every journal table and the original
+archive. A complete installation restart uses a fresh authorized runtime client
+to recover the identical committed private outcome and artifact bytes. Original
+ensure replay must return the same retired worker. The local row projections,
+canonical child records, task charge, model reservations and final zero capacity
+must remain equal, with no new grants or inference.
+
+The exact original manager must complete its handled shutdown with status 130
+before cleanup and restart. The restarted manager must also return 130 and all
+owned handles must close before a successful report is written. Killed or
+incompletely handled cleanup cannot produce a passed report. Failure cleanup
+preserves the primary error.
+
+The report adds only `outcome_scenario: completed_and_failed` and bounded recovery
+metadata: IDs, hashes, typed execution facts and comparison results. Private
+instruction/report text and raw child output remain in the private retained work
+directory. The fixed private summary is excluded from the broad snapshot and
+shareable report and is redacted from exported failure diagnostics.
+
+Focused standard-library tests use actual localhost HTTP, literal SQLite WAL
+rows and owned test subprocesses. They distinguish omitted versus explicit
+options, preserve original fixture responses, reject coherent changed records
+and extra rows, and verify shutdown-before-report ordering. These are harness
+oracles, not an installed authority or Docker result. The required installed gate
+must pass on the exact source and component revisions before this semantic-failed
+recovery is claimed. This scene does not prove forced cancellation, live-provider
+judgment, warm sessions, public child discussion, forge publication or merge
+authorization.
+
 ## Qualification limits and retained state
 
 This trial exercises graceful scale-to-zero while children are active. It does

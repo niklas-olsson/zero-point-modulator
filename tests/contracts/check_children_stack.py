@@ -45,6 +45,7 @@ OUTCOME_SUMMARIES = {
     "left": "Completed left; request root review",
     "right": "I decline the right change. Preserve this private decision: b\u00e5de kritik och val.",
 }
+FAILED_OUTCOME_SUMMARY = "I report the right change as failed. Preserve this private decision: misslyckad men bevarad."
 SECRET_NAMES = (
     "ZPM_TRIAL_PROVIDER_TOKEN", "ZPM_MODEL_PROVIDER_TOKEN", "POLYPHONY_RUNTIME_TOKEN",
     "OPENJULES_WORKER_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY",
@@ -100,9 +101,13 @@ def text_hash(content):
 class ChildrenFixture(ModelFixture):
     """Bounded inference replies, with an observation gate after both grants."""
 
-    def __init__(self, initial_outcomes=False):
+    def __init__(self, initial_outcomes=False, *, right_outcome=None):
+        selected = selected_right_outcome(initial_outcomes, right_outcome)
         super().__init__()
         self.initial_outcomes = initial_outcomes
+        self.right_outcome = selected
+        self.failed_outcome = selected == "failed"
+        self.outcome_summaries = OUTCOME_SUMMARIES | ({"right": FAILED_OUTCOME_SUMMARY} if self.failed_outcome else {})
         self.root_limit = 8 if initial_outcomes else 6
         self.total_calls = self.root_limit + 4
         self.measurements = RequestMeasurements(self.root_limit)
@@ -154,7 +159,7 @@ class ChildrenFixture(ModelFixture):
                 if self.initial_outcomes and child_name == "right":
                     tool, arguments = (
                         ("read_file", {"path": "right.txt"}) if turn == 1 else
-                        ("report_outcome", {"outcome": "declined", "summary": OUTCOME_SUMMARIES["right"]})
+                        ("report_outcome", {"outcome": self.right_outcome, "summary": self.outcome_summaries["right"]})
                     )
                 else:
                     tool, arguments = (
@@ -179,7 +184,8 @@ class ChildrenFixture(ModelFixture):
                             and page.get("content_sha256") == page.get("artifact_sha256") == text_hash(content),
                             "child result was not a complete hashed provisional patch page")
                     if self.initial_outcomes and name == "right":
-                        require(content == "", "declining child unexpectedly changed its assigned file")
+                        require(content == "", "failed child unexpectedly changed its assigned file" if self.failed_outcome
+                                else "declining child unexpectedly changed its assigned file")
                     else:
                         require(f"diff --git a/{name}.txt b/{name}.txt" in content
                                 and content.count("diff --git ") == 1 and "+" + name + " implemented" in content,
@@ -193,8 +199,8 @@ class ChildrenFixture(ModelFixture):
                     require(status.get("child_id") == self.child_ids[name] and status.get("final") is False
                             and outcome.get("canonical_committed") is False
                             and outcome.get("release_authorized") is False
-                            and report.get("outcome") == ("completed" if name == "left" else "declined")
-                            and report.get("summary") == OUTCOME_SUMMARIES[name],
+                            and report.get("outcome") == ("completed" if name == "left" else self.right_outcome)
+                            and report.get("summary") == self.outcome_summaries[name],
                             "parent did not receive the child's distinct provisional semantic report")
                     self.outcomes[name] = outcome
                 if turn <= 2:
@@ -216,7 +222,8 @@ class ChildrenFixture(ModelFixture):
                     if self.initial_outcomes:
                         script += "assert pathlib.Path('right.txt').read_text()=='old\\n'\n"
                         script += "pathlib.Path('right.txt').write_text('right implemented\\n')\n"
-                        script += "print('ROOT_COMPLETED_DECLINED_RIGHT')\n"
+                        script += ("print('ROOT_COMPLETED_FAILED_RIGHT')\n" if self.failed_outcome
+                                   else "print('ROOT_COMPLETED_DECLINED_RIGHT')\n")
                     script += "assert os.getuid()==65532 and not os.access('/workspace/children',os.W_OK)\n"
                     script += "for child in " + repr(list(self.child_ids.values())) + ":\n"
                     script += " assert not os.access('/workspace/children/'+child+'/run',os.R_OK)\n"
@@ -224,17 +231,21 @@ class ChildrenFixture(ModelFixture):
                     if self.initial_outcomes:
                         script += " deny_socket('/run/openjules-model/children/'+child+'/outcome.sock')\n"
                     script += "subprocess.run(['python3','-m','unittest','discover','-v'],check=True)\n"
-                    marker = "ROOT_PRESERVED_DECLINE_AND_COMPLETED_WORK" if self.initial_outcomes else "ROOT_COMPOSED_BOTH_CHILD_PATCHES"
+                    marker = ("ROOT_PRESERVED_FAILURE_AND_COMPLETED_WORK" if self.failed_outcome else
+                              "ROOT_PRESERVED_DECLINE_AND_COMPLETED_WORK" if self.initial_outcomes else "ROOT_COMPOSED_BOTH_CHILD_PATCHES")
                     script += "print(" + repr(marker) + ")\n"
                     tool, arguments = "run_command", {"argv": ["python3", "-I", "-c", script]}
                 else:
                     verification = json.loads(results[-1]["content"])
-                    marker = "ROOT_PRESERVED_DECLINE_AND_COMPLETED_WORK" if self.initial_outcomes else "ROOT_COMPOSED_BOTH_CHILD_PATCHES"
+                    marker = ("ROOT_PRESERVED_FAILURE_AND_COMPLETED_WORK" if self.failed_outcome else
+                              "ROOT_PRESERVED_DECLINE_AND_COMPLETED_WORK" if self.initial_outcomes else "ROOT_COMPOSED_BOTH_CHILD_PATCHES")
                     require(verification.get("state") == "exited" and verification.get("exit_code") == 0
                             and marker in verification.get("output", ""),
                             "root did not compose and verify the declared contributions")
                     summary = ("Preserved the right child's decline, composed left and completed right as root; passed combined tests; request independent review"
                                if self.initial_outcomes else "Composed both child patches and passed combined tests; request independent review")
+                    if self.failed_outcome:
+                        summary = "Preserved the right child's failure, composed left and completed right as root; passed combined tests; request independent review"
                     tool, arguments = "finish", {"summary": summary}
             response = {"role": "assistant", "content": None, "tool_calls": [{
                 "id": f"{identity}-{turn}", "type": "function",
@@ -413,7 +424,150 @@ def child_execs_started(runtime_config, worker, child_ids):
         for _, exec_id, dispatched, phase in rows))
 
 
+def selected_right_outcome(initial_outcomes, right_outcome):
+    """Preserve omission; an explicit terminal choice requires initial-v1."""
+    require(right_outcome is None or (
+        initial_outcomes is True and type(right_outcome) is str
+        and right_outcome in {"declined", "failed"}
+    ), "an explicit right outcome requires initial outcomes and must be declined or failed")
+    return ("declined" if initial_outcomes else None) if right_outcome is None else right_outcome
+
+
+def failed_outcome_log(content):
+    """Require the actual fixed runner event without retaining guest output."""
+    require(type(content) is str and len(content.encode("utf-8")) <= 262144,
+            "failed child log exceeds its bounded evidence envelope")
+    lines = content.splitlines()
+    require(len(lines) <= 512, "failed child log exceeds its bounded line envelope")
+    retained = []
+    for line in lines:
+        try:
+            value = json.loads(line)
+        except (ValueError, RecursionError):
+            continue
+        if not isinstance(value, dict):
+            continue
+        require(value.get("event") != "configured_verification",
+                "failed child unexpectedly ran configured verification")
+        if value.get("event") == "child_report_retained":
+            retained.append(value)
+    require(retained == [{"event": "child_report_retained", "outcome": "failed"}],
+            "failed child lacks exactly one acknowledged failed report event")
+    return {"retained_failed_events": 1, "configured_verification": False,
+            "log_sha256": text_hash(content), "log_utf8_bytes": len(content.encode("utf-8"))}
+
+
+def retained_object(value):
+    """Decode only a bounded canonical private row; never export its contents."""
+    try:
+        require(type(value) is str and len(value.encode("utf-8")) <= 262144,
+                "retained child object exceeds its bounded envelope")
+        result = json.loads(value)
+        require(type(result) is dict and json.dumps(
+            result, sort_keys=True, separators=(",", ":"), allow_nan=False,
+        ) == value, "retained child object is not canonical")
+        return result
+    except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+        raise AssertionError("retained child object is invalid") from None
+
+
+def failed_child_rows(runtime_config, worker, expected):
+    """Read all child/intents rows without a checkpoint or a writer connection.
+
+    The private expectations come from the already validated canonical captures,
+    not from this local journal. Only hashes and typed execution metadata escape.
+    """
+    require(set(expected) == {"left", "right"}, "failed recovery requires both original children")
+    database = Path(runtime_config["state_directory"]) / "children/children.sqlite3"
+    try:
+        connection = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=0.5)
+        connection.row_factory = sqlite3.Row
+        try:
+            connection.execute("BEGIN")
+            rows = [dict(row) for row in connection.execute(
+                "SELECT child_id,worker_id,ordinal,uid,grant_json,deadline,boot_id,"
+                "phase,exec_id,exec_dispatched,armed_deadline,exit_code,revoked,"
+                "capture IS NOT NULL AS capture_retained,artifacts,outcome_report "
+                "FROM children ORDER BY ordinal,child_id LIMIT 3"
+            )]
+            intents = [dict(row) for row in connection.execute(
+                "SELECT worker_id,request_id,delivery_key,child_id,status,payload "
+                "FROM intents ORDER BY request_id LIMIT 3"
+            )]
+        finally:
+            connection.close()
+    except sqlite3.Error:
+        raise AssertionError("failed child retained journal cannot be read") from None
+    identities = {item["binding"]["child_id"] for item in expected.values()}
+    require(len(rows) == len(intents) == 2 and {row["child_id"] for row in rows} == identities
+            and {row["child_id"] for row in intents} == identities
+            and all(row["worker_id"] == worker and row["status"] == "bound" for row in intents),
+            "failed recovery found missing, extra or foreign child histories")
+    snapshots = []
+    for name, ordinal, exit_code in (("left", 0, 0), ("right", 1, 2)):
+        original = expected[name]
+        binding, manifest = original["binding"], original["manifest"]
+        row = next(row for row in rows if row["child_id"] == binding["child_id"])
+        grant = retained_object(row["grant_json"])
+        report = retained_object(row["outcome_report"])
+        artifacts = retained_object(row["artifacts"])
+        require(grant.get("binding") == binding
+                and type(grant.get("instructions")) is str
+                and text_hash(grant["instructions"]) == binding["instructions_digest"]
+                and report == manifest["work_outcome"]["report"]
+                and artifacts == original["artifacts"],
+                "failed recovery changed the original grant, private report or capture")
+        require(row["worker_id"] == worker and row["ordinal"] == ordinal
+                and row["uid"] == manifest["uid"] == 60000 + ordinal
+                and row["phase"] == "completed" and row["exec_id"] == manifest["exec_id"]
+                and type(row["exec_dispatched"]) is int and row["exec_dispatched"] == 1
+                and type(row["exit_code"]) is int and row["exit_code"] == exit_code
+                and row["capture_retained"] == 1 and row["revoked"] in {0, 1}
+                and type(row["boot_id"]) is str and bool(row["boot_id"])
+                and row["deadline"] == manifest["deadline_monotonic"]
+                and row["armed_deadline"] == manifest["armed_deadline_monotonic"],
+                "failed recovery changed original execution, typed exit or cutoff")
+        intent = next(item for item in intents if item["child_id"] == binding["child_id"])
+        payload = retained_object(intent["payload"])
+        require(type(intent["request_id"]) is str and bool(intent["request_id"])
+                and type(intent["delivery_key"]) is str and bool(intent["delivery_key"])
+                and payload.get("instructions") == grant["instructions"]
+                and payload.get("seconds") == binding["allocated_seconds"]
+                and payload.get("max_turns") == binding["max_turns"],
+                "failed recovery changed the original child intent")
+        snapshots.append({
+            "actor": name, "child_id": row["child_id"], "uid": row["uid"], "exec_id": row["exec_id"],
+            "exec_dispatched": True, "phase": row["phase"], "exit_code": row["exit_code"],
+            "grant_digest": binding["grant_digest"], "instructions_digest": binding["instructions_digest"],
+            "deadline_monotonic": row["deadline"], "armed_deadline_monotonic": row["armed_deadline"],
+            "boot_id_sha256": text_hash(row["boot_id"]), "revoked": row["revoked"],
+            "grant_json_sha256": text_hash(row["grant_json"]), "intent_sha256": text_hash(json.dumps(
+                intent, sort_keys=True, separators=(",", ":"), allow_nan=False,
+            )), "report_sha256": text_hash(row["outcome_report"]), "artifacts": artifacts,
+        })
+    return snapshots
+
+
+def stop_failed_installation(processes, installation):
+    """New failed scene: success requires the exact manager's handled shutdown."""
+    require(processes.running.get("installation") is installation,
+            "failed scene lost its original installation process ownership")
+    processes.stop("installation")
+    require(installation.poll() == 130, "failed scene installation cleanup did not complete with handled status 130")
+
+
+def publish_failed_report(path, report, processes, installation):
+    require(set(processes.running) == {"installation"},
+            "failed scene has unexpected live owned processes before publication")
+    stop_failed_installation(processes, installation)
+    processes.close()
+    private_json(path, report)
+
+
 def run(args):
+    initial_outcomes = bool(getattr(args, "initial_outcomes", False))
+    right_outcome = getattr(args, "right_outcome", None)
+    failed_outcome = selected_right_outcome(initial_outcomes, right_outcome) == "failed"
     zpm = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(zpm))
     from zpm.controller import Controller
@@ -425,11 +579,11 @@ def run(args):
     require(not root.exists(), "trial work directory must be new")
     root.mkdir(mode=0o700)
     processes = Processes(root)
+    failed_cleanup_complete = False
     checks, revisions, sensitive = [], {}, set()
     child_capture_observations = []
     measurements = Measurements()
-    initial_outcomes = bool(getattr(args, "initial_outcomes", False))
-    with ChildrenFixture(initial_outcomes) as model:
+    with ChildrenFixture(initial_outcomes, right_outcome=right_outcome) as model:
         sensitive.add(model.token)
         try:
             image = subprocess.check_output(["docker", "image", "inspect", "--format", "{{.Id}}", args.image],
@@ -682,6 +836,7 @@ def run(args):
                     "root completion did not close child admission or retain both grants")
             child_evidence, lineage, uids, child_policy_digests = [], [], set(), set()
             child_artifacts = {}
+            failed_expected = {}
             for permission in canonical_children["children"]:
                 child = permission["child"]
                 binding = child["binding"]
@@ -718,7 +873,10 @@ def run(args):
                 if initial_outcomes and name == "right":
                     require(captured_child["patch"] == ""
                             and '"event": "configured_verification"' not in captured_child["log"],
-                            "declined child was forced to implement or verify the requested change")
+                            "failed child was forced to implement or verify the requested change" if failed_outcome
+                             else "declined child was forced to implement or verify the requested change")
+                    if failed_outcome:
+                        failed_log = failed_outcome_log(captured_child["log"])
                 else:
                     require("CHILD_STACK_BOUNDARY_VERIFIED uid=" + str(uid) in captured_child["log"]
                             and '"event": "configured_verification"' in captured_child["log"],
@@ -755,6 +913,11 @@ def run(args):
                 if initial_outcomes:
                     child_evidence[-1]["semantic_outcome"] = outcome["report"]["outcome"]
                     child_evidence[-1]["canonical_committed"] = True
+                if failed_outcome:
+                    failed_expected[name] = {"binding": binding, "manifest": manifest,
+                                             "artifacts": child["captured_artifacts"]}
+            if failed_outcome:
+                failed_retained = failed_child_rows(runtime_config, worker, failed_expected)
             lineage.sort(key=lambda item: item["child_id"])
             require(uids == {60000, 60001} and attempt.get("child_lineage") == candidate.get("child_lineage") == lineage,
                     "root candidate does not bind both final child capture lineages")
@@ -765,10 +928,14 @@ def run(args):
             checks.append(f"{model.root_limit} root and four child model calls share {model.total_calls} durable reservations; both final child manifests bind distinct UIDs, canonical grants and the fenced root archive")
             checks.append("completed children cannot read root work or use root model/control sockets; root cannot read child work or use child model sockets; captured candidate binds both final child lineages and awaits review")
             if initial_outcomes:
-                require(all(summary not in json.dumps(evidence, ensure_ascii=False) for summary in OUTCOME_SUMMARIES.values()),
+                require(all(summary not in json.dumps(evidence, ensure_ascii=False) for summary in model.outcome_summaries.values()),
                         "private child summary leaked into the broad canonical snapshot")
-                checks.append("the parent receives completed and declined provisional outcomes; final canonical records preserve both reports and exact capture references without granting release authority")
-                checks.append("decline keeps an empty child patch and skips child verification; the root explicitly completes the remaining file and passes combined verification")
+                if failed_outcome:
+                    checks.append("the parent receives completed and failed provisional outcomes; final canonical records preserve both reports and exact capture references without granting release authority")
+                    checks.append("the acknowledged failed report exits the right child with code 2, keeps an empty child patch and skips child verification; the root completes the remaining file without rewriting that report")
+                else:
+                    checks.append("the parent receives completed and declined provisional outcomes; final canonical records preserve both reports and exact capture references without granting release authority")
+                    checks.append("decline keeps an empty child patch and skips child verification; the root explicitly completes the remaining file and passes combined verification")
 
             verifier = root / "artifact-verification"
             subprocess.run(["git", "clone", "-q", "--no-hardlinks", str(source), str(verifier)], check=True, timeout=15)
@@ -811,7 +978,10 @@ def run(args):
             checks.append("completed root and children retire together; Docker confirms one stopped incarnation, disabled network, dropped capabilities, read-only root and no host credential or Docker socket")
 
             target(0)
-            processes.stop("installation")
+            if failed_outcome:
+                stop_failed_installation(processes, installation)
+            else:
+                processes.stop("installation")
 
             def retained_canonical():
                 retained = snapshot()
@@ -842,7 +1012,7 @@ def run(args):
             storage_phase("cleanup_stopped")
             verify(bundle)
             measurements.start("restart_manager_ready")
-            processes.start("installation", manager + ["start"], bundle, manager_environment)
+            restarted_installation = processes.start("installation", manager + ["start"], bundle, manager_environment)
             eventually(installed_ready, processes, "child installation restart", 60)
             measurements.stop("restart_manager_ready")
             authority = Client(authority_endpoint, environment_tokens["POLYPHONY_RUNTIME_TOKEN"])
@@ -867,13 +1037,16 @@ def run(args):
                     and not replayed.get("active_executions"), "original ensure replay resurrected the cleaned execution")
             require_retained(journal_paths(bundle, runtime_config), worker, cleanup)
             require(retained_canonical(), "restart after cleanup changed canonical capture")
+            if failed_outcome:
+                require(failed_child_rows(runtime_config, worker, failed_expected) == failed_retained,
+                        "restart or original ensure replay changed failed child execution or private evidence")
             require(plan()["reserved"] == 0 and len(model.requests) == model.total_calls and not model.errors
                     and inference_reservations(runtime_config, worker, attempt["id"], model.total_calls) == allowance,
                     "cleanup or original ensure replay changed capacity or inference")
             checks.append("full restart and exact original ensure replay return the same retired worker without recreating its resources, changing any retained journal history or repeating inference")
             checks.append("target zero releases all reservations; full installation restart preserves root and child captures without new model calls")
             if initial_outcomes:
-                require(all(summary not in json.dumps(durable, ensure_ascii=False) for summary in OUTCOME_SUMMARIES.values()),
+                require(all(summary not in json.dumps(durable, ensure_ascii=False) for summary in model.outcome_summaries.values()),
                         "restart exposed private child summaries in the broad snapshot")
                 checks.append("a fresh authorized runtime client reconnects after full service restart and retrieves identical committed private child outcomes; no child or inference is replayed")
 
@@ -905,13 +1078,30 @@ def run(args):
                     "qualified": False,
                     "reason": "root adds work beyond child patches; the publisher contract would reject candidate_tree_mismatch; publication is not invoked",
                 }
-                require(all(summary not in json.dumps(report, ensure_ascii=False) for summary in OUTCOME_SUMMARIES.values()),
+                require(all(summary not in json.dumps(report, ensure_ascii=False) for summary in model.outcome_summaries.values()),
                         "shareable verification report contains a private child summary")
+            if failed_outcome:
+                report["outcome_scenario"] = "completed_and_failed"
+                report["failed_child_recovery"] = {
+                    "retained_children": failed_retained, "failed_runner_event": failed_log,
+                    "canonical_state": "exited", "semantic_outcome": "failed",
+                    "private_report_unchanged": True, "full_restart_and_original_replay_equal": True,
+                    "additional_grants_or_inference": 0, "first_manager_handled_status": 130,
+                    "final_manager_handled_status": 130,
+                }
+                require(all(summary not in json.dumps(report, ensure_ascii=False)
+                            for summary in model.outcome_summaries.values()),
+                        "failed recovery report contains a private child summary")
             require(all(token not in json.dumps(report) for token in sensitive), "verification report contains a credential")
-            private_json(root / "report.json", report)
+            if failed_outcome:
+                publish_failed_report(root / "report.json", report, processes, restarted_installation)
+                failed_cleanup_complete = True
+            else:
+                private_json(root / "report.json", report)
             return report
         except Exception as exc:
-            diagnostic = diagnostics(root, str(exc) if isinstance(exc, AssertionError) else type(exc).__name__, checks, revisions, sensitive)
+            diagnostic = diagnostics(root, str(exc) if isinstance(exc, AssertionError) else type(exc).__name__, checks, revisions,
+                                     sensitive | (set(model.outcome_summaries.values()) if failed_outcome else set()))
             diagnostic["child_capture_observations"] = child_capture_observations
             try:
                 private_json(root / "diagnostics.json", diagnostic)
@@ -921,7 +1111,16 @@ def run(args):
             raise
         finally:
             model.release_root.set()
-            processes.close()
+            if failed_outcome:
+                if not failed_cleanup_complete:
+                    primary_error = sys.exc_info()[0] is not None
+                    try:
+                        processes.close()
+                    except BaseException:
+                        if not primary_error:
+                            raise
+            else:
+                processes.close()
 
 
 def main():
@@ -933,9 +1132,13 @@ def main():
     parser.add_argument("--image", required=True, help="already-present full sha256 ID from the managed-agent Dockerfile")
     parser.add_argument("--work-dir", type=Path, required=True, help="new private directory, retained for recovery")
     parser.add_argument("--initial-outcomes", action="store_true", help="qualify explicit completion, decline and durable private outcome recovery")
+    parser.add_argument("--right-outcome", choices=("declined", "failed"), default=None,
+                        help="explicit right-child semantic outcome; requires --initial-outcomes")
     parser.add_argument("--historical-polyphony-checkout", type=Path,
                         help="separate immutable prior-authority checkout, required only with --initial-outcomes")
     args = parser.parse_args()
+    if args.right_outcome is not None and not args.initial_outcomes:
+        parser.error("--right-outcome requires --initial-outcomes")
     if args.initial_outcomes != (args.historical_polyphony_checkout is not None):
         parser.error("--initial-outcomes requires --historical-polyphony-checkout, and the default trial does not use it")
     if args.historical_polyphony_checkout is not None:
