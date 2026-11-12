@@ -245,128 +245,94 @@ The provider interface and transport are in `zpm/provider.py`; strict response
 validation is in `zpm/models.py`. This contract is implemented with OpenJules
 [lifecycle issue #3](https://github.com/niklas-olsson/OpenJules/issues/3).
 
-## Validation and remaining integration
+## Installation and validation
 
-An explicit [single-host installation bundle](docs/single-host-installation.md)
-prepares private credentials, durable state, pinned source references and
-separate service environments. `zpm deployment prepare` and `verify` are offline;
-the generated `doctor` command checks actual scoped provider capabilities.
-Preparation does not establish managed-runtime readiness or run a coding agent.
-Repeating preparation with identical normalized configuration reuses a verified
-complete bundle without rotating credentials or resetting current enrollment.
-Verification rejects a missing or mismatched ownership journal without creating
-replacement state. New preparation writes a private sibling stage and publishes
-it atomically on supported Linux filesystems without replacing an existing
-destination. An interrupted attempt can be retried with the same command;
-abandoned stages are retained and published credentials keep their identity.
-The installed command trial also checks removal, complete
-service restart and explicit re-enrollment while retaining canonical artifacts.
-Legacy incomplete destinations require a new destination or retained-state
-restoration. Version upgrades remain a separate acceptance case.
-The bundle requires OpenJules and Polyphony revisions containing their managed
-service entry points; it rejects older checkouts instead of falling back to the
-legacy execution path.
-The [multiple-repository example](examples/deployment-multiple.json) uses
-configuration schema 2 to prepare 2–100 repositories in one deployment, with one
-controller, one OpenJules API and one Polyphony authority. Each entry retains an
-explicit binding, source, profile and execution policy. Repository-specific
-ingress/reviewer tokens and secret aliases remain separate; trusted host
-controller/runtime credentials intentionally cover the configured set. The
-serialized OpenJules files must each fit its 1,000,000-byte parser limit.
-Equivalent reordered input reuses the same installation and preserves current
-targets, pause/removal, credentials and history. Schema-1 bundles keep their
-existing shape; adding repositories or converting a live bundle is an
-unsupported upgrade. Configuration tests do not replace the
-[actual shared-service isolation trial](docs/managed-multi-repository-stack-trial.md),
-whose qualification is tied to an explicit revision set. The
-[retained shared-service result](docs/managed-multi-repository-stack-trial.md#retained-qualification)
-passed all eight jobs and demonstrated B's original execution continuing through
-A's source failure, quota limit, pause and removal, with both captures preserved
-through restart. The refreshed merged OpenJules pin has its own required
-eight-job qualification, tracked in
-[#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
-The [model deployment example](examples/deployment-model.json) adds an explicit
-provider policy and uses the managed agent image. Its provider token resolves
-only into OpenJules; the worker retains disabled networking and uses its own
-private model socket.
-The [child deployment example](examples/deployment-children.json) additionally
-binds bounded children to that profile and its canonical task budget. It uses a
-new child-enabled worker incarnation, distinct child UIDs and the same root
-model allowance. Child expiry or cancellation retires the whole worker; final
-capture precedes root finalization. Children do not increase the ZPM target.
-An optional `child_policy.outcome_protocol: "initial-v1"` retains each child's
-explicit completion, decline, clarification or failure through final capture
-and service restart. The supporting authority capability is required; an
-outcome never substitutes for verification, termination or independent review.
+Use the [single-host installation guide](docs/single-host-installation.md) for
+configuration, bootstrap, generated commands, model and child policies, cleanup,
+and publication. It covers the [single-repository](examples/deployment.json) and
+[multiple-repository](examples/deployment-multiple.json) forms, plus the
+[model](examples/deployment-model.json) and
+[child](examples/deployment-children.json) examples.
 
-The supported cold clarification fallback delivers a later private instruction
-through a fresh, correlated child execution. [Qualified measurements and initial
-performance targets](docs/cold-session-measurements.md) bind startup, capacity
-convergence, idle overhead, context bytes and storage growth to three exact
-qualification runs. Warm reuse remains unsupported.
+`zpm deployment prepare` and `verify` are offline. Preparation does not establish
+managed-runtime readiness or run an agent; the generated `doctor` checks actual
+scoped capabilities. The bundle requires supported managed service entry points
+in both other repositories. Keep its state, credentials and deployment identity
+across restarts. Identical preparation reuses a verified complete bundle without
+resetting current enrollment. For an interrupted attempt, follow
+[preparation recovery](docs/single-host-installation.md#retry-interrupted-preparation);
+do not treat an incomplete destination as a usable installation. Live schema
+conversion, adding repositories to an existing bundle and version upgrades
+remain unsupported acceptance cases.
+
+The [cold-session measurements](docs/cold-session-measurements.md) explain the
+qualified cold clarification fallback, retained measurements and initial
+performance targets. A later private instruction uses a fresh correlated child
+execution. Warm reuse remains unsupported.
+
+Run the deterministic suite with:
 
 ```sh
 python -m unittest discover -v
 ```
 
-The deterministic tests cover enrollment/restart, 0 → 2 → 3 → 1 → 0, duplicate
-and lost launches, uncertain observations, immutable identity, scope isolation,
-controller contention, concurrent policy edits, quota reservations, child-aware
-drain, and failed artifact capture. Local HTTP tests also cover total deadlines
-under trickled headers/body, stalled resolution/TLS, helper cleanup and durable
-recovery of timed-out ensure/drain/stop operations. The test provider performs no
-inference or real coding. The CI workflow also installs the package and checks the CLI on
-Python 3.11 and 3.12.
+The [CI workflow](.github/workflows/ci.yml) also installs the package and checks
+the CLI on Python 3.11 and 3.12. Tests cover enrollment and capacity recovery,
+uncertain transport outcomes, preparation process death and artifact retention.
+Process-death tests do not establish storage hardware power-loss behavior.
+The following guides own each separate integration procedure and its evidence:
 
-Preparation recovery tests kill real preparer processes during credential writes
-and before or after atomic publication. They check retained stages, concurrent
-preparers, foreign destination races and refusal to start an unpublished stage.
-These process-death checks do not establish storage hardware power-loss behavior.
+| Trial | What its evidence covers |
+| --- | --- |
+| [HTTP lifecycle](docs/http-contract-trial.md) | Actual client/API contract, lost replies and recovery with real subprocess fixtures; not production confinement. |
+| [Managed stack](docs/managed-stack-trial.md) | Installed capacity, crashes, watchdog termination and durable capture. |
+| [Independent public discussion](docs/public-discussion-stack-trial.md) | Separate public participants through the retained installed interpreters. |
+| [Model-backed root](docs/managed-model-stack-trial.md) | Real coding agent and broker with deterministic localhost provider replies. |
+| [Children and managed public discussion](docs/managed-children-stack-trial.md) | Private child execution, outcomes, cold clarification, capture, scoped cleanup/restart and bounded public contributions. |
+| [Deployment isolation](docs/managed-isolation-stack-trial.md) | Two independent deployments on one Docker Engine; not a shared-service installation. |
+| [Shared-service installation](docs/managed-multi-repository-stack-trial.md) | Two repositories under one controller/service pair, scoped credentials, capacity and recovery. |
 
-An optional [OpenJules HTTP contract trial](docs/http-contract-trial.md) exercises
-the actual client and lifecycle API together, including lost replies, recovery
-before dispatch, accepted drain recovery after runtime lock contention and
-dispatcher restart, cancellation, and five real subprocess fixtures. It is separate
-from the unit suite and does not establish production agent or confinement proof.
+The [retained shared-service qualification](docs/managed-multi-repository-stack-trial.md#retained-qualification)
+remains evidence for its recorded revisions. Current integrated acceptance and
+remaining criteria belong in [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
+A passing component test or prepared bundle does not qualify another revision
+set. Installed trials use controlled commands or deterministic model replies;
+live-provider behavior, independent review and actual forge publication remain
+separate outcomes. Capturing a candidate does not authorize its publication or merge.
 
-Five additional CI jobs install the generated three-service bundle and use real
-Docker. The [command-based trial](docs/managed-stack-trial.md) exercises capacity,
-crashes, watchdog termination and durable capture. The
-[model-backed trial](docs/managed-model-stack-trial.md) exercises the real coding
-agent and broker against a deterministic localhost provider fixture, including
-canonical ingress, captured hashes and independent patch verification. The
-[child trial](docs/managed-children-stack-trial.md) runs two real children inside
-one worker, composes their returned patches, drains to zero during active work,
-and verifies final capture and restart without repeated inference. It also
-invokes the installed OpenJules host cleanup against the real retained authority,
-then checks identical replay, preserved journals and artifacts, untouched idle
-replacement resources and original ensure replay without resurrection. Its explicit-outcome
-variant also requires admission to remain closed against a genuine prior Polyphony
-revision missing the required outcome capability, with no protected work or
-inference, before restoring current-authority readiness and executing the normal
-positive scene. The
-[isolation trial](docs/managed-isolation-stack-trial.md) installs two independent
-single-repository deployments on one Docker Engine and requires one deployment's
-original task to keep progressing while the other scales, drains, loses service,
-removes enrollment and reconnects. It does not qualify a generated multi-repository
-installation, one-controller fairness or multiple deployments behind one
-OpenJules API. The
-[shared-service trial](docs/managed-multi-repository-stack-trial.md) installs two
-repositories behind one controller and service pair. It checks the global
-ceiling, scoped credentials, A's source failure, pause and removal while B's
-original execution progresses, and both canonical captures after a full restart.
-Completed normal controller passes establish the no-allocation windows; the
-source-failure result applies to an already-running stack.
-These trials use controlled commands or deterministic model replies and keep independent
-review and live forge publication as separate acceptance gates.
+## Contributor map
 
-This implementation advances [enrollment #1](https://github.com/niklas-olsson/zero-point-modulator/issues/1)
-and [reconciliation #2](https://github.com/niklas-olsson/zero-point-modulator/issues/2).
-The complete installation and workflow trial remains tracked in
-[#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3). It requires
-the real OpenJules [managed adapter](https://github.com/niklas-olsson/OpenJules/issues/2),
-approved isolated runtime, and Polyphony's
-[canonical authority](https://github.com/niklas-olsson/keystone-polyphony/issues/109)
-and [scoped delegated identity](https://github.com/niklas-olsson/keystone-polyphony/issues/112).
-No passing local test substitutes for the separate-process, authenticated,
-artifact-preserving trial defined there.
+Start with the source and documentation home for the behavior being changed.
+The table is navigation, not another protocol specification.
+
+| Change | Representative source | Documentation home |
+| --- | --- | --- |
+| Enrollment, configuration and CLI | [models](zpm/models.py), [CLI](zpm/cli.py), [store](zpm/store.py) | [Install and inspect](#install-and-inspect), [configuration ownership](#configuration-ownership) and [commands](#check-and-reconcile) in this README |
+| Capacity, durable intent and recovery | [controller](zpm/controller.py), [store](zpm/store.py) | [Recovery and capacity rules](#recovery-and-capacity-rules) in this README |
+| Provider transport and lifecycle responses | [provider](zpm/provider.py), [HTTP transport](zpm/_http_transport.py), [response models](zpm/models.py) | [Wire contract](#openjules-wire-contract) in this README; [HTTP trial](docs/http-contract-trial.md) |
+| Installation, bootstrap and generated configuration | [deployment](zpm/deployment.py), [interpreter context](zpm/installation_context.py) | [Single-host installation](docs/single-host-installation.md) |
+| Installed trials and component pins | [trial harnesses](tests/contracts), [CI workflow](.github/workflows/ci.yml) | The corresponding trial guide above; [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3) for integrated acceptance |
+| Cold-session and idle observations | [operational measurements](tests/contracts/operational_measurement.py), [cold trial](tests/contracts/check_cold_children_stack.py) | [Cold-session measurements](docs/cold-session-measurements.md) |
+| Installed publication procedure and trial | [publication trial](tests/contracts/check_publication_stack.py), [manual workflow](.github/workflows/managed-publication.yml) | [Publish a final child composition](docs/single-host-installation.md#publish-a-final-child-composition); OpenJules owns the publisher |
+
+Update the canonical explanation when behavior, commands, configuration,
+recovery, guarantees or evidence change, and update this map when routing
+changes. Internal refactoring needs no cosmetic prose or routine "no docs"
+declaration. Reuse, simplify or remove duplication while preserving exact
+identifiers, historical evidence, uncertainty and attributed contributions.
+
+For a change spanning the repositories, follow enrollment and capacity here,
+[Polyphony's canonical authority](https://github.com/niklas-olsson/keystone-polyphony/blob/main/docs/managed-runtime.md)
+and [child grants](https://github.com/niklas-olsson/keystone-polyphony/blob/main/docs/child-grants.md),
+then [OpenJules execution and capture](https://github.com/niklas-olsson/OpenJules/blob/main/docs/managed-docker-runtime.md)
+and [publication](https://github.com/niklas-olsson/OpenJules/blob/main/docs/managed-publication.md).
+For example, an uncertain ensure retains ZPM's original launch key and capacity
+reservation; OpenJules discovers or recovers that execution, while Polyphony
+retains protected-task authority. A timeout does not establish termination or
+permit ZPM to release capacity.
+
+[Enrollment #1](https://github.com/niklas-olsson/zero-point-modulator/issues/1)
+and [reconciliation #2](https://github.com/niklas-olsson/zero-point-modulator/issues/2)
+retain their implementation decisions. Use the existing
+[#3 acceptance record](https://github.com/niklas-olsson/zero-point-modulator/issues/3)
+for the exact integrated revision set and unresolved work.
