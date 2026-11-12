@@ -21,8 +21,8 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `a1547a7743996d2db9866013135e5adb75c0ec7c` |
-| Keystone Polyphony | `dc18c3fb585e00a90706b04095bc278ee3ff1106`, merged authority and managed-task refusal on legacy paths |
+| OpenJules | `5bdda3de5bc3b2f8afb8de9abc191661245fe8ba` |
+| Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
 
@@ -56,9 +56,11 @@ fresh B progress checkpoints, an unchanged single B worker, both canonical
 captures through restart and zero final reservations. The complete exact-head
 aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
 
-The workflow now selects the [merged public-discussion component](https://github.com/niklas-olsson/OpenJules/pull/31)
-[`a1547a7743996d2db9866013135e5adb75c0ec7c`](https://github.com/niklas-olsson/OpenJules/commit/a1547a7743996d2db9866013135e5adb75c0ec7c).
-It adds an explicitly invoked participant, a pinned MCP SDK and the shared bounded
+The workflow now selects [OpenJules #32](https://github.com/niklas-olsson/OpenJules/pull/32),
+`5bdda3de5bc3b2f8afb8de9abc191661245fe8ba`, which adds an exact optional
+loopback bootstrap binding to the participant from
+[OpenJules #31](https://github.com/niklas-olsson/OpenJules/pull/31).
+It retains that explicitly invoked participant, pinned MCP SDK and shared bounded
 HTTP transport used by the managed model broker. This shared-service trial does
 not start that participant or supply the separately required restricted conversation
 service. Native discussion fixtures do not qualify an installed conversation or a
@@ -83,15 +85,19 @@ claim-versus-drain regressions, actual Docker
 [versioned creation proof](https://github.com/niklas-olsson/OpenJules/pull/20),
 strict cleanup transport checks, explicit owned cleanup, child outcomes and
 durable replay. The positive Polyphony pin is the actual merged revision
-`dc18c3fb585e00a90706b04095bc278ee3ff1106`, tree `ef5587ab91ed6bf205b7fbfaaa731e0442495d78`.
+`0cf8b4772b04269505e3e1cd41324e41409b80f9`, tree `ca53939281041c98e1d36294078d183862c71cbd`.
 It retains the initial child outcomes and includes
 [Polyphony #133](https://github.com/niklas-olsson/keystone-polyphony/pull/133)'s
 managed-task refusal on legacy advisory and experimental paths, followed by
-[the merged boundary documentation](https://github.com/niklas-olsson/keystone-polyphony/pull/134).
-The canonical coordinator, managed runtime and child service, managed CLI and
-dependency requirements match the preceding positive pin. The existing installed
-trials exercise canonical service behavior; the component's refusal tests cover
-its legacy paths. Updating this pin does not add a legacy service or a new scenario.
+[the merged boundary documentation](https://github.com/niklas-olsson/keystone-polyphony/pull/134)
+and the [restricted public profile](https://github.com/niklas-olsson/keystone-polyphony/pull/135).
+The canonical coordinator, managed runtime and child service and managed CLI
+match the preceding positive pin. The restricted profile pins MCP 1.30.0;
+the complete changed environment still requires installed qualification.
+This shared-service scene exercises canonical behavior, and the component's
+refusal tests cover its legacy paths. The separate
+[public-discussion attachment](public-discussion-stack-trial.md) in the command
+job qualifies the new installed profile without changing this scene's assertions.
 Earlier Polyphony `653c0a71` results above remain historical. The preceding diagnostic
 component `e50d501cc81975d25e367be3ba1d6de9169207c1` passed both Python suites in
 [its actual-main CI](https://github.com/niklas-olsson/OpenJules/actions/runs/43119302563).

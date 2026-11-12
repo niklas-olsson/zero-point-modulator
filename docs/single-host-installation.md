@@ -298,7 +298,7 @@ credential exclusively in the trusted OpenJules process.
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/a1547a7743996d2db9866013135e5adb75c0ec7c).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/5bdda3de5bc3b2f8afb8de9abc191661245fe8ba).
 A valid generic source pin alone is insufficient. Require the component's CI and
 all eight ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
@@ -340,7 +340,7 @@ unqualified after both child jobs timed out on the first model-socket response
 header during the fixed child verification. Those failures and the older
 cause-unknown measurement failure remain tied to their recorded revisions.
 
-All normal and manual runtime references now select
+The preceding normal and manual runtime references selected
 `a1547a7743996d2db9866013135e5adb75c0ec7c`, tree
 `497ea47626e8c94a65340733acf7f08a1fd8d9e6`, from
 [OpenJules #31](https://github.com/niklas-olsson/OpenJules/pull/31). Its
@@ -353,7 +353,7 @@ all Docker gates enabled and no skips. This is merged-component evidence.
 This source adds the separately invoked bounded public-discussion participant,
 pins MCP 1.30.0, and extracts the managed model broker's bounded HTTP transport
 for shared use. Bootstrap installs the companion's requirements in its
-dedicated private environment. The normal installation trials still run the
+dedicated private environment. The existing managed-service installation scenes run the
 existing canonical work, recovery, cleanup and isolation scenes; they do not
 start the new participant. Its native tests use named stdio, HTTP, SQLite and
 signature fixtures. They do not supply or qualify the restricted Polyphony
@@ -371,7 +371,8 @@ passed sixteen jobs, and its
 passed all eight jobs. These reports remain bound to that earlier delivery set.
 
 The later ZPM #30 delivery at `0f131ed664d346f3c63f10c24f9d8e376a6581d3`
-paired the current OpenJules revision with that same Polyphony revision.
+paired OpenJules `a1547a7743996d2db9866013135e5adb75c0ec7c` with that same
+Polyphony revision.
 Its [head and relevant-base qualification](https://github.com/niklas-olsson/zero-point-modulator/pull/30#issuecomment-6812183104)
 passed sixteen jobs, and its [actual-main run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43138570851)
 passed all eight jobs, including the unchanged 222-test suites and six installed
@@ -384,7 +385,7 @@ The initial child outcome authority first merged in Polyphony #122 as
 and [controller publication](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125433077/attempts/2)
 remain historical evidence for that exact revision.
 
-The operative positive Polyphony revision is now
+The preceding positive Polyphony revision was
 `dc18c3fb585e00a90706b04095bc278ee3ff1106`, tree
 `ef5587ab91ed6bf205b7fbfaaa731e0442495d78`, the actual merged
 [boundary documentation](https://github.com/niklas-olsson/keystone-polyphony/pull/134)
@@ -395,16 +396,41 @@ experimental labels do not confer managed acceptance or release authority.
 The [component acceptance record](https://github.com/niklas-olsson/keystone-polyphony/issues/109#issuecomment-6812159757)
 keeps component and controller evidence separate from a new installed-set result.
 
+The current candidate advances OpenJules to
+`5bdda3de5bc3b2f8afb8de9abc191661245fe8ba`, tree
+`ffeeef5d45bf34af4a9c460b43777ed518b08fa5`, from
+[OpenJules #32](https://github.com/niklas-olsson/OpenJules/pull/32).
+It preserves the participant's raw configuration binding while allowing one
+exact optional loopback bootstrap endpoint. Its
+[actual-main component run](https://github.com/niklas-olsson/OpenJules/actions/runs/43140740562)
+passed 726 tests and four subtests on both Python versions with all Docker gates
+enabled and no skips.
+
+The matching positive Polyphony revision is
+`0cf8b4772b04269505e3e1cd41324e41409b80f9`, tree
+`ca53939281041c98e1d36294078d183862c71cbd`, from
+[Polyphony #135](https://github.com/niklas-olsson/keystone-polyphony/pull/135).
+It provides the separately invoked restricted public-conversation profile with
+durable signed records, bounded stdio/native transport and fixed child
+environments. The [native component qualification](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43143564993)
+passed 1320 tests without skips on the identical delivered tree. That component
+evidence is distinct from the new
+[installed public-discussion attachment](public-discussion-stack-trial.md),
+which reuses the stopped managed bundle and must produce its own passing report.
+No live provider or confined-child discussion is implied.
+
 All normal and manual checkouts, the publisher's source assertion and the
 historical-admission probe select this operative revision. The probe retains
 historical `473df5a0` as the negative revision and validates both source trees and
-imported bytes. Its six authority modules and the dependency requirements match
-the original `653c0a71` blobs; the canonical child service and managed CLI also
-match the previous positive pin. This is not an assertion that the whole
-repository is unchanged. The safe experimental receipt export and the legacy
-refusal guards do not add canonical capabilities or alter the probed modules.
-The existing installed trials exercise canonical service behavior; they do not
-invoke every legacy facade or start the separately restricted conversation service.
+imported bytes. Its six authority modules match the original `653c0a71` blobs;
+the canonical child service and managed CLI also match the previous positive
+pin. The new restricted profile pins MCP 1.30.0, so dependency requirements are
+not claimed unchanged. The safe experimental receipt export, legacy refusal
+guards and restricted profile do not add canonical capabilities or alter the
+probed modules. Existing canonical scenes retain their assertions, while the
+separate attachment starts two independent installed public peers with exactly
+three deterministic provider requests and original signed remote receipt.
+The complete changed set remains unqualified until all ZPM gates pass.
 
 Every change to the integration set must pass all eight ZPM jobs before promotion.
 Earlier `9e6aaa49` / OpenJules `d3d50b32` runtime reports, the 612-test component
@@ -607,7 +633,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/a1547a7743996d2db9866013135e5adb75c0ec7c/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/5bdda3de5bc3b2f8afb8de9abc191661245fe8ba/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -625,7 +651,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/a1547a7743996d2db9866013135e5adb75c0ec7c/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/5bdda3de5bc3b2f8afb8de9abc191661245fe8ba/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature
