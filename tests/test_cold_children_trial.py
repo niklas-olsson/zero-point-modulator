@@ -16,7 +16,7 @@ from tempfile import TemporaryDirectory
 import threading
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parent / "contracts"))
 try:
@@ -697,6 +697,148 @@ class FakeProcesses:
         self.running.pop(name, None)
         if name == self.fail:
             raise RuntimeError("private fixture cleanup error")
+
+
+class ColdRequestObservationTests(unittest.TestCase):
+    def test_success_forwards_each_direct_request_once_and_preserves_result_identity(self):
+        payload = {"private": "fixture payload"}
+        query = {"repository": "private fixture repository"}
+        calls = (
+            ("enroll", "POST", "/managed/enroll", {"data": payload}),
+            ("enroll-replay", "POST", "/managed/enroll", {"data": payload}),
+            ("foreign-scope-refusal", "POST", "/managed/enroll", {"data": payload, "expected": 403}),
+            ("active-snapshot", "GET", "/managed/snapshot", {"query": query}),
+            ("active-children", "GET", "/managed/children", {"query": query}),
+            ("active-worker", "GET", "/api/workers/private-worker", {"query": query}),
+        )
+        observation = cold.ColdRequestObservation()
+        for operation, method, path, options in calls:
+            with self.subTest(operation=operation):
+                result = object()
+                client = SimpleNamespace(request=Mock(return_value=result))
+                self.assertIs(observation.request(operation, client, method, path, **options), result)
+                client.request.assert_called_once_with(method, path, **options)
+                for name, value in options.items():
+                    self.assertIs(client.request.call_args.kwargs[name], value)
+                self.assertIsNone(observation.report())
+
+    def test_exception_categories_are_fixed_and_original_objects_propagate(self):
+        from urllib.error import URLError
+
+        for original, kind in (
+            (TimeoutError("private timeout"), "timeout"),
+            (URLError("private endpoint"), "url"),
+            (ConnectionError("private connection"), "connection"),
+            (AssertionError("private response body"), "assertion"),
+            (OSError("private path"), "os"),
+            (ValueError("private JSON"), "value"),
+            (KeyboardInterrupt("private interrupt"), "other"),
+            (SystemExit("private exit"), "other"),
+        ):
+            with self.subTest(kind=kind):
+                observation = cold.ColdRequestObservation()
+                client = SimpleNamespace(request=Mock(side_effect=original))
+                with self.assertRaises(type(original)) as caught:
+                    observation.request("enroll", client, "POST", "/managed/enroll", data={})
+                self.assertIs(caught.exception, original)
+                client.request.assert_called_once_with("POST", "/managed/enroll", data={})
+                self.assertEqual(observation.report(), {"operation": "enroll", "exception_kind": kind})
+
+    def test_first_failure_stays_private_and_frozen_across_later_calls_and_report_mutation(self):
+        class PrivateCredentialException(Exception):
+            def __str__(self):
+                raise AssertionError("exception rendering must not run")
+
+        secret = "secret fixture credential/path/body/worker-id"
+        original = PrivateCredentialException(secret)
+        later = TimeoutError(secret)
+        result = object()
+        client = SimpleNamespace(request=Mock(side_effect=[original, later, result]))
+        observation = cold.ColdRequestObservation()
+        with self.assertRaises(PrivateCredentialException) as caught:
+            observation.request("enroll", client, "POST", secret, data={secret: secret})
+        self.assertIs(caught.exception, original)
+        expected = {"operation": "enroll", "exception_kind": "other"}
+        self.assertEqual(observation.report(), expected)
+        altered = observation.report()
+        altered["operation"] = secret
+        with self.assertRaises(TimeoutError) as caught:
+            observation.request("active-worker", client, "GET", secret, query={secret: secret})
+        self.assertIs(caught.exception, later)
+        self.assertIs(observation.request("enroll-replay", client, "POST", secret), result)
+        self.assertEqual(client.request.call_count, 3)
+        self.assertEqual(observation.report(), expected)
+        serialized = encoded(observation.report())
+        for private in (secret, "PrivateCredentialException", "TimeoutError"):
+            self.assertNotIn(private, serialized)
+
+    def test_unknown_operation_is_rejected_without_exporting_it_or_calling_client(self):
+        observation = cold.ColdRequestObservation()
+        client = SimpleNamespace(request=Mock())
+        with self.assertRaisesRegex(AssertionError, "^unknown cold request observation operation$"):
+            observation.request("private dynamic operation", client, "GET", "/private")
+        client.request.assert_not_called()
+        self.assertIsNone(observation.report())
+
+    def test_real_loopback_timeout_keeps_original_three_second_client_call_and_no_retry(self):
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        release = threading.Event()
+        received = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                received.append(self.path)
+                release.wait(10)
+
+            def log_message(self, *_args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+        thread.start()
+        client = cold.Client(f"http://127.0.0.1:{server.server_port}", "private fixture token")
+        observation = cold.ColdRequestObservation()
+        try:
+            with patch.object(client.opener, "open", wraps=client.opener.open) as opened:
+                with self.assertRaises(TimeoutError):
+                    observation.request("active-worker", client, "GET", "/api/workers/private-worker")
+                self.assertEqual(opened.call_count, 1)
+                self.assertEqual(opened.call_args.kwargs, {"timeout": 3})
+            self.assertEqual(received, ["/api/workers/private-worker"])
+            self.assertEqual(observation.report(), {
+                "operation": "active-worker", "exception_kind": "timeout",
+            })
+        finally:
+            release.set()
+            server.shutdown()
+            thread.join(timeout=2)
+            server.server_close()
+        self.assertFalse(thread.is_alive())
+
+    def test_observed_failure_survives_original_owned_cleanup_errors(self):
+        original = TimeoutError("private request detail")
+        observation = cold.ColdRequestObservation()
+        client = SimpleNamespace(request=Mock(side_effect=original))
+        processes = FakeProcesses(manager_code=-9, fail="last")
+        release = threading.Event()
+        caught_original = None
+        with self.assertRaises(TimeoutError) as caught:
+            try:
+                observation.request("enroll", client, "POST", "/managed/enroll", data={})
+            except BaseException as exc:
+                caught_original = exc
+                raise
+            finally:
+                cold.close_owned(processes, release, caught_original)
+        self.assertIs(caught.exception, original)
+        self.assertTrue(release.is_set())
+        self.assertEqual(processes.stopped, ["last", "installation", "first"])
+        self.assertEqual(processes.running, {})
+        self.assertEqual(original.__notes__, [
+            "cold owned cleanup incomplete: owned-service-last,manager-shutdown-unconfirmed",
+        ])
+        self.assertEqual(observation.report(), {"operation": "enroll", "exception_kind": "timeout"})
 
 
 class ColdCleanupTests(unittest.TestCase):

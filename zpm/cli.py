@@ -14,9 +14,16 @@ from .provider import OpenJulesProvider, ProviderError
 from .store import Store
 
 
-def read_json(path: str) -> Any:
+def read_json(path: str, *, deployment: bool = False) -> Any:
     try:
-        return json.loads(Path(path).read_text(encoding="utf-8"))
+        raw = Path(path).read_text(encoding="utf-8")
+        if deployment:
+            from .deployment import _decode_configuration_json
+
+            return _decode_configuration_json(raw)
+        return json.loads(raw)
+    except ConfigurationError:
+        raise
     except (OSError, ValueError):
         raise ConfigurationError("cannot read the requested JSON configuration") from None
 
@@ -59,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "deployment":
             from .deployment import prepare, verify
 
-            output = (prepare(read_json(args.configuration), args.directory)
+            output = (prepare(read_json(args.configuration, deployment=True), args.directory)
                       if args.deployment_command == "prepare" else verify(args.directory))
         elif args.command == "validate":
             # No database, credentials, model or provider is accessed.

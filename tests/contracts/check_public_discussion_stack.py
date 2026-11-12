@@ -196,6 +196,45 @@ class OwnedTrial:
             if len(raw) > available and not suppress:
                 raise AssertionError("owned command output exceeded its byte bound")
 
+    def _observe_metadata(self, entry, info, operation, read):
+        """A terminal sample never creates observation or cleanup authority."""
+        try:
+            return read()
+        except PermissionError as error:
+            try:
+                previous = entry["observed"].get((info["pid"], info["starttime"]))
+                kind = {"profile_environment": "profile", "node_environment": "node",
+                        "node_executable": "node"}.get(operation)
+                if (previous is not None and previous.get("kind") in {"profile", "node"}
+                        and (kind is None or previous["kind"] == kind)):
+                    raw = bounded_file(f"/proc/{info['pid']}/stat", 4096)
+                    prefix, tail = raw.rsplit(b")", 1)
+                    fields = tail.split()
+                    pid = prefix.split(b" ", 1)[0]
+                    require(len(fields) > 19 and pid.isdigit()
+                            and fields[0] in {b"R", b"S", b"D", b"Z", b"T", b"t", b"X", b"x", b"K", b"W", b"P", b"I"}
+                            and all(fields[index].isdigit() for index in (1, 2, 3, 6, 19)),
+                            "terminal observation metadata is malformed")
+                    current = {"pid": int(pid), "parent": int(fields[1]),
+                               "group": int(fields[2]), "session": int(fields[3]),
+                               "starttime": fields[19].decode("ascii")}
+                    flags = int(fields[6])
+                    require(flags <= 0xffffffffffffffff, "terminal observation flags exceed their bound")
+                    # Linux v7.0 do_exit sets PF_EXITING before exit_mm changes
+                    # proc ownership. This is task exit, not absence or reaping.
+                    if (all(current[key] == previous[key] for key in current)
+                            and flags & 0x00000004):
+                        entry.setdefault("exiting_observations", set()).add((current["pid"], current["starttime"]))
+                        return None
+            except Exception:
+                # Unknown or changed identity must preserve the original denial.
+                pass
+            self.observation_failure = {
+                "operation": operation,
+                "errno": error.errno if type(error.errno) is int and error.errno in (1, 13) else None,
+            }
+            raise
+
     def _observe(self, entry, inventory):
         expected = entry["profile"]
         if expected is None:
@@ -214,7 +253,11 @@ class OwnedTrial:
                 continue
             pending.extend(child for child, item in inventory.items() if item["parent"] == pid)
             try:
-                argv = bounded_file(f"/proc/{pid}/cmdline", 65536).split(b"\0")[:-1]
+                raw = self._observe_metadata(entry, info, "cmdline",
+                                             lambda: bounded_file(f"/proc/{pid}/cmdline", 65536))
+                if raw is None:
+                    continue
+                argv = raw.split(b"\0")[:-1]
             except FileNotFoundError:
                 continue
             profile_argv = [os.fsencode(expected["python"]), b"-m",
@@ -223,7 +266,11 @@ class OwnedTrial:
             if argv == profile_argv:
                 require(info["group"] == pid and info["session"] == pid,
                         "B did not create its owned profile group")
-                environment = dict(item.split(b"=", 1) for item in bounded_file(f"/proc/{pid}/environ", 65536).split(b"\0") if item)
+                raw = self._observe_metadata(entry, info, "profile_environment",
+                                             lambda: bounded_file(f"/proc/{pid}/environ", 65536))
+                if raw is None:
+                    continue
+                environment = dict(item.split(b"=", 1) for item in raw.split(b"\0") if item)
                 require(environment == {os.fsencode(k): os.fsencode(v) for k, v in PROFILE_ENVIRONMENT.items()},
                         "profile inherited an unapproved environment")
                 entry["observed"][(pid, info["starttime"])] = info | {"kind": "profile"}
@@ -234,10 +281,18 @@ class OwnedTrial:
                 if parent is None:
                     continue  # A later bounded pass observes the parent first.
                 require(info["group"] == parent["pid"], "native child escaped its profile group")
-                environment = dict(item.split(b"=", 1) for item in bounded_file(f"/proc/{pid}/environ", 65536).split(b"\0") if item)
+                raw = self._observe_metadata(entry, info, "node_environment",
+                                             lambda: bounded_file(f"/proc/{pid}/environ", 65536))
+                if raw is None:
+                    continue
+                environment = dict(item.split(b"=", 1) for item in raw.split(b"\0") if item)
                 require(environment == {os.fsencode(k): os.fsencode(v) for k, v in NODE_ENVIRONMENT.items()},
                         "native child inherited an unapproved environment")
-                require(Path(f"/proc/{pid}/exe").resolve() == Path(expected["node"]).resolve(),
+                executable = self._observe_metadata(entry, info, "node_executable",
+                                                    lambda: Path(f"/proc/{pid}/exe").resolve())
+                if executable is None:
+                    continue
+                require(executable == Path(expected["node"]).resolve(),
                         "native executable changed")
                 entry["observed"][(pid, info["starttime"])] = info | {"kind": "node"}
 
@@ -335,6 +390,8 @@ class OwnedTrial:
                     "passive destination exited before readiness")
             live = {"profile": [], "node": []}
             for observed in entry["observed"].values():
+                if (observed["pid"], observed["starttime"]) in entry.get("exiting_observations", ()):
+                    continue
                 current = process_info(observed["pid"])
                 if (current is not None and current["state"] not in {"Z", "X"}
                         and all(current[key] == observed[key]
@@ -862,6 +919,8 @@ def run(args):
         scene(owner, root, stack, evidence)
     except BaseException as error:
         failure = str(error) if isinstance(error, AssertionError) else type(error).__name__
+        if isinstance(error, PermissionError) and hasattr(owner, "observation_failure"):
+            evidence["observation_failure"] = dict(owner.observation_failure)
     finally:
         evidence["action_elapsed_seconds"] = round(time.monotonic() - started, 3)
         cleanup_started = time.monotonic()

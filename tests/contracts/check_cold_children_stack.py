@@ -17,6 +17,7 @@ import subprocess
 import sys
 import threading
 import time
+from urllib.error import URLError
 
 from check_children_stack import (
     BASE_TOOLS, CHILD_TOOLS, CHILD_VERIFY, DENY_SOCKET, VERIFY,
@@ -111,6 +112,40 @@ HASH = re.compile(r"[0-9a-f]{64}")
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}")
 SESSION_ID = re.compile(r"session_[0-9a-f]{64}")
 CHILD_ID = re.compile(r"child_[0-9a-f]{32}")
+
+
+class ColdRequestObservation:
+    """Attribute one failed direct request without changing its execution."""
+
+    OPERATIONS = frozenset({
+        "enroll", "enroll-replay", "foreign-scope-refusal",
+        "active-snapshot", "active-children", "active-worker",
+    })
+
+    def __init__(self):
+        self._failure = None
+
+    def request(self, operation, client, *args, **kwargs):
+        require(operation in self.OPERATIONS, "unknown cold request observation operation")
+        try:
+            return client.request(*args, **kwargs)
+        except BaseException as exc:
+            if self._failure is None:
+                kind = "other"
+                for exception, label in (
+                    (TimeoutError, "timeout"), (URLError, "url"),
+                    (ConnectionError, "connection"), (AssertionError, "assertion"),
+                    (OSError, "os"), (ValueError, "value"),
+                ):
+                    if isinstance(exc, exception):
+                        kind = label
+                        break
+                self._failure = {"operation": operation, "exception_kind": kind}
+            raise
+
+    def report(self):
+        return None if self._failure is None else self._failure.copy()
+
 
 # The model response has already been returned before this fixed command runs.
 # Each RPC uses only the remaining original poll interval. The image module,
@@ -887,6 +922,7 @@ def run(args):
     guest_hash = hashlib.sha256(guest_source["src.agent.child_tools"]).hexdigest()
     processes = Processes(root)
     checks, sensitive, capture_observations = [], set(), []
+    request_observation = ColdRequestObservation()
     measurements = Measurements(cold_session=True)
     scope = {"deployment_id": "cold-children-trial-" + secrets.token_hex(8),
              "repository": "github:github.com/managed-cold-trial/repository"}
@@ -1062,12 +1098,18 @@ def run(args):
             }
             with model.lock:
                 model.measurements.enrollment_started(time.monotonic_ns())
-            task = ingress.request("POST", "/managed/enroll", data=request)["task"]["id"]
-            require(ingress.request("POST", "/managed/enroll", data=request)["task"]["id"] == task,
+            task = request_observation.request(
+                "enroll", ingress, "POST", "/managed/enroll", data=request,
+            )["task"]["id"]
+            require(request_observation.request(
+                "enroll-replay", ingress, "POST", "/managed/enroll", data=request,
+            )["task"]["id"] == task,
                     "cold ingress replay allocated a second task")
-            ingress.request("POST", "/managed/enroll", data=request | {
-                "repository": "github:github.com/foreign/repository",
-            }, expected=403)
+            request_observation.request(
+                "foreign-scope-refusal", ingress, "POST", "/managed/enroll", data=request | {
+                    "repository": "github:github.com/foreign/repository",
+                }, expected=403,
+            )
 
             def returned():
                 require(not model.errors, "cold deterministic fixture rejected a request")
@@ -1075,13 +1117,18 @@ def run(args):
 
             eventually(returned, processes, "both cold physical child execs returned", 60)
             try:
-                active = snapshot()
+                active = request_observation.request(
+                    "active-snapshot", authority, "GET", "/managed/snapshot", query=scope,
+                )
                 require(len(active["task"]) == len(active["attempt"]) == 1,
                         "cold follow-up allocated another root task or attempt")
                 active_attempt = active["attempt"][0]
                 attempt_id = active_attempt["id"]
                 worker = active_attempt["runtime_binding"]["worker_id"]
-                active_children = children(attempt_id)["children"]
+                active_children = request_observation.request(
+                    "active-children", authority, "GET", "/managed/children",
+                    query=scope | {"attempt_id": attempt_id},
+                )["children"]
                 require(len(active_children) == 2 and all(
                     row["launch_allowed"] is True and row["child"]["termination_confirmed"] is False
                     for row in active_children), "cold model-only closure changed generic canonical permission")
@@ -1096,7 +1143,9 @@ def run(args):
                     pass
                 else:
                     raise AssertionError("cold predecessor model endpoint was recreated after its fence")
-                observed = runtime.request("GET", "/api/workers/" + worker, query=scope)
+                observed = request_observation.request(
+                    "active-worker", runtime, "GET", "/api/workers/" + worker, query=scope,
+                )
                 require(set(observed["active_executions"]) == {attempt_id, *model.child_ids.values()},
                         "cold exec return released a lifecycle execution reference")
                 capacity = plan()
@@ -1395,6 +1444,7 @@ def run(args):
                     checks, revisions, sensitive,
                 )
                 diagnostic["cold_capture_observations"] = capture_observations
+                diagnostic["cold_request_failure"] = request_observation.report()
                 pending = root / "cold-diagnostics.pending"
                 private_json(pending, diagnostic)
                 pending.replace(root / "diagnostics.json")

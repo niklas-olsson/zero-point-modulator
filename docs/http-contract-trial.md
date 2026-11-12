@@ -19,14 +19,14 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`74429feda1f3991ce528678b74d6db5e3b3b250c`](https://github.com/niklas-olsson/OpenJules/commit/74429feda1f3991ce528678b74d6db5e3b3b250c) |
+| OpenJules | [`c925dee46765d2b22c9e38b55f614fc29f8068c1`](https://github.com/niklas-olsson/OpenJules/commit/c925dee46765d2b22c9e38b55f614fc29f8068c1) |
 
-This is the same merged cold-clarification runtime and public-discussion
-participant used by all five installed-stack jobs. The explicit loopback
-bootstrap binding, shared HTTP transport, bounded socket denial and scoped
-unsupported-capability diagnostic remain in that source. This HTTP lifecycle job
-does not enable a child session or start a discussion participant or a restricted
-conversation service.
+This is the same merged runtime used by all five installed-stack jobs, including
+the explicit managed-public profile. The cold-session option, loopback bootstrap,
+shared HTTP transport, bounded socket denial and scoped unsupported-capability
+diagnostic remain in that source. This HTTP lifecycle job does not enable a
+child session or a public profile, start a discussion participant, or supply a
+restricted conversation service.
 Their common merged Polyphony pin is
 `0cf8b4772b04269505e3e1cd41324e41409b80f9`;
 this HTTP-only trial does not run Polyphony. Its merged ancestry includes
@@ -56,7 +56,8 @@ To update the shared component pins:
 2. Change all operative checkout `ref` values in `.github/workflows/ci.yml` and
    `.github/workflows/managed-publication.yml`, the matching revision constant in
    `tests/contracts/check_publication_stack.py`, and the current HTTP, command,
-   model, child, isolation, shared-service and installation guide references
+   model, child, isolation, shared-service, independent-public and installation
+   guide references
    together. Keep one explicit three-repository delivery set. The separately
    labelled historical-authority negative checkout remains frozen at its own
    revision; retained historical results also keep their original revisions.

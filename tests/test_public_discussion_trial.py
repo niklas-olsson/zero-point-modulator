@@ -425,5 +425,264 @@ class DestinationReadinessTests(unittest.TestCase):
         self.assertFalse(value["release_written"])
 
 
+@unittest.skipUnless(sys.platform == "linux" and hasattr(os, "WNOWAIT"), "Linux proc lifetime qualification")
+class ExitingObservationTests(unittest.TestCase):
+    """Real kernel denial under an unprivileged reader, not a native A/B scene."""
+
+    def probe(self, mode):
+        # Privileged readers may read a root-owned zombie environment. Decide
+        # this prerequisite before creating any fixture or observing a denial.
+        if os.geteuid() == 0:
+            self.skipTest("real proc denial requires a non-root reader")
+        with Path("/proc/self/status").open("rb") as stream:
+            status = stream.read(8193)
+        self.assertLessEqual(len(status), 8192)
+        capabilities = [line.split()[1] for line in status.splitlines()
+                        if line.startswith(b"CapEff:")]
+        self.assertEqual(len(capabilities), 1)
+        if int(capabilities[0], 16) & ((1 << 1) | (1 << 2) | (1 << 19)):
+            self.skipTest("real proc denial requires no DAC or ptrace override")
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            script = textwrap.dedent(r'''
+                import importlib.util,json,os,sys,time
+                from copy import deepcopy
+                from pathlib import Path
+                spec=importlib.util.spec_from_file_location("trial",sys.argv[1])
+                trial=importlib.util.module_from_spec(spec); spec.loader.exec_module(trial)
+                mode=sys.argv[2]; directory=Path(sys.argv[3])
+                assert os.geteuid()!=0
+                package=directory/"src"/"liminal_bridge"; package.mkdir(parents=True)
+                (package.parent/"__init__.py").write_text("")
+                (package/"__init__.py").write_text("")
+                configuration=directory/"profile.config"
+                configuration.write_text(json.dumps({"directory":str(directory),"mode":mode}))
+                bridge=directory/"node_fixture.py"
+                bridge.write_text("\n".join([
+                    "import ctypes,json,os,time",
+                    "from pathlib import Path",
+                    "configuration=json.loads(Path(__file__).with_name('profile.config').read_text())",
+                    "directory=Path(configuration['directory'])",
+                    "deadline=time.monotonic()+12",
+                    "(directory/'node_ready').touch()",
+                    "while not (directory/'trigger').exists():",
+                    "    assert time.monotonic()<deadline",
+                    "    time.sleep(.005)",
+                    "if configuration['mode']=='live':",
+                    "    libc=ctypes.CDLL(None,use_errno=True)",
+                    "    libc.prctl.restype=ctypes.c_int",
+                    "    zero=ctypes.c_ulong(0)",
+                    "    assert libc.prctl(ctypes.c_int(4),zero,zero,zero,zero)==0",
+                    "    (directory/'live_hidden').touch()",
+                    "    while not (directory/'release').exists():",
+                    "        assert time.monotonic()<deadline",
+                    "        time.sleep(.005)",
+                    "os._exit(0)",
+                ])+"\n")
+                node_argv=[sys.executable,str(bridge),"a"*64,"--conversation-bootstrap-port","31337"]
+                (package/"conversation_server.py").write_text("\n".join([
+                    "import json,os,subprocess,sys,time",
+                    "from pathlib import Path",
+                    "configuration=json.loads(Path(sys.argv[-1]).read_text())",
+                    "directory=Path(configuration['directory'])",
+                    "deadline=time.monotonic()+12",
+                    "node=subprocess.Popen("+repr(node_argv)+",env="+repr(trial.NODE_ENVIRONMENT)+",stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)",
+                    "while os.waitid(os.P_PID,node.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is None:",
+                    "    assert time.monotonic()<deadline",
+                    "    time.sleep(.005)",
+                    "(directory/'zombie').touch()",
+                    "while not (directory/'reap').exists() and not (directory/'release').exists():",
+                    "    assert time.monotonic()<deadline",
+                    "    time.sleep(.005)",
+                    "assert node.wait()==0",
+                    "(directory/'reaped').touch()",
+                    "while not (directory/'release').exists():",
+                    "    assert time.monotonic()<deadline",
+                    "    time.sleep(.005)",
+                ])+"\n")
+                command="\n".join([
+                    "import subprocess,sys",
+                    "profile=subprocess.Popen([sys.executable,'-m','src.liminal_bridge.conversation_server','--config',"+repr(str(configuration))+"],env="+repr(trial.PROFILE_ENVIRONMENT)+",start_new_session=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)",
+                    "raise SystemExit(profile.wait())",
+                ])
+                expected={"python":sys.executable,"config":str(configuration),
+                          "node":sys.executable,"bridge":str(bridge),
+                          "scope_hash":"a"*64,"port":31337}
+                owner=trial.OwnedTrial(dedicated_process=True)
+                original_file=trial.bounded_file
+                original_info=trial.process_info
+                cutoff=time.monotonic()+8
+                def until(predicate):
+                    while not predicate():
+                        assert time.monotonic()<cutoff, "fixture barrier deadline"
+                        time.sleep(.005)
+                entry=None; result=None; facts={}
+                try:
+                    entry=owner.launch("lifetime-fixture",[sys.executable,"-c",command],
+                                       directory,trial.PROFILE_ENVIRONMENT,expected_profile=expected)
+                    original_start=entry["start"]; original_deadline=owner.deadline
+                    until(lambda:(directory/"node_ready").exists())
+                    inventory=trial.process_inventory(cutoff)
+                    owner._observe(entry,inventory)
+                    assert len(entry["observed"])==2
+                    profile=next(value for value in entry["observed"].values() if value["kind"]=="profile")
+                    original=deepcopy(next(value for value in entry["observed"].values() if value["kind"]=="node"))
+                    assert profile["parent"]==entry["process"].pid
+                    target=original["pid"]; key=(target,original["starttime"])
+                    assert original["parent"]==profile["pid"]
+                    assert original["group"]==original["session"]==profile["pid"]
+                    assert original["state"] not in {"Z","X"}
+                    if mode=="unbound":
+                        del entry["observed"][key]
+                    elif mode=="changed":
+                        # A deliberately contradictory retained binding is not
+                        # claimed as actual PID reuse. Fresh kernel identity wins.
+                        entry["observed"][key]["starttime"]=str(int(original["starttime"])+1)
+                    before=deepcopy(entry["observed"])
+                    actual_errors=[]; armed=[True]
+                    def gated_file(path,maximum):
+                        path=str(path)
+                        if path==f"/proc/{target}/cmdline" and armed[0]:
+                            raw=original_file(path,maximum)
+                            assert raw.split(b"\0")[:-1]==[os.fsencode(value) for value in node_argv]
+                            armed[0]=False
+                            (directory/"trigger").touch()
+                            until(lambda:(directory/("live_hidden" if mode=="live" else "zombie")).exists())
+                            current=trial.process_info(target)
+                            assert all(current[name]==original[name]
+                                       for name in ("pid","parent","group","session","starttime"))
+                            stat=original_file(f"/proc/{target}/stat",4096).rsplit(b")",1)[1].split()
+                            flags=int(stat[6])
+                            facts.update({"state":current["state"],"flags":flags})
+                            if mode=="live":
+                                assert current["state"] not in {"Z","X"} and not flags & 4
+                            else:
+                                assert current["state"]=="Z" and flags & 4
+                            return raw
+                        if path==f"/proc/{target}/environ" and not armed[0]:
+                            try:
+                                return original_file(path,maximum)
+                            except PermissionError as error:
+                                assert error.errno==13
+                                actual_errors.append(error)
+                                if mode=="missing":
+                                    (directory/"reap").touch()
+                                    until(lambda:(directory/"reaped").exists())
+                                    assert trial.process_info(target) is None
+                                raise
+                        return original_file(path,maximum)
+                    trial.bounded_file=gated_file
+                    caught=None
+                    try:
+                        owner._observe(entry,inventory)
+                    except PermissionError as error:
+                        caught=error
+                    assert len(actual_errors)==1, "kernel did not produce the required real denial"
+                    assert entry["observed"]==before
+                    facts["observation_unchanged"]=True
+                    assert entry["start"]==original_start and owner.deadline==original_deadline
+                    assert owner.finish(entry,cutoff=cutoff) is None
+                    assert entry["result"] is None and not owner.closing
+                    if mode=="known":
+                        assert caught is None
+                        assert not hasattr(owner,"observation_failure")
+                        assert trial.process_info(target)["state"]=="Z"
+                        assert entry["observed"][key]==original
+                        assert entry["exiting_observations"]=={key}
+                    else:
+                        assert not entry.get("exiting_observations")
+                        assert caught is actual_errors[0]
+                        assert owner.observation_failure=={"operation":"node_environment","errno":13}
+                        encoded=json.dumps(owner.observation_failure,sort_keys=True)
+                        assert len(encoded.encode())<128 and str(directory) not in encoded
+                    trial.bounded_file=original_file
+                    if mode=="known":
+                        # This controlled state facade models only the pre-Z
+                        # readiness join. The actual kernel task remains a
+                        # measured zombie; no pre-Z timing is claimed.
+                        def pre_z_state_projection(pid):
+                            value=original_info(pid)
+                            if pid==target and value is not None:
+                                assert value["state"]=="Z" and value["starttime"]==original["starttime"]
+                                return value | {"state":"S"}
+                            return value
+                        trial.process_info=pre_z_state_projection
+                        retained_exit=entry.pop("exiting_observations")
+                        try:
+                            unmarked=owner.profile_ready(entry,maximum=.5)
+                            assert unmarked["profile"]["pid"]==profile["pid"]
+                            assert unmarked["node"]["pid"]==target and unmarked["node"]["state"]=="S"
+                        finally:
+                            entry["exiting_observations"]=retained_exit
+                        minted=False; refusal=None
+                        try:
+                            owner.profile_ready(entry,maximum=.5)
+                            minted=True
+                        except AssertionError as error:
+                            refusal=str(error)
+                        assert not minted and refusal in {
+                            "passive destination readiness deadline expired",
+                            "kernel process inventory exceeded its deadline"}
+                        assert entry["exiting_observations"]=={key}
+                        assert entry["observed"][key]==original
+                        assert entry["start"]==original_start and owner.deadline==original_deadline
+                        trial.process_info=original_info
+                        facts.update({"unmarked_pre_z_projection_ready":True,
+                                      "known_exit_projection_ready":False})
+                        (directory/"release").touch()
+                        result=owner.wait([entry],maximum=3,cutoff=cutoff)[0]
+                        assert result["returncode"]==0
+                    facts.update({"original_error_preserved":caught is actual_errors[0],
+                                  "denials":len(actual_errors),
+                                  "normal_completion":result is not None,
+                                  "diagnostic":getattr(owner,"observation_failure",None)})
+                finally:
+                    trial.bounded_file=original_file
+                    trial.process_info=original_info
+                    owner.cleanup(time.monotonic()+trial.FINAL_CLEANUP_SECONDS)
+                assert all(item["process"].returncode is not None for item in owner.commands)
+                assert trial.children_of(os.getpid())==[] and trial.kernel_has_no_children()
+                facts.update({"all_reaped":True,"children":[]})
+                print(json.dumps(facts))
+            ''')
+            result = subprocess.run(
+                [sys.executable, "-c", script, str(Path(trial.__file__).resolve()), mode, str(directory)],
+                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            value = json.loads(result.stdout)
+            self.assertEqual(value["denials"], 1)
+            self.assertTrue(value["observation_unchanged"])
+            self.assertTrue(value["all_reaped"])
+            self.assertEqual(value["children"], [])
+            return value
+
+    def test_previously_verified_exiting_task_preserves_only_its_old_observation(self):
+        value = self.probe("known")
+        self.assertEqual(value["state"], "Z")
+        self.assertTrue(value["flags"] & 4)
+        self.assertFalse(value["original_error_preserved"])
+        self.assertTrue(value["normal_completion"])
+        self.assertIsNone(value["diagnostic"])
+        self.assertTrue(value["unmarked_pre_z_projection_ready"])
+        self.assertFalse(value["known_exit_projection_ready"])
+
+    def test_live_nondumpable_task_keeps_the_actual_permission_denial(self):
+        value = self.probe("live")
+        self.assertNotIn(value["state"], {"Z", "X"})
+        self.assertFalse(value["flags"] & 4)
+        self.assertTrue(value["original_error_preserved"])
+        self.assertFalse(value["normal_completion"])
+        self.assertEqual(value["diagnostic"], {"operation": "node_environment", "errno": 13})
+
+    def test_unbound_changed_or_missing_identity_never_suppresses_actual_denial(self):
+        for mode in ("unbound", "changed", "missing"):
+            with self.subTest(mode=mode):
+                value = self.probe(mode)
+                self.assertTrue(value["original_error_preserved"])
+                self.assertFalse(value["normal_completion"])
+                self.assertEqual(value["diagnostic"], {"operation": "node_environment", "errno": 13})
+
+
 if __name__ == "__main__":
     unittest.main()
