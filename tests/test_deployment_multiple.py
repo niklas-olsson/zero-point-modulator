@@ -118,6 +118,37 @@ class MultipleRepositoryDeploymentTests(unittest.TestCase):
         }
         return configuration
 
+    def public_configuration(self):
+        configuration = deepcopy(self.configuration)
+        self.public_scopes = {}
+        for index, entry in enumerate(configuration["repositories"]):
+            name = ("alpha", "beta")[index]
+            path = self.root / ("scope-" + name + ".key")
+            raw = ("private-multiple-scope-" + name + "\n").encode()
+            path.write_bytes(raw)
+            path.chmod(0o600)
+            self.public_scopes[name] = (path, raw)
+            entry["model_policy"] = self.model_policy(name)
+            entry["command"] = [
+                "python3", "-I", "-S", "/opt/openjules/managed_root_runner.py",
+                "--socket", "/run/openjules-model/model.sock",
+                "--control-socket", "/run/openjules-model/control.sock",
+                "--public-socket", "/run/openjules-model/public.sock",
+            ]
+            entry["child_policy"] = {
+                "max_children": 2, "max_child_seconds": 20, "max_child_turns": 4,
+                "capabilities": ["python"], "outcome_protocol": "initial-v1",
+                "public_discussion": {
+                    "protocol": "managed-public-pull-v1", "public_approved": True,
+                    "topic": "approved-topic-" + name,
+                    "server": {"scope_key_file": str(path)},
+                    "personas": {"reviewer": "Independent approved persona for " + name},
+                    "instructions": {"question": "Approved public question for " + name},
+                    "invitations": {},
+                },
+            }
+        return configuration
+
     def assert_no_reference_values_written(self, values):
         for path in self.bundle.rglob("*"):
             if path.is_file():
@@ -451,6 +482,152 @@ class MultipleRepositoryDeploymentTests(unittest.TestCase):
             with self.subTest(invalid_provider=invalid), patch.dict(os.environ, inputs, clear=True):
                 with self.assertRaises(ConfigurationError):
                     _environment(self.bundle, "openjules", normalized)
+
+    def test_public_profiles_derive_distinct_private_bindings_without_new_canonical_fields(self):
+        configuration = self.public_configuration()
+        original = deepcopy(configuration)
+        prepare(configuration, self.bundle)
+        self.assertTrue(verify(self.bundle)["valid"])
+        self.assertEqual(configuration, original)
+        normalized = self.read("manifest.json")["configuration"]
+        runtime = self.read("config/openjules.json")
+        canonical = self.read("config/polyphony.json")["repositories"]
+        paths = set()
+        for index, child in enumerate(runtime["children"]):
+            name = ("alpha", "beta")[index]
+            repository = REPOSITORIES[index]
+            self.assertEqual(child["repository"], repository)
+            self.assertEqual(child["profile"], "approved")
+            self.assertEqual(child["deployment_id"], configuration["deployment_id"])
+            public = child["policy"]["public_discussion"]
+            source_path, raw = self.public_scopes[name]
+            normalized_public = normalized["repositories"][index]["child_policy"]["public_discussion"]
+            self.assertEqual(normalized_public["server"], {
+                "scope_key_file": str(source_path), "scope_key_sha256": hashlib.sha256(raw).hexdigest(),
+            })
+            self.assertEqual(public | {"server": normalized_public["server"]}, normalized_public)
+            server = public["server"]
+            self.assertEqual(server["python"], str(self.bundle / "environments/polyphony/bin/python"))
+            self.assertEqual(server["cwd"], configuration["sources"]["polyphony"]["checkout"])
+            self.assertNotIn("bootstrap", server)
+            copy = Path(server["scope_key_file"])
+            self.assertEqual(copy.parent, self.bundle / "secrets")
+            self.assertEqual(copy.read_bytes(), raw)
+            self.assertEqual(copy.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(copy.stat().st_nlink, 1)
+            self.assertNotIn(copy, paths)
+            paths.add(copy)
+            entry = configuration["repositories"][index]
+            self.assertEqual(canonical[repository]["profiles"]["approved"], {
+                "base": entry["source"]["revision"], "attempt_seconds": entry["policy"]["attempt_seconds"],
+                "capabilities": ["python"], "max_children": 2, "max_child_seconds": 20,
+                "max_child_turns": 4, "child_capabilities": ["python"],
+            })
+            self.assertEqual(runtime["profiles"][index]["command"], entry["command"])
+        self.assertEqual(len(paths), 2)
+        self.assertEqual(self.read("config/provider.json")["max_workers"], 8)
+        for filename, data in self.sealed().items():
+            if self.bundle / filename not in paths:
+                self.assertNotIn(b"private-multiple-scope-", data, filename)
+
+    def test_public_profiles_validate_both_entries_before_any_publication(self):
+        configuration = self.public_configuration()
+        with patch("zpm.deployment.secrets.token_urlsafe", side_effect=AssertionError("partly prepared invalid profiles")), \
+                patch("zpm.deployment.Store", side_effect=AssertionError("partly enrolled invalid profiles")):
+            for index in (0, 1):
+                for failure in ("null", "approval", "hash", "missing-file", "cold", "root"):
+                    bad = deepcopy(configuration)
+                    entry = bad["repositories"][index]
+                    public = entry["child_policy"]["public_discussion"]
+                    if failure == "null":
+                        entry["child_policy"]["public_discussion"] = None
+                    elif failure == "approval":
+                        public["public_approved"] = 1
+                    elif failure == "hash":
+                        public["server"]["scope_key_sha256"] = "0" * 64
+                    elif failure == "missing-file":
+                        public["server"]["scope_key_file"] = str(self.root / "missing-scope")
+                    elif failure == "cold":
+                        entry["child_policy"]["session_protocol"] = "cold-clarification-v1"
+                    else:
+                        entry["command"] = ["python3", "unapproved-root.py"]
+                    with self.subTest(repository=index, failure=failure), self.assertRaises(ConfigurationError):
+                        prepare(bad, self.bundle)
+                    self.assertFalse(self.bundle.exists())
+
+    def test_public_and_cold_or_omitted_profiles_remain_separate_in_one_service(self):
+        configuration = self.public_configuration()
+        for mode in ("omitted", "cold"):
+            with self.subTest(mode=mode):
+                bundle = self.root / ("mixed-" + mode)
+                selected = deepcopy(configuration)
+                beta = selected["repositories"][1]
+                beta["command"] = self.entries[1]["command"]
+                if mode == "omitted":
+                    beta.pop("child_policy")
+                else:
+                    beta["child_policy"].pop("public_discussion")
+                    beta["child_policy"]["session_protocol"] = "cold-clarification-v1"
+                normalized = parse_configuration(selected)
+                prepare(selected, bundle)
+                self.assertTrue(verify(bundle)["valid"])
+                runtime = self.read("config/openjules.json", bundle)
+                children = {item["repository"]: item["policy"] for item in runtime["children"]}
+                self.assertIn("public_discussion", children[REPOSITORIES[0]])
+                self.assertNotIn("session_protocol", children[REPOSITORIES[0]])
+                if mode == "omitted":
+                    self.assertNotIn(REPOSITORIES[1], children)
+                    self.assertNotIn("child_policy", normalized["repositories"][1])
+                else:
+                    self.assertEqual(children[REPOSITORIES[1]], normalized["repositories"][1]["child_policy"])
+                    self.assertEqual(children[REPOSITORIES[1]]["session_protocol"], "cold-clarification-v1")
+                    self.assertNotIn("public_discussion", children[REPOSITORIES[1]])
+                self.assertEqual(runtime["profiles"][1]["command"], self.entries[1]["command"])
+                self.assertEqual(len(list((bundle / "secrets").glob("public-scope-*.key"))), 1)
+                beta_canonical = self.read("config/polyphony.json", bundle)["repositories"][REPOSITORIES[1]]["profiles"]["approved"]
+                self.assertNotIn("public_discussion", beta_canonical)
+                self.assertNotIn("session_protocol", beta_canonical)
+                self.assertEqual(self.read("config/provider.json", bundle)["max_workers"], 8)
+
+    def test_public_reordering_reuses_exact_seals_and_cannot_reset_removed_state(self):
+        configuration = self.public_configuration()
+        prepare(configuration, self.bundle)
+        with Store(self.bundle / "state/zpm.sqlite3") as store:
+            store.change(REPOSITORIES[0], "target", 2)
+            store.change(REPOSITORIES[0], "remove")
+            store.change(REPOSITORIES[1], "pause")
+        retained = self.retained_rows()
+        sealed = self.sealed()
+        capture = self.bundle / "state/openjules/retained-public-capture"
+        capture.write_bytes(b"retained exact capture")
+        reordered = deepcopy(configuration)
+        reordered["repositories"].reverse()
+        # Supplying the already normalized hash does not rotate the original binding.
+        for entry in reordered["repositories"]:
+            path = entry["child_policy"]["public_discussion"]["server"]["scope_key_file"]
+            entry["child_policy"]["public_discussion"]["server"]["scope_key_sha256"] = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        with patch("zpm.deployment.Store", side_effect=AssertionError("rewrote retained journal")), \
+                patch("zpm.deployment.secrets.token_urlsafe", side_effect=AssertionError("rotated retained credentials")):
+            self.assertTrue(prepare(reordered, self.bundle)["reused"])
+            for index in (0, 1):
+                changed = deepcopy(configuration)
+                changed["repositories"][index]["child_policy"]["public_discussion"]["topic"] += "-changed"
+                with self.subTest(repository=index), self.assertRaisesRegex(ConfigurationError, "different configuration"):
+                    prepare(changed, self.bundle)
+            beta_path, beta_raw = self.public_scopes["beta"]
+            beta_path.unlink()
+            try:
+                with self.assertRaises(ConfigurationError):
+                    prepare(reordered, self.bundle)
+                with self.assertRaises(ConfigurationError):
+                    verify(self.bundle)
+            finally:
+                beta_path.write_bytes(beta_raw)
+                beta_path.chmod(0o600)
+        self.assertEqual(self.sealed(), sealed)
+        self.assertEqual(self.retained_rows(), retained)
+        self.assertEqual(capture.read_bytes(), b"retained exact capture")
+        self.assertTrue(verify(self.bundle)["valid"])
 
     def test_cold_child_sessions_remain_scoped_to_the_opted_in_repository(self):
         configuration = self.child_configuration()

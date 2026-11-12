@@ -21,7 +21,7 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `74429feda1f3991ce528678b74d6db5e3b3b250c`, merged cold clarification and public-discussion runtime |
+| OpenJules | `c925dee46765d2b22c9e38b55f614fc29f8068c1`, merged runtime with approved managed public turns |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
@@ -34,7 +34,9 @@ and [controller publication](https://github.com/niklas-olsson/keystone-polyphony
 remain evidence for that revision. The operative Polyphony pin now includes
 [managed-task refusal on legacy paths](https://github.com/niklas-olsson/keystone-polyphony/pull/133)
 and the [merged authority-boundary documentation](https://github.com/niklas-olsson/keystone-polyphony/pull/134).
-The six probed authority modules and dependency requirements are unchanged.
+The six probed authority modules are unchanged. The restricted public profile
+from [Polyphony #135](https://github.com/niklas-olsson/keystone-polyphony/pull/135)
+pins MCP 1.30.0, so dependency requirements are not claimed unchanged.
 Every changed component set must pass the complete installed workflow before promotion.
 The OpenJules ancestry also contains
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15).
@@ -177,14 +179,15 @@ checkout. Its tree is `389ec80cb6a99edf2993d59e4540f6bdeaaa5f18`.
 This historical revision is the direct parent of the original outcome authority
 commit `653c0a71a921c0d23b8e0171277524125e929e66`. The merged positive revision
 in the component table contains that implementation through its later branch
-ancestry. The six authority modules checked by
-the import probe and `requirements.txt` match their original `653c0a71` Git blobs.
+ancestry. The six authority modules checked by the import probe match their
+original `653c0a71` Git blobs. Dependency requirements are separately pinned by
+the selected source; the restricted profile now requires MCP 1.30.0.
 The full source trees differ: the later package exports the safe experimental
 receipt class without import-time I/O or managed capability/schema registration,
 and contains opt-in sidecar measurement and repository automation changes. The
 operative revision also refuses managed task IDs through legacy advisory and
 experimental task or baton paths. Those guards do not change the six probed
-authority modules or dependency requirements. This phase still exercises the
+authority modules. This phase still exercises the
 actual canonical service, not each legacy entry point.
 The additional historical checkout remains negative compatibility evidence and
 does not replace the operative positive revision.
@@ -771,6 +774,243 @@ recovery is claimed. This scene does not prove forced cancellation, live-provide
 judgment, warm sessions, public child discussion, forge publication or merge
 authorization.
 
+## Managed public discussion during private work
+
+A fifth invocation in the existing child job enables the explicitly approved
+`public_discussion` profile while a real managed root and two separately granted
+children complete private work. It uses the restricted installed Polyphony
+conversation profile, actual MCP stdio and loopback Hyperswarm, the managed
+public Unix sockets, and the original canonical authority. The public profile
+is independent of the cold-session option; the two options cannot occupy the
+same approved profile.
+
+The [installation guide](single-host-installation.md#opt-in-to-a-managed-public-discussion-profile)
+defines the approved descriptor, original private scope-file lifetime and sealed
+copy. This scene requires the qualified producer and matching managed-agent
+image. Preparing that configuration alone does not establish public execution.
+
+### Run after the stopped failed-outcome scene
+
+First complete the acknowledged-failed invocation above and retain its private
+directory after both managers have returned their handled status. The new
+harness validates that report, exact source revisions, sealed bundle and
+completed environment markers. It borrows only the stopped bundle's installed
+interpreters and verifies that the prior configuration and protected state stay
+unchanged. It creates a separate private opt-in installation and canonical task.
+
+Install the pinned Polyphony sidecar's locked dependencies through the same
+fixed PATH used by the restricted profile. Node must be executable there; an
+ambient shell or setup action's broader PATH is insufficient.
+
+```sh
+env PATH=/usr/local/bin:/usr/bin:/bin node --version
+env PATH=/usr/local/bin:/usr/bin:/bin npm ci \
+  --prefix /absolute/checkouts/polyphony/src/liminal_bridge/sidecar
+
+python tests/contracts/check_managed_public_stack.py \
+  --managed-stack-dir /private/managed-child-failed-outcome-trial \
+  --image sha256:<already-built-managed-agent-image> \
+  --work-dir /new/private/managed-public-discussion-trial
+```
+
+The work directory must be new and disjoint from the earlier trial and source
+checkouts. The image is the existing immutable managed-agent image built from
+the selected OpenJules source. Linux procfs, original process identities,
+rootful Docker, Unix peer credentials and the locked native sidecar are required.
+Both borrowed discussion interpreters must report MCP 1.30.0. The scene fails
+when a required prerequisite is absent.
+
+An independent public author, its original profile and its native Node child
+must exist before the new installation is prepared. Its actual returned author
+ID becomes the sole approved invitation target. The harness keeps one original
+connection and deadline for this peer through the invitation, refusal controls
+and voluntary leave. No other participant owns or replaces this peer's work.
+
+### Thirteen calls under the existing private limits
+
+The canonical allocation remains one 180-second root attempt and two separate
+90-second child grants, with the full 360-second task charge and one top-level
+worker reservation. Each child keeps its original UID, grant, Docker exec,
+instruction and private checkout. The installed policy gives each child three
+turns: two ordinary coding calls and one explicitly pulled public call.
+
+| Actor | Ordinary coding calls | Public model calls | Total |
+| --- | ---: | ---: | ---: |
+| Root | 5 | 2 | 7 |
+| Left child | 2 | 1 | 3 |
+| Right child | 2 | 1 | 3 |
+| Total shared allowance | 9 | 4 | 13 |
+
+Every call reserves at most 1,024 output-token units, for 13,312 total units.
+These are local allowance units, not billed-token measurements. The public
+calls use the same worker inference gate and durable model-call journal as
+ordinary coding. Each real HTTP arrival must observe its committed original
+reservation; the fixture does not supply a successful reply first and create
+accounting afterward.
+
+The root's first four coding replies each request one bounded command. Each
+command runs after its coding response releases the shared inference gate.
+The fifth root response is held only after both child execs have returned and
+the other twelve model calls have completed. Its original hold is at most
+20 seconds. This permits the live capacity and authorization observations
+without holding the inference gate while a child still needs inference.
+
+The approved choreography is fixed:
+
+1. The root publishes its original proposal and receives its terminal receipt,
+   then starts both private children through their ordinary canonical grants.
+2. It offers each existing child a distinct public slot and publishes the one
+   approved invitation to the independent author. Offering a slot does not run
+   the child's public model.
+3. Each child observes its own offered slot, reads the selected original
+   proposal, and pulls that exact slot under its original request key. The left
+   child criticizes the proposal and asks whether either contribution can be
+   rejected independently; the right child publishes a distinct decline. Both
+   still finish their independent private changes and report private completion.
+4. The independent author declines the invitation through its retained
+   connection. The root reads the signed proposal, clarification question and
+   both declines, then answers the question in its existing follow-up and
+   preserves the left criticism, right decline and independent peer decline
+   separately. It applies the two actual private patches and runs the combined
+   repository tests.
+5. During the final root hold, the independent author's same process remains
+   live through a refused managed peer-control request and a positive voluntary
+   leave. That leave is its own public operation, not a managed stop capability.
+
+Seven original signed records from four distinct authors must verify with the
+installed verifier: three messages, two declines, one invitation and one leave.
+Those same records must show proposal, rebuttal, public clarification and
+attributed follow-up synthesis while retaining both declines.
+The four public provider requests contain only the approved persona,
+instruction and selected original public records. They contain no coding tools,
+private task or child instructions, private outcome summaries, control
+credentials or scope-key value. A deterministic fixture supplies their text;
+the result does not establish a model's reasoning or consensus.
+
+### Original requests, owners and private boundaries
+
+A read-before-pull barrier uses at most six distinct history keys per child and
+eight for the root. Each selected history fits one bounded page. Evolving
+observations use distinct explicit keys because a network-read replay returns
+its original page. These read and page charges are reported separately from
+the thirteen model calls and stay within the shared 32-history/page and
+128-request-owner limits. Local pending/status observations do not replace the
+original pull's terminal receipt.
+
+The three managed actors each retain one original process generation, recorded
+as a probe and a server. Both stages must remain within the initiating
+operation's original monotonic cutoff and the original root or child execution
+ceiling. The root binds its first proposal request and slot; each child binds its
+first history-page request before pull. A startup or permission check may shorten
+that interval. A later request, slot or replay cannot renew it, and the probe
+cannot outlive its original server deadline. The scene requires original-key
+terminal receipts, immutable slot selection and all-lifetime pending ownership.
+
+The live private-read controls first retrieve each child's actual original
+instruction with the runtime credential and require HTTP 200 with identical
+bytes. The scoped ingress credential must receive exactly 403 for that same
+existent private resource. During the held phase, target zero must retain the
+original worker and all three private execution references. Public dissent or
+a child exec returning cannot release that reservation.
+
+After canonical capture, the runtime credential must retrieve each exact
+private child manifest with HTTP 200. Ingress must receive 403 on the private
+child route and the source-owned 409 refusal on the broader artifact route.
+The same ingress principal must separately retrieve the existent root manifest
+with HTTP 200. Missing resources, unrelated errors and absent positive controls
+cannot satisfy these negatives.
+
+### Capture, original cleanup and full reopening
+
+Both children must pass their configured private verification and retain their
+original completed ordinal-one outcomes. Their final canonical records, private
+captures and the root's composed candidate remain independent of public
+criticism or decline. The candidate awaits review and has no acceptance or
+repository-admission authority.
+
+The harness reads all rows of the six public journal tables without creating,
+repairing or checkpointing them. It joins the original actor, request, slot,
+signed receipt, process generation and shared `/public/` model-call identity.
+The root's public extension contains only its approved public projection;
+each private child extension preserves that child's own binding. Six distinct
+original probe/server identities must have strict stopped/reaped proof.
+
+The Docker runtime's original manifest bytes remain unchanged. The effective
+canonical root is independently reconstructed from every original field plus
+the exact frozen `managed_public_v1` extension and the SHA256 of the original
+bytes. Both private child manifests bind that effective root. Patch, log,
+archive, fence and canonical callbacks remain required. Initial capture,
+archive inspection and cleanup rereads must all retain the same privately
+frozen original manifest; an arbitrary replacement cannot satisfy the join.
+
+Before fallback containment, a bounded read-only kernel observation checks the
+six original lifetimes and their original process groups. A missing leader
+alone is insufficient if a descendant remains in that group. This is a
+sequential observation of the recorded owners, not an atomic census of
+unrelated host processes. The same absence requirement is checked after
+cleanup and full reopening.
+
+The first exact generated manager must return handled status 130 before the
+archive and signature checks. The installed cleanup command then removes only
+the captured original container and volume and is repeated under the same
+identity. All logical journals, the archive, canonical captures and a distinct
+idle non-target remain intact. The second manager reopens the same installation
+with the same credentials. Original ensure replay returns the same retired
+worker; frozen local receipts and all captured bytes remain equal. There are
+no new public operations, generations, model calls or canonical child grants.
+The target remains zero.
+
+One original 300-second action deadline covers preparation, bootstrap, work,
+evidence and service reopening. Synchronous HTTP observations also have total
+cutoffs clipped to that original deadline. Cancellation cannot be consumed by
+ordinary recoverable parser errors. An interrupted service wait retains the
+exact owned process until it is positively reaped. Cleanup runs after the action fence is disarmed and cannot authorize more
+action work. Failure-only drain/stop HTTP controls share a separate 15-second
+transport cutoff. The generated manager retains its existing 55-second handled
+shutdown wait plus a five-second forced-reap allowance; other installed service
+stops retain their 10-plus-five-second bounds. After those stops, fixture,
+independent-peer, bootstrap and adopted-process containment share a further
+15-second cutoff. These are distinct stage budgets, not a total 15-second
+cleanup claim. Every owned close is attempted while preserving the primary
+failure. The restarted manager must also return 130; no passed report is written
+before all owned cleanup succeeds.
+
+### Evidence and interpretation
+
+The existing child job requires this fifth report in addition to its unchanged
+default, completed/declined, cold and acknowledged-failed reports. Those scenes
+retain their 10, 12, 10 and 12 model-call expectations. The separate
+[independent public-peer trial](public-discussion-stack-trial.md) remains a
+required three-call scene in the managed-stack job.
+
+Only bounded `report.json` and redacted `diagnostics.json` are uploaded. The
+report contains exact component revisions, source-byte provenance, guest-tool
+hashes, canonical artifact identities, original-key/cutoff and signature
+aggregates, private-route statuses, accounting, cleanup and storage observations.
+Private scope bytes, tokens, instructions, raw journal rows, transcripts and
+workspace archives stay in the private trial directory.
+
+The existing generic two-second process sample reports self CPU and sampled RSS
+and explicitly keeps `completed_reconcile_tick_proven: false`. Storage changes
+use the existing six-phase measurement format. These observations do not
+establish a complete idle watch cycle, peak RSS, full host CPU or total network
+traffic. The separately owned completed-cycle measurement criterion remains
+open until its own qualification; it is not a prerequisite for this public
+behavior trial.
+
+The focused source tests distinguish coherent retained-record rewrites,
+original cutoff renewal, private-route false positives, trickled HTTP deadlines,
+interrupted owned shutdown, cleanup-before-report and missing or changed pinned
+module bytes. Named fixtures remain distinct from the installed Docker and
+canonical evidence. Every changed set must pass the entire eight-job workflow
+on the exact head, relevant base and actual merged main, with exact evidence
+retained in [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
+
+This loopback scene does not prove live-provider judgment, public-network peer
+discovery, warm provider reuse, a later private or cold session, forced-crash
+publication recovery, consensus, trusted control over a peer, forge publication
+or merge authorization.
+
 ## Qualification limits and retained state
 
 This trial exercises graceful scale-to-zero while children are active. It does
@@ -778,10 +1018,10 @@ not exercise forced cancellation during that work. Cancellation and watchdog
 behavior have separate OpenJules tests; they must not be represented as an
 installed-stack forced-cancellation result.
 
-This trial also does not exercise distributed peer discovery, dynamic recursive
-delegation, live providers, independent semantic review, forge publication or
-merge authorization. Ordinary Polyphony conversation and managed child control
-remain separate paths. A local fixture or syntax check cannot substitute for the
+These controlled scenes do not exercise public-network peer discovery, dynamic
+recursive delegation, live providers, independent semantic review, forge
+publication or merge authorization. Public records confer no canonical execution
+or peer-control authority. A local fixture or syntax check cannot substitute for the
 Docker gate. Missing Docker, Unix sockets, service readiness, child execution or
 canonical capture fails the job instead of skipping it.
 

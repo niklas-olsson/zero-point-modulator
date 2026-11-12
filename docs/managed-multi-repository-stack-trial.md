@@ -21,7 +21,7 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `74429feda1f3991ce528678b74d6db5e3b3b250c` |
+| OpenJules | `c925dee46765d2b22c9e38b55f614fc29f8068c1` |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
@@ -33,6 +33,12 @@ Installed service Python versions are recorded; dependency-resolution files
 remain in the private bundle. This is not a complete dependency lock or a
 reproducible-image-build claim.
 
+The selected OpenJules runtime also supports the explicitly approved
+[managed root-and-child public scene](managed-children-stack-trial.md#managed-public-discussion-during-private-work).
+This shared-service profile omits that option and keeps its existing command,
+source, quota and independent-capacity assertions. Its own complete report is
+required; neither public component fixtures nor another installed topology
+qualify these observations.
 
 ## Retained qualification
 
@@ -56,7 +62,7 @@ fresh B progress checkpoints, an unchanged single B worker, both canonical
 captures through restart and zero final reservations. The complete exact-head
 aggregate report is [retained on PR #16](https://github.com/niklas-olsson/zero-point-modulator/pull/16#issuecomment-6801340950).
 
-The workflow now selects [OpenJules #33](https://github.com/niklas-olsson/OpenJules/pull/33),
+The preceding cold-capable runtime was [OpenJules #33](https://github.com/niklas-olsson/OpenJules/pull/33),
 `74429feda1f3991ce528678b74d6db5e3b3b250c`, tree
 `9694e7450f12da3c162c62d220f782914902d7be`. Its optional cold-clarification
 session correlates two separately granted children under the original canonical

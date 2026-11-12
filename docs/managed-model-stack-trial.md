@@ -22,7 +22,7 @@ The separate `managed-model-stack` CI job pins these revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `74429feda1f3991ce528678b74d6db5e3b3b250c`, merged cold clarification and public-discussion runtime |
+| OpenJules | `c925dee46765d2b22c9e38b55f614fc29f8068c1`, merged runtime with approved managed public turns |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 

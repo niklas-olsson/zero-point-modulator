@@ -36,7 +36,7 @@ explicitly and cannot supply the shared-service acceptance evidence in
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `74429feda1f3991ce528678b74d6db5e3b3b250c`, merged cold clarification and public-discussion runtime |
+| OpenJules | `c925dee46765d2b22c9e38b55f614fc29f8068c1`, merged runtime with approved managed public turns |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out revision, recorded in the report |
 
@@ -200,8 +200,8 @@ generated configuration, uses the actual generator in its fixture, and rejects
 pending or missing controller evidence. The rejected tree was never committed
 or published to a branch, and no test execution was claimed for it.
 
-Those failed runs used the companion revisions listed above. Their partial
-evidence did not qualify the remaining isolation criteria. The corrected
+Those failed runs retain their own companion revisions in the linked evidence.
+Their partial evidence did not qualify the remaining isolation criteria. The corrected
 strict-witness head `f17f5b2e9978dea2860840a56c32359e0d217f41` subsequently
 [passed the actual isolation job](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43038690070/job/130584589634)
 at synthetic merge `64d1e63e0aec37d3cb2e673d50741c5d23bd4755`.
