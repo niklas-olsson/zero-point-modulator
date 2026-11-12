@@ -103,6 +103,10 @@ within that effective bound. The report records the discovered and executed test
 counts and actual suite elapsed time. A timeout fails without extending grants.
 The complete suite log remains only in the private captured workspace; exported
 evidence contains its hash and a bounded verification summary.
+The suite uses a fresh private temporary directory in the owned root workspace,
+outside the candidate checkout, so installation fixtures can execute their copied
+interpreters while /tmp remains noexec. Success removes the empty directory;
+failure retains it privately and never reuses it.
 
 A passing draft does not prove the separate combined-test-failure scenario.
 """
@@ -141,15 +145,27 @@ BOUNDARY = (
 EXPECTED_HASHES = {FILES[name]: hashlib.sha256(text.encode()).hexdigest() for name, text in CONTENTS.items()}
 ROOT_VERIFY = [
     "python3", "-I", "-c",
-    "import hashlib,json,os,pathlib,re,subprocess,time,unittest\n"
+    "import hashlib,json,os,pathlib,re,stat,subprocess,tempfile,time,unittest\n"
     "assert os.getuid()==65532\n" + BOUNDARY
     + "expected=" + repr(EXPECTED_HASHES) + "\n"
     "assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h for p,h in expected.items())\n"
+    "def private_directory(path):\n"
+    "    info=path.lstat()\n"
+    "    assert stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode)==0o700 and info.st_uid==os.geteuid()\n"
+    "    assert path.resolve()==path\n"
+    "    return info.st_dev,info.st_ino\n"
+    "run=pathlib.Path('/workspace/run')\n"
+    "run_identity=private_directory(run)\n"
+    "suite_tmp=run/'publication-unittest-tmp'\n"
+    "suite_tmp.mkdir(mode=0o700)\n"
+    "suite_tmp_identity=private_directory(suite_tmp)\n"
+    "suite_environment=dict(os.environ,TMPDIR=str(suite_tmp))\n"
+    "tempfile.tempdir=str(suite_tmp)\n"
     "expected_tests=unittest.TestLoader().discover('.').countTestCases()\n"
     "assert expected_tests>0\n"
     "started=time.monotonic()\n"
     "with open('/workspace/run/publication-unittest.log','w+b') as output:\n"
-    "    result=subprocess.run(['python3','-m','unittest','discover','-v'],stdout=output,stderr=subprocess.STDOUT,timeout=110)\n"
+    "    result=subprocess.run(['python3','-m','unittest','discover','-v'],env=suite_environment,stdout=output,stderr=subprocess.STDOUT,timeout=110)\n"
     "    size=output.seek(0,2)\n"
     "    assert 0<size<=2000000\n"
     "    output.seek(0)\n"
@@ -159,6 +175,8 @@ ROOT_VERIFY = [
     "print(tail,end='')\n"
     "matches=re.findall(r'Ran (\\d+) tests? in ([0-9.]+)s',complete)\n"
     "assert result.returncode==0 and matches and int(matches[-1][0])==expected_tests\n"
+    "assert private_directory(run)==run_identity and private_directory(suite_tmp)==suite_tmp_identity\n"
+    "suite_tmp.rmdir()\n"
     "print('PUBLICATION_COMBINED_RESULT '+json.dumps({'tests':int(matches[-1][0]),'expected_tests':expected_tests,'elapsed_seconds':time.monotonic()-started,'exit_code':result.returncode}),flush=True)\n",
 ]
 CHILD_VERIFY = [

@@ -880,6 +880,30 @@ root-termination polling, then reported `root-capture` / `assertion`. Its local
 fixture observation contained all ten accepted requests and no fixture error.
 That report did not retain the exact assertion or verification result, so the
 underlying failure remains undetermined and execution qualification is incomplete.
+The [following execution-only run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43295755993)
+on `eb4bc470c3e7138e2f7d680a8abfb80e95a48e1d` retained an original, hash-bound
+capture with a complete 412-test suite summary: 57 failures and 34 errors in
+62.959 seconds. Those counts can include subtests. The canonical artifacts were
+complete but no candidate was observed; the observed assertion was
+`candidate-publication-deadline`. Its cancelled receipt, null exit codes and
+zero observed configured-verification events do not establish a timeout or the
+cause of cancellation. The bounded report identifies sixteen approved failing
+methods, not their private exception details or every failed method.
+
+The full-suite verifier now creates a fresh mode-0700 temporary directory under
+the original owned `/workspace/run`, outside the candidate checkout. Discovery
+uses that directory, and the suite subprocess inherits the existing environment
+with only `TMPDIR` selected explicitly. Installation fixtures copy and execute
+their own virtual-environment interpreters, so the container's deliberately
+`noexec` `/tmp` is unsuitable for those temporary executables. The verifier
+refuses preexisting or unsafe temporary paths. After a successful complete suite,
+it checks the original directory identities and removes only the empty temporary
+root; failure or unexpected remaining files retain the private directory and log.
+The runtime mount, identities, capabilities, network policy and execution bounds
+are unchanged. This fixes that fixture/environment incompatibility; it does not
+establish the cause of the other process or preparation failures in the recorded
+run, nor does it assign a cause to earlier runs. A new confined execution at the
+reviewed revision must still pass every original acceptance check.
 
 Dispatch this execution-only workflow from its reviewed main revision as a new
 source qualification. It is not a rerun or recovery of the original publication
