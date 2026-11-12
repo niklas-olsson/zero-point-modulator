@@ -17,7 +17,7 @@ import subprocess
 from unittest.mock import patch
 
 from check_authority_admission import (
-    CONTROLLER_REASON, EMPTY_TABLES, RUNTIME_REASON, SCHEMAS, _argument,
+    EMPTY_TABLES, SCHEMAS, _argument,
     canonical, cleanup_phase, completed_reconcile, docker_inventory, expected_error,
     journal_paths, read_tables, require_controller_plan, require_empty_snapshot,
     require_idle_resources, require_runtime_capabilities, stop_owned,
@@ -25,10 +25,12 @@ from check_authority_admission import (
 from check_stack import Client, eventually, require
 
 
+RUNTIME_REASON = "Canonical managed authority is unsupported: child_initial_outcome=1"
+CONTROLLER_REASON = RUNTIME_REASON
 HISTORICAL_REVISION = "473df5a0406accfe5cb550877e7b28a602cb116c"
 HISTORICAL_TREE = "389ec80cb6a99edf2993d59e4540f6bdeaaa5f18"
-CURRENT_REVISION = "653c0a71a921c0d23b8e0171277524125e929e66"
-CURRENT_TREE = "3e7565d387414e5166d29948fe4f13c2c57e61b1"
+CURRENT_REVISION = "143d77c92ca8699ad7ccad4de98a540da6540a09"
+CURRENT_TREE = "0a1462d969b739c4928667c1cd099a9e009369e1"
 MODULES = (
     "src.liminal_bridge.coordinator_service",
     "src.liminal_bridge.managed_service",
@@ -189,7 +191,7 @@ def require_historical_capabilities(value, current):
 
 
 def require_child_runtime(value, scope, profile, ready):
-    require_runtime_capabilities(value, scope, profile, ready)
+    require_runtime_capabilities(value, scope, profile, ready, unavailable_reason=RUNTIME_REASON)
     require(value.get("children") is ready,
             "historical admission changed child readiness for a different reason")
 
@@ -346,7 +348,7 @@ def qualify_historical_authority(
         for number in (1, 2):
             value = completed_reconcile(processes, commands["zpm"], paths["zpm"], environments["zpm"],
                                         "historical-blocked-" + str(number))
-            row = require_controller_plan(value, scope, profile, 1, False)
+            row = require_controller_plan(value, scope, profile, 1, False, unavailable_reason=CONTROLLER_REASON)
             require(older_process.poll() is None, "historical authority exited during the denied phase")
             older_capabilities()
             require_child_runtime(runtime.request("GET", "/api/workers/capabilities", query=query),

@@ -117,6 +117,7 @@ class ProviderConfig:
 
 STATES = {"starting", "ready", "busy", "draining", "stopped", "failed", "unknown"}
 OPERATIONS = {"ensure", "discover", "observe", "drain", "stop"}
+UNSUPPORTED_AUTHORITY_REASON = "Canonical managed authority is unsupported: child_initial_outcome=1"
 
 
 def snapshot(data: Any) -> dict[str, Any]:
@@ -157,6 +158,13 @@ def readiness(data: Any) -> tuple[bool, str]:
     operations = data.get("operations")
     if not isinstance(operations, list) or not OPERATIONS.issubset(set(x for x in operations if isinstance(x, str))):
         return False, "provider lacks required lifecycle operations"
+    # Only this fixed runtime-owned diagnostic may cross the wire boundary.
+    # Controller.check also binds a classified negative to the requested scope.
+    if (all(isinstance(operation, str) for operation in operations)
+            and data.get("profile_supported") is True and data.get("repository_access") is False
+            and data.get("managed_dispatch") is False
+            and data.get("reason") == UNSUPPORTED_AUTHORITY_REASON):
+        return False, UNSUPPORTED_AUTHORITY_REASON
     for key in ("profile_supported", "repository_access", "managed_dispatch"):
         if data.get(key) is not True:
             return False, f"{key} unavailable"

@@ -298,20 +298,65 @@ credential exclusively in the trusted OpenJules process.
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/80a51b867d12867a313539186b7c5d7346d54149).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/57f62d1e108c61a21698c7d23936dc44e83b3092).
 A valid generic source pin alone is insufficient. Require the component's CI and
 all eight ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
 
-The current OpenJules pin is the merged result of
-[OpenJules #26](https://github.com/niklas-olsson/OpenJules/pull/26), tree
-`0231a62c20d8ff66e0d5e9a3d5fc6b40e84909fa`. Its exact current-head and
+The preceding OpenJules component `80a51b867d12867a313539186b7c5d7346d54149` is the
+merged result of [OpenJules #26](https://github.com/niklas-olsson/OpenJules/pull/26),
+tree `0231a62c20d8ff66e0d5e9a3d5fc6b40e84909fa`. Its exact current-head and
 relevant-base Python 3.11/3.12 suites each passed 612 tests and four subtests
 without skips; [the complete qualification](https://github.com/niklas-olsson/OpenJules/pull/26#issuecomment-6808337505)
-preserves the initial test-state failure and narrow correction. All normal and
-manual integration references select that same merged revision. Qualification
-of the changed ZPM combination remains a separate required gate; earlier
-`9e6aaa49` / OpenJules `d3d50b32` runtime reports remain historical evidence.
+preserves the initial test-state failure and narrow correction. Those results
+remain evidence for that component tree.
+
+The preceding diagnostic integration candidate selected the
+[merged diagnostics from OpenJules #27](https://github.com/niklas-olsson/OpenJules/pull/27),
+`e50d501cc81975d25e367be3ba1d6de9169207c1`, tree
+`61a52a5d448395ba6f168f387d504fb28ed77b26`. It retains that managed-context
+boundary and reports one fixed unsupported-capability reason for the validated,
+already-denied required initial-child-outcome extension. ZPM scopes that negative
+diagnostic before retaining it in operator status. Other failures remain generic.
+The component's [actual-main run](https://github.com/niklas-olsson/OpenJules/actions/runs/43119302563)
+tested this exact merged revision: both Python 3.11 and 3.12 jobs passed 618 tests
+and four subtests with the actual Docker gates. The
+[retained CI disposition](https://github.com/niklas-olsson/OpenJules/pull/27#issuecomment-6809571567)
+also preserves the earlier child-outcome failure; the later passing runs do not
+establish that failure's cause or a runtime fix.
+
+All normal and manual runtime references now select
+`57f62d1e108c61a21698c7d23936dc44e83b3092`, tree
+`79fb000fa7d9ab1cdaf4bd39a0ffc506437acd9d`, from
+[OpenJules #30](https://github.com/niklas-olsson/OpenJules/pull/30). Its
+[actual-main run](https://github.com/niklas-olsson/OpenJules/actions/runs/43125104912)
+passed 636 tests and four subtests on each Python version. The unchanged real
+Docker reproducer now receives the existing UID-denial response while an
+authorized provider call is held. A fixed acceptor and one serialized handler
+retain the shared inference gate, finite queue, socket bounds and active service
+ownership. The component result does not replace the installation trials.
+The prior ZPM #28 candidate `d74628bcb45385a28b86b65cfb4b5b9c83a70b8e` remained
+unqualified after both child jobs timed out on the first model-socket response
+header during the fixed child verification. Those failures and the older
+cause-unknown measurement failure remain tied to their recorded revisions.
+
+The positive Polyphony pin is the actual #122 merge
+`143d77c92ca8699ad7ccad4de98a540da6540a09`, tree
+`0a1462d969b739c4928667c1cd099a9e009369e1`, validated by
+[normal current-base CI](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125461545).
+[Controller publication](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125433077/attempts/2)
+retained that exact validated merge. All normal and manual checkouts,
+the publisher's source assertion and the historical-admission probe
+select this same revision. The probe retains historical `473df5a0` as the negative
+revision and validates both source trees and imported bytes. Six authority modules
+and the dependency requirements match the original `653c0a71` blobs; this is not
+an assertion that the whole repository is unchanged. The newer experimental
+receipt export does not register managed capabilities or perform import-time I/O.
+
+All eight ZPM jobs must still pass for this exact new integration combination.
+Earlier `9e6aaa49` / OpenJules `d3d50b32` runtime reports, the 612-test component
+results and the [measurement set with OpenJules `80a51b86`](https://github.com/niklas-olsson/zero-point-modulator/pull/27#issuecomment-6809671165)
+remain bound to their recorded revisions; they do not qualify the changed set.
 
 A prepared bundle is still offline configuration. Bootstrap installs its three
 isolated environments and binds the dedicated OpenJules interpreter to the
@@ -509,7 +554,7 @@ final canonical captures exist, then verifies restart without new inference.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/80a51b867d12867a313539186b7c5d7346d54149/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/57f62d1e108c61a21698c7d23936dc44e83b3092/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -527,7 +572,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/80a51b867d12867a313539186b7c5d7346d54149/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/57f62d1e108c61a21698c7d23936dc44e83b3092/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature

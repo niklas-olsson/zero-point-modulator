@@ -21,6 +21,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent / "contracts"))
 try:
     import check_historical_authority as trial
+    import check_authority_admission as admission
     from check_authority_admission import RECORD_KINDS, canonical
 finally:
     sys.path.pop(0)
@@ -287,6 +288,47 @@ class HistoricalStateTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             trial.require_child_runtime(self.runtime_capability(False) | {"children": True}, self.scope, self.profile, False)
 
+    def test_historical_diagnostic_does_not_change_current_no_policy_defaults(self):
+        expected = "Canonical managed authority is unsupported: child_initial_outcome=1"
+        value = self.runtime_capability(False)
+        self.assertEqual(value["reason"], expected)
+        trial.require_child_runtime(value, self.scope, self.profile, False)
+        with self.assertRaises(AssertionError):
+            admission.require_runtime_capabilities(value, self.scope, self.profile, False)
+
+        with Store(self.paths["controller"], self.scope["deployment_id"]) as store:
+            store.change(self.scope["repository"], "target", 1)
+            provider = SimpleNamespace(capabilities=lambda *_: value)
+            controller = Controller(store, provider, max_workers=1)
+            report = controller.tick()
+            self.assertEqual(report["repositories"][0]["validation"], {"ready": False, "reason": expected})
+            admission.require_controller_plan(report, self.scope, self.profile, 1, False,
+                                              unavailable_reason=expected)
+            with self.assertRaises(AssertionError):
+                admission.require_controller_plan(report, self.scope, self.profile, 1, False)
+
+            # The actual current-service/no-managed-policy scene still uses
+            # the generic runtime reason and normalized controller default.
+            value = value | {"reason": admission.RUNTIME_REASON}
+            admission.require_runtime_capabilities(value, self.scope, self.profile, False)
+            with self.assertRaises(AssertionError):
+                trial.require_child_runtime(value, self.scope, self.profile, False)
+            report = controller.tick()
+            self.assertEqual(report["repositories"][0]["validation"],
+                             {"ready": False, "reason": "repository_access unavailable"})
+            admission.require_controller_plan(report, self.scope, self.profile, 1, False)
+            with self.assertRaises(AssertionError):
+                admission.require_controller_plan(report, self.scope, self.profile, 1, False,
+                                                  unavailable_reason=expected)
+            self.assertEqual(store.workers(), [])
+
+            value = self.runtime_capability(True)
+            store.change(self.scope["repository"], "target", 0)
+            report = controller.tick()
+            trial.require_child_runtime(value, self.scope, self.profile, True)
+            admission.require_controller_plan(report, self.scope, self.profile, 0, True)
+            self.assertEqual(store.workers(), [])
+
     def test_actual_generated_child_paths_and_wal_reject_every_child_history_table(self):
         original = self.histories()
         self.assertEqual(set(original), {"controller", "authority", "lifecycle", "runtime", "dispatcher", "model", "children"})
@@ -457,6 +499,12 @@ class HistoricalStateTests(unittest.TestCase):
         baseline = self.histories()
         result, events, commands, payloads, processes = self.phase()
         self.assertEqual(result["managed_capabilities_status"], 200)
+        expected_reason = "Canonical managed authority is unsupported: child_initial_outcome=1"
+        self.assertEqual(result["runtime_reason"], expected_reason)
+        self.assertEqual(result["controller_reason"], expected_reason)
+        self.assertEqual(result["blocked_controller_passes"], [
+            {"desired_workers": 1, "effective_target": 1, "healthy": 0, "reserved": 0, "shortfall": 1},
+        ] * 2)
         self.assertEqual(result["ensure_rejections"], 2)
         self.assertEqual(result["model_calls"], 0)
         self.assertEqual(payloads[0], payloads[1])

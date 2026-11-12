@@ -30,13 +30,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/OpenJules
-          ref: 80a51b867d12867a313539186b7c5d7346d54149
+          ref: 57f62d1e108c61a21698c7d23936dc44e83b3092
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 653c0a71a921c0d23b8e0171277524125e929e66
+          ref: 143d77c92ca8699ad7ccad4de98a540da6540a09
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5

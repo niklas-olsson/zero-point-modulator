@@ -36,8 +36,8 @@ explicitly and cannot supply the shared-service acceptance evidence in
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `80a51b867d12867a313539186b7c5d7346d54149`, merged managed-installation context and scoped UI runtime |
-| Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial outcome authority candidate |
+| OpenJules | `57f62d1e108c61a21698c7d23936dc44e83b3092`, merged bounded socket denial, scoped diagnostics and managed-context runtime |
+| Keystone Polyphony | `143d77c92ca8699ad7ccad4de98a540da6540a09`, merged initial child outcome authority |
 | ZPM | The workflow's checked-out revision, recorded in the report |
 
 The new job uses the same companion pins as every other installed-stack job.

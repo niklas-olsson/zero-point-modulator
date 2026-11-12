@@ -21,14 +21,18 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `80a51b867d12867a313539186b7c5d7346d54149`, merged managed-installation context and scoped UI runtime |
-| Keystone Polyphony | `653c0a71a921c0d23b8e0171277524125e929e66`, initial child outcome authority candidate over the merged grants and conversation baseline |
+| OpenJules | `57f62d1e108c61a21698c7d23936dc44e83b3092`, merged bounded socket denial, scoped diagnostics and managed-context runtime |
+| Keystone Polyphony | `143d77c92ca8699ad7ccad4de98a540da6540a09`, merged initial child outcome authority |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
 The paired initial-outcome changes are [OpenJules #16](https://github.com/niklas-olsson/OpenJules/pull/16)
 and [Polyphony #122](https://github.com/niklas-olsson/keystone-polyphony/pull/122).
-OpenJules #16 is merged; the Polyphony pin remains the authority candidate
-from Polyphony #122. The OpenJules ancestry also contains
+Both changes are merged. The positive Polyphony pin is the actual #122 merge,
+tree `0a1462d969b739c4928667c1cd099a9e009369e1`, validated in
+[normal current-base CI](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125461545)
+and then [published by the controller](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43125433077/attempts/2).
+The exact installed-set checks remain required for this changed combination.
+The OpenJules ancestry also contains
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15).
 The current pin adds [explicit owned cleanup](https://github.com/niklas-olsson/OpenJules/pull/17)
 and [strict adapter and authentication checks](https://github.com/niklas-olsson/OpenJules/pull/18)
@@ -38,6 +42,19 @@ The operative OpenJules revision also includes the actual Docker
 [combined-verification failure case](https://github.com/niklas-olsson/OpenJules/pull/21)
 and component [claim-versus-drain regressions](https://github.com/niklas-olsson/OpenJules/pull/22).
 Those component results do not replace this installed trial's exact-set qualification.
+
+The current runtime pin adds [OpenJules #30](https://github.com/niklas-olsson/OpenJules/pull/30).
+Its acceptor can return the existing UID denial while the one authorized effect
+handler is waiting for a provider. It keeps one active handler, a finite queue,
+the original socket deadlines and shared inference gate. Active work retains
+service ownership through shutdown. This corrects the controlled held-provider
+regression without changing this trial's child verification or fixture release.
+The earlier ZPM #28 candidate `d74628bcb45385a28b86b65cfb4b5b9c83a70b8e` remained
+unqualified: both child jobs reported a five-second timeout while the fixed
+verification script read the first model-socket response header. Those failures
+and the older cause-unknown `cf45f8b2` failure remain evidence for their original
+revisions. Component regression success does not qualify the changed installed set.
+
 Its component Docker tests cover process death between removal and journal
 acknowledgement with a fixture authority. This installed trial separately requires
 cleanup against the real retained Polyphony authority before the set is qualified.
@@ -152,11 +169,17 @@ sockets and must receive UID-based authorization denial.
 
 Before any root enrollment or worker allocation in this variant, the trial also
 runs Polyphony `473df5a0406accfe5cb550877e7b28a602cb116c` from a separate clean
-checkout. This is the actual direct parent of the positive authority pin
-`653c0a71a921c0d23b8e0171277524125e929e66`. Its tree is
-`389ec80cb6a99edf2993d59e4540f6bdeaaa5f18`. The additional checkout is negative
-compatibility evidence; it does not replace the operative revision in the
-component table.
+checkout. Its tree is `389ec80cb6a99edf2993d59e4540f6bdeaaa5f18`.
+This historical revision is the direct parent of the original outcome authority
+commit `653c0a71a921c0d23b8e0171277524125e929e66`. The merged positive revision
+in the component table contains that implementation through its later branch
+ancestry. The six authority modules checked by
+the import probe and `requirements.txt` match their original `653c0a71` Git blobs.
+The full source trees differ: the later package exports the safe experimental
+receipt class without import-time I/O or managed capability/schema registration,
+and also contains opt-in sidecar measurement and repository automation changes.
+The additional historical checkout remains negative compatibility evidence and
+does not replace the operative positive revision.
 
 The historical coordinator accepts the original generated configuration,
 credentials and empty canonical database. Its authenticated
@@ -181,9 +204,20 @@ One actual OpenJules process spans current-authority readiness, the historical
 denial and restored current-authority readiness. Actual source/image/Docker and
 child-transport preflight must first pass at target zero. With the old authority
 running, two completed installed controller passes at target one and two
-identical fresh ensure requests must remain unready. OpenJules reports
-`Canonical managed authority is unavailable`; the controller reports
-`repository_access unavailable`. Every observation must preserve empty
+identical fresh ensure requests must remain unready. The runtime and the
+completed controller reports must both identify the missing required extension
+with `Canonical managed authority is unsupported: child_initial_outcome=1`.
+ZPM accepts only that fixed runtime diagnostic after validating the lifecycle
+response and its exact deployment, repository and profile. Arbitrary reasons,
+malformed capabilities and HTTP/transport failures retain their existing generic
+errors. The separate current-service/no-managed-policy503 scene still reports
+`Canonical managed authority is unavailable` and `repository_access unavailable`.
+Earlier historical-authority runs used those generic messages too; they proved
+refusal and recovery but did not qualify this diagnostic distinction. The new
+paired producer/consumer set must pass the unchanged actual historical phase
+before claiming that operator-visible criterion.
+
+Every observation must preserve empty
 all-scope protected/runtime/child/model histories across seven read-only
 journals, an empty capture directory, unchanged policy fingerprints and Docker
 inventory, and zero accepted or rejected model requests.
