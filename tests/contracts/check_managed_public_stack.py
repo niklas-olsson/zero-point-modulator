@@ -1491,6 +1491,19 @@ def owned_wait(predicate, processes, owner, description, maximum=90, *, cutoff=N
     raise AssertionError("managed public observation deadline: " + description)
 
 
+def commit_private_source(owner, source):
+    # This disposable fixture needs one commit, not a detached maintenance job.
+    # Git 2.56 starts auto-maintenance from commit and may daemonize even when
+    # no background task ultimately runs. Keep the shared ownership check exact.
+    return command(
+        owner, "managed-public-source-2",
+        ["git", "-c", "maintenance.auto=false",
+         "-c", "user.name=Managed Public Trial", "-c", "user.email=trial@example.invalid",
+         "commit", "-qm", "controlled private base"],
+        source,
+    )
+
+
 def prepared_installation(root, peer, model, owner, processes, measurements, image):
     """Prepare the new opt-in bundle without changing its borrowed predecessor."""
     from zpm.controller import Controller
@@ -1513,12 +1526,9 @@ def prepared_installation(root, peer, model, owner, processes, measurements, ima
     )
     (source / "AGENTS.md").write_text(ROOT_RULES)
     (source / ".gitignore").write_text(".env\n__pycache__/\n")
-    for number, argv in enumerate((
-        ["git", "init", "-q"], ["git", "add", "."],
-        ["git", "-c", "user.name=Managed Public Trial", "-c", "user.email=trial@example.invalid",
-         "commit", "-qm", "controlled private base"],
-    )):
+    for number, argv in enumerate((["git", "init", "-q"], ["git", "add", "."])):
         command(owner, "managed-public-source-" + str(number), argv, source)
+    commit_private_source(owner, source)
     (source / ".env").write_text("TRIAL_HOST_ONLY=must-not-enter-the-worker\n")
     base = command(owner, "managed-public-source-revision", ["git", "rev-parse", "HEAD"], source).decode().strip()
     scope = {

@@ -738,6 +738,147 @@ class ManagedPublicOracles(unittest.TestCase):
             self.assertEqual(sorted(path.name for path in root.iterdir()),
                              sorted((foreign.name, prior.name, evidence.name)))
 
+    @unittest.skipUnless(sys.platform == "linux" and hasattr(os, "WNOWAIT"), "Linux owned-process qualification")
+    def test_disposable_git_commit_keeps_automatic_maintenance_out_of_the_shared_owner(self):
+        # Only Git 2.56.x is source-qualified for the exact --detach witness:
+        # Git 2.43 runs these maintenance tasks in the foreground instead.
+        # Measure before dispatch, never skip after a failed baseline premise.
+        # The corrected real helper always runs, while the existing dedicated
+        # orphan test keeps unknown-child refusal independent of Git version.
+        import re
+
+        version = subprocess.run(
+            ["git", "--version"], env=trial.PROFILE_ENVIRONMENT,
+            capture_output=True, timeout=5,
+        )
+        self.assertEqual(version.returncode, 0, version.stderr.decode(errors="replace")[-500:])
+        match = re.fullmatch(rb"git version ([0-9]+)\.([0-9]+)\.[^\s]+", version.stdout.strip())
+        self.assertIsNotNone(match, "installed Git version is missing or unparseable")
+        git_series = (int(match[1]), int(match[2]))
+        modes = ("baseline", "corrected") if git_series == (2, 56) else ("corrected",)
+        # The baseline's real hook holds the exact detached lifetime alive.
+        # The corrected run calls the same helper used by prepared_installation.
+        program = r"""import json,os,pathlib,sys,time
+sys.path.insert(0,str(pathlib.Path(sys.argv[1]).parents[1]))
+sys.path.insert(0,sys.argv[1])
+import check_managed_public_stack as t
+from check_public_discussion_stack import children_of,exit_info,kernel_has_no_children
+directory=pathlib.Path(sys.argv[2]);mode=sys.argv[3]
+source=directory/'source';source.mkdir()
+owner=t.OwnedTrial(dedicated_process=True)
+release=directory/'hook-release';ready=directory/'hook-ready.json'
+peer=None;maintenance=None;hook_identity=None
+observed={'baseline_detached_maintenance_refused':False,'corrected_commit':False,
+          'same_live_peer_retained':False,'repository_policy_unchanged':False}
+def git(*args):
+ return t.command(owner,'fixture-git-'+str(len(owner.commands)),['git',*args],source)
+def same_lifetime(current,original):
+ return current is not None and all(current[key]==original[key]
+  for key in ('pid','group','session','starttime'))
+try:
+ git('init','-q')
+ for key,value in (('maintenance.auto','true'),('maintenance.autoDetach','true'),
+                   ('maintenance.gc.enabled','false'),('maintenance.loose-objects.enabled','true'),
+                   ('maintenance.loose-objects.auto','-1'),('commit.gpgsign','false')):
+  git('config','--',key,value)
+ (source/'fixture.txt').write_text('controlled fixture bytes\n')
+ hook=source/'.git/hooks/pre-auto-gc'
+ hook.write_text('#!'+sys.executable+'\n'+r'''import json,os,pathlib,time
+root=pathlib.Path(__file__).resolve().parents[2].parent
+def identity(pid):
+ fields=pathlib.Path('/proc/'+str(pid)+'/stat').read_bytes().rsplit(b')',1)[1].split()
+ return {'pid':pid,'parent':int(fields[1]),'group':int(fields[2]),
+         'session':int(fields[3]),'starttime':fields[19].decode()}
+marker=root/'hook-ready.json';temporary=root/'hook-ready.tmp'
+temporary.write_text(json.dumps({'maintenance':identity(os.getppid()),'hook':identity(os.getpid())}))
+os.replace(temporary,marker)
+cutoff=time.monotonic()+8
+while not (root/'hook-release').exists():
+ if time.monotonic()>=cutoff:raise SystemExit(4)
+ time.sleep(.01)
+''')
+ hook.chmod(0o700)
+ git('add','fixture.txt')
+ peer=owner.launch('registered-live-peer',
+  [sys.executable,'-I','-S','-c',
+   "import signal,sys;signal.signal(signal.SIGTERM,lambda *_:sys.exit(0));print('ready',flush=True);signal.pause()"],
+  source,t.PROFILE_ENVIRONMENT)
+ assert owner.line(peer)==b'ready'
+ original_peer=dict(peer['identity'])
+ if mode=='baseline':
+  entry=owner.launch('unmodified-fixture-commit',
+   ['git','-c','user.name=Managed Public Trial','-c','user.email=trial@example.invalid',
+    'commit','-qm','controlled private base'],source,t.PROFILE_ENVIRONMENT)
+  cutoff=time.monotonic()+5
+  while not ready.exists() or exit_info(entry['process'].pid) is None:
+   assert time.monotonic()<cutoff,'actual Git maintenance witness did not arrive'
+   owner.tick(cutoff=cutoff);time.sleep(.01)
+  witness=json.loads(ready.read_text())
+  maintenance=witness['maintenance'];hook_identity=witness['hook']
+  current=t.process_info(maintenance['pid'])
+  assert same_lifetime(current,maintenance) and current['parent']==os.getpid()
+  assert current['group']==current['session']==current['pid']
+  assert same_lifetime(t.process_info(hook_identity['pid']),hook_identity)
+  assert t.process_info(hook_identity['pid'])['parent']==maintenance['pid']
+  # These are fixture-local reads only. No raw command line is exported.
+  argv=pathlib.Path('/proc/'+str(maintenance['pid'])+'/cmdline').read_bytes().split(b'\0')[:-1]
+  assert pathlib.Path(os.fsdecode(argv[0])).name=='git'
+  assert argv[1:]==[b'maintenance',b'run',b'--auto',b'--quiet',b'--detach']
+  registered={item['process'].pid for item in owner.commands if item['result'] is None}
+  assert set(children_of(os.getpid(),cutoff))-registered=={maintenance['pid']}
+  try:owner.wait([entry],5,cutoff=cutoff)
+  except AssertionError as error:
+   assert str(error)=='command left an adopted descendant'
+  else:raise AssertionError('shared owner accepted an actual detached maintenance child')
+  assert entry['result'] is None and same_lifetime(t.process_info(maintenance['pid']),maintenance)
+  observed['baseline_detached_maintenance_refused']=True
+ else:
+  assert mode=='corrected'
+  t.commit_private_source(owner,source)
+  assert not ready.exists(),'command-local policy still launched automatic maintenance'
+  assert git('show','HEAD:fixture.txt')==b'controlled fixture bytes\n'
+  assert git('log','-1','--format=%s').strip()==b'controlled private base'
+  assert git('config','--get','maintenance.auto').strip()==b'true'
+  assert git('config','--get','maintenance.autoDetach').strip()==b'true'
+  assert set(children_of(os.getpid(),owner.deadline))=={peer['process'].pid}
+  observed['corrected_commit']=True
+  observed['repository_policy_unchanged']=True
+ current=t.process_info(peer['process'].pid)
+ assert same_lifetime(current,original_peer) and current['parent']==original_peer['parent']==os.getpid()
+ assert exit_info(peer['process'].pid) is None
+ observed['same_live_peer_retained']=True
+finally:
+ try:release.write_text('release')
+ finally:owner.cleanup(time.monotonic()+t.FINAL_CLEANUP_SECONDS)
+assert kernel_has_no_children() and all(item['process'].returncode is not None for item in owner.commands)
+for original in (maintenance,hook_identity):
+ if original is not None:
+  assert not same_lifetime(t.process_info(original['pid']),original)
+  try:exit_info(original['pid'])
+  except ChildProcessError:pass
+  else:raise AssertionError('original detached lifetime was not reaped')
+observed['all_owned_children_reaped']=True
+print(json.dumps(observed,sort_keys=True))
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for mode in modes:
+                with self.subTest(mode=mode, git_series=git_series):
+                    location = root / mode
+                    location.mkdir()
+                    result = subprocess.run(
+                        [sys.executable, "-I", "-S", "-c", program, str(CONTRACTS), str(location), mode],
+                        env=trial.PROFILE_ENVIRONMENT, capture_output=True, timeout=30,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace")[-1600:])
+                    self.assertEqual(json.loads(result.stdout), {
+                        "baseline_detached_maintenance_refused": mode == "baseline",
+                        "corrected_commit": mode == "corrected",
+                        "same_live_peer_retained": True,
+                        "repository_policy_unchanged": mode == "corrected",
+                        "all_owned_children_reaped": True,
+                    })
+
     def test_http_reply_requires_a_committed_shared_reservation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "calls.sqlite3"
