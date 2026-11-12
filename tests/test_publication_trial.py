@@ -1,6 +1,6 @@
 """Deterministic negative oracles; no Docker, provider or forge qualification."""
 
-from contextlib import chdir, redirect_stdout
+from contextlib import chdir, contextmanager, redirect_stdout
 from copy import deepcopy
 import hashlib
 import importlib.util
@@ -500,49 +500,159 @@ class PublicationTrialTests(unittest.TestCase):
         self.assertEqual(json.loads(output.getvalue()), {"event": "publication_profile", "command_seconds": 120})
 
     def test_whole_suite_command_runs_tests_once_and_keeps_bounded_summary(self):
-        # UID/filesystem checks are named fixtures here. This runs real unittest
-        # discovery and a real subprocess, not real managed confinement.
+        program = """import os,stat,subprocess,tempfile,unittest,venv
+from pathlib import Path
+temporary=Path(tempfile.gettempdir())
+assert temporary==Path.cwd().parent/'publication-unittest-tmp'
+assert stat.S_IMODE(temporary.stat().st_mode)==0o700
+class Actual(unittest.TestCase):
+ def test_one(self):
+  self.assertEqual(os.environ['TMPDIR'],str(temporary))
+  self.assertEqual(os.environ['PUBLICATION_AMBIENT_FIXTURE'],'retained')
+  with tempfile.TemporaryDirectory() as directory:
+   self.assertEqual(Path(directory).parent,temporary)
+   environment=Path(directory)/'environment'
+   venv.EnvBuilder(with_pip=False).create(environment)
+   interpreter=environment/'bin/python'
+   self.assertFalse(interpreter.is_symlink())
+   result=subprocess.run([str(interpreter),'-c','import sys;print(sys.prefix)'],
+                         capture_output=True,text=True,check=True,timeout=5)
+   self.assertEqual(result.stdout.strip(),str(environment))
+  Path('calls').open('a').write('one\\n')
+  print('\\u6f22'*3000)
+ def test_two(self):
+  Path('calls').open('a').write('two\\n')
+"""
+        with self.whole_suite_case(program) as case:
+            case.execute()
+            self.assertEqual((case.repo / "calls").read_text().splitlines(), ["one", "two"])
+            self.assertGreater(case.log.stat().st_size, 6000)
+            self.assertLess(len(case.output.getvalue().encode("utf-8")), 5000)
+            record = json.loads(case.output.getvalue().split("PUBLICATION_COMBINED_RESULT ", 1)[1])
+            self.assertEqual((record["expected_tests"], record["tests"], record["exit_code"]), (2, 2, 0))
+            self.assertFalse(case.suite_tmp.exists())
+            self.assertFalse((case.repo / "publication-unittest-tmp").exists())
+            case.test_file.write_text(
+                "import tempfile,unittest\nfrom pathlib import Path\nclass Actual(unittest.TestCase):\n"
+                " def test_failed(self):\n"
+                "  (Path(tempfile.gettempdir())/'retained').write_text('private failure fixture')\n"
+                "  self.fail('bounded fixture failure')\n")
+            sys.modules.pop(case.module_name, None)
+            case.output.seek(0)
+            case.output.truncate()
+            with self.assertRaises(AssertionError):
+                case.execute()
+            self.assertIn("bounded fixture failure", case.log.read_text())
+            self.assertEqual((case.suite_tmp / "retained").read_text(), "private failure fixture")
+            self.assertNotIn("PUBLICATION_COMBINED_RESULT ", case.output.getvalue())
+        # The configured argv is also embedded in one DockerProfile argument.
+        self.assertLessEqual(len(json.dumps(fixture.ROOT_VERIFY)), 4096)
+        self.assertTrue(all(len(argument) <= 8192 for argument in fixture.ROOT_VERIFY))
+
+    @contextmanager
+    def whole_suite_case(self, program):
+        # The fixed /workspace/run location and UID/confinement are named
+        # fixtures. Discovery, subprocesses and temporary executables are real.
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
+            run, prior_tmp = root / "run", root / "prior-tmp"
+            run.mkdir(mode=0o700)
+            prior_tmp.mkdir(mode=0o700)
+            repo = run / "repo"
+            repo.mkdir()
             for key, content in fixture.CONTENTS.items():
-                path = root / fixture.FILES[key]
+                path = repo / fixture.FILES[key]
                 path.parent.mkdir(exist_ok=True)
                 path.write_text(content)
             module_name = "test_publication_small_" + root.name.replace("-", "_")
-            test_file = root / (module_name + ".py")
-            test_file.write_text(
-                "import unittest\nfrom pathlib import Path\nclass Actual(unittest.TestCase):\n"
-                " def test_one(self):\n  Path('calls').open('a').write('one\\n')\n  print('\\u6f22'*3000)\n"
-                " def test_two(self):\n  Path('calls').open('a').write('two\\n')\n")
-            actual_open, actual_exists = open, Path.exists
-            private_log = root / "private-suite.log"
-            def controlled_open(path, *args, **kwargs):
-                return actual_open(private_log if str(path) == "/workspace/run/publication-unittest.log" else path, *args, **kwargs)
+            test_file = repo / (module_name + ".py")
+            test_file.write_text(program)
+            actual_exists = Path.exists
             def boundary_exists(path):
                 return False if str(path) in {"/var/run/docker.sock", "/source/.git"} else actual_exists(path)
             output = io.StringIO()
+            command = fixture.ROOT_VERIFY[-1].replace("/workspace/run", str(run))
+            environment = trial.clean_environment({"TMPDIR": str(prior_tmp), "PUBLICATION_AMBIENT_FIXTURE": "retained"})
+            def execute():
+                with chdir(repo), patch("os.getuid", return_value=65532), patch("os.access", return_value=False), \
+                     patch.object(Path, "exists", boundary_exists), patch.object(tempfile, "tempdir", str(prior_tmp)), \
+                     patch.dict(os.environ, environment, clear=True), redirect_stdout(output):
+                    try:
+                        exec(command, {})
+                    finally:
+                        self.assertEqual(dict(os.environ), environment)
+                        self.assertEqual(list(prior_tmp.iterdir()), [])
             before_path = list(sys.path)
             try:
-                with chdir(root), patch("os.getuid", return_value=65532), patch("os.access", return_value=False), \
-                     patch.object(Path, "exists", boundary_exists), patch("builtins.open", side_effect=controlled_open), \
-                     patch.dict(os.environ, trial.clean_environment(), clear=True), redirect_stdout(output):
-                    exec(fixture.ROOT_VERIFY[-1], {})
-                self.assertEqual((root / "calls").read_text().splitlines(), ["one", "two"])
-                self.assertGreater(private_log.stat().st_size, 6000)
-                self.assertLess(len(output.getvalue().encode("utf-8")), 5000)
-                record = json.loads(output.getvalue().split("PUBLICATION_COMBINED_RESULT ", 1)[1])
-                self.assertEqual((record["expected_tests"], record["tests"], record["exit_code"]), (2, 2, 0))
-                test_file.write_text("import unittest\nclass Actual(unittest.TestCase):\n def test_failed(self): self.fail('bounded fixture failure')\n")
-                sys.modules.pop(module_name, None)
-                with chdir(root), patch("os.getuid", return_value=65532), patch("os.access", return_value=False), \
-                     patch.object(Path, "exists", boundary_exists), patch("builtins.open", side_effect=controlled_open), \
-                     patch.dict(os.environ, trial.clean_environment(), clear=True), redirect_stdout(io.StringIO()):
-                    with self.assertRaises(AssertionError):
-                        exec(fixture.ROOT_VERIFY[-1], {})
-                self.assertIn("bounded fixture failure", private_log.read_text())
+                yield types.SimpleNamespace(root=root, run=run, repo=repo, module_name=module_name,
+                    test_file=test_file, log=run / "publication-unittest.log",
+                    suite_tmp=run / "publication-unittest-tmp", output=output, execute=execute)
             finally:
                 sys.path[:] = before_path
                 sys.modules.pop(module_name, None)
+
+    def test_whole_suite_refuses_preexisting_temporary_paths_and_unsafe_parent(self):
+        for fault in ("directory", "file", "symlink", "dangling", "parent-symlink", "parent-mode", "parent-owner"):
+            with self.subTest(fault=fault), self.whole_suite_case("raise AssertionError('discovery ran')\n") as case:
+                foreign = case.root / "foreign"
+                foreign.mkdir(mode=0o700)
+                marker = foreign / "retained"
+                marker.write_text("foreign bytes")
+                if fault == "directory":
+                    case.suite_tmp.mkdir(mode=0o700)
+                elif fault == "file":
+                    case.suite_tmp.write_text("preexisting bytes")
+                elif fault in {"symlink", "dangling"}:
+                    case.suite_tmp.symlink_to(foreign if fault == "symlink" else case.root / "absent")
+                elif fault == "parent-symlink":
+                    case.run.rename(case.root / "original-run")
+                    case.run.symlink_to(case.root / "original-run", target_is_directory=True)
+                elif fault == "parent-mode":
+                    case.run.chmod(0o755)
+                effective_uid = os.geteuid() + (1 if fault == "parent-owner" else 0)
+                original = case.suite_tmp.lstat() if fault in {"directory", "file", "symlink", "dangling"} else None
+                with patch("os.geteuid", return_value=effective_uid), \
+                     patch.object(unittest.TestLoader, "discover", side_effect=AssertionError("discovery must not start")) as discover:
+                    with self.assertRaises((AssertionError, OSError)):
+                        case.execute()
+                    discover.assert_not_called()
+                if original is not None:
+                    self.assertEqual(case.suite_tmp.lstat().st_ino, original.st_ino)
+                self.assertEqual(marker.read_text(), "foreign bytes")
+                self.assertFalse(case.log.exists())
+                self.assertNotIn("PUBLICATION_COMBINED_RESULT ", case.output.getvalue())
+
+    def test_whole_suite_preserves_replaced_directories_after_successful_tests(self):
+        for replacement in ("temporary", "parent"):
+            program = """import os,pathlib,unittest
+class Actual(unittest.TestCase):
+ def test_replace(self):
+  temporary=pathlib.Path(os.environ['TMPDIR'])
+  target=temporary if REPLACE_TEMPORARY else temporary.parent
+  target.rename(target.with_name('original-'+target.name))
+  target.mkdir(mode=0o700)
+  (target/'retained').write_text('replacement bytes')
+""".replace("REPLACE_TEMPORARY", repr(replacement == "temporary"))
+            with self.subTest(replacement=replacement), self.whole_suite_case(program) as case:
+                with self.assertRaises(AssertionError):
+                    case.execute()
+                target = case.suite_tmp if replacement == "temporary" else case.run
+                self.assertEqual((target / "retained").read_text(), "replacement bytes")
+                self.assertTrue(target.with_name("original-" + target.name).is_dir())
+                self.assertNotIn("PUBLICATION_COMBINED_RESULT ", case.output.getvalue())
+
+    def test_whole_suite_retains_unexpected_temporary_entries_without_success(self):
+        program = """import pathlib,tempfile,unittest
+class Actual(unittest.TestCase):
+ def test_leave_private_entry(self):
+  (pathlib.Path(tempfile.gettempdir())/'retained').write_text('unclaimed private entry')
+"""
+        with self.whole_suite_case(program) as case:
+            with self.assertRaises(OSError):
+                case.execute()
+            self.assertEqual((case.suite_tmp / "retained").read_text(), "unclaimed private entry")
+            self.assertIn("OK", case.log.read_text())
+            self.assertNotIn("PUBLICATION_COMBINED_RESULT ", case.output.getvalue())
 
     def test_empty_bookkeeping_does_not_prove_manager_or_model_shutdown(self):
         processes = types.SimpleNamespace(running={})
