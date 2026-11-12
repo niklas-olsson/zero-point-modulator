@@ -21,8 +21,8 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `a1547a7743996d2db9866013135e5adb75c0ec7c`, merged public-discussion component and shared HTTP transport |
-| Keystone Polyphony | `dc18c3fb585e00a90706b04095bc278ee3ff1106`, merged authority and managed-task refusal on legacy paths |
+| OpenJules | `5bdda3de5bc3b2f8afb8de9abc191661245fe8ba`, merged public-discussion participant with explicit loopback bootstrap |
+| Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
 The paired initial-outcome changes are [OpenJules #16](https://github.com/niklas-olsson/OpenJules/pull/16)

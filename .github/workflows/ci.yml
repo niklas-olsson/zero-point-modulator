@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: a1547a7743996d2db9866013135e5adb75c0ec7c
+          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -67,14 +67,14 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged public-discussion component and shared HTTP transport, shared by every gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: a1547a7743996d2db9866013135e5adb75c0ec7c
+          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
           # Same merged initial-outcome authority in every installed-stack gate.
-          ref: dc18c3fb585e00a90706b04095bc278ee3ff1106
+          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -91,6 +91,15 @@ jobs:
             --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
             --image "$(cat "$RUNNER_TEMP/managed-trial-image.id")" \
             --work-dir "$RUNNER_TEMP/managed-stack-trial"
+      - name: Install locked native discussion dependencies through the fixed PATH
+        run: |
+          env PATH=/usr/local/bin:/usr/bin:/bin node --version
+          env PATH=/usr/local/bin:/usr/bin:/bin npm ci --prefix polyphony/src/liminal_bridge/sidecar
+      - name: Verify independent public peers through the retained installed interpreters
+        run: |
+          python zpm/tests/contracts/check_public_discussion_stack.py \
+            --managed-stack-dir "$RUNNER_TEMP/managed-stack-trial" \
+            --work-dir "$RUNNER_TEMP/public-discussion-trial"
       - name: Retain only the credential-free verification report
         if: always()
         uses: actions/upload-artifact@v4
@@ -99,6 +108,8 @@ jobs:
           path: |
             ${{ runner.temp }}/managed-stack-trial/report.json
             ${{ runner.temp }}/managed-stack-trial/diagnostics.json
+            ${{ runner.temp }}/public-discussion-trial/report.json
+            ${{ runner.temp }}/public-discussion-trial/diagnostics.json
           if-no-files-found: warn
           retention-days: 14
 
@@ -117,13 +128,13 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Same merged public-discussion component as every other integration gate.
           # Update this pin with docs/managed-isolation-stack-trial.md.
-          ref: a1547a7743996d2db9866013135e5adb75c0ec7c
+          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: dc18c3fb585e00a90706b04095bc278ee3ff1106
+          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -166,13 +177,13 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Same merged public-discussion component as every other integration gate.
           # Update with docs/managed-multi-repository-stack-trial.md.
-          ref: a1547a7743996d2db9866013135e5adb75c0ec7c
+          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: dc18c3fb585e00a90706b04095bc278ee3ff1106
+          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -215,14 +226,14 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged public-discussion component and shared HTTP transport, shared by every gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: a1547a7743996d2db9866013135e5adb75c0ec7c
+          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
           # Same merged initial-outcome authority in every installed-stack gate.
-          ref: dc18c3fb585e00a90706b04095bc278ee3ff1106
+          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
           path: polyphony
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -287,13 +298,13 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged public-discussion component and shared HTTP transport, shared by every gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: a1547a7743996d2db9866013135e5adb75c0ec7c
+          ref: 5bdda3de5bc3b2f8afb8de9abc191661245fe8ba
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: dc18c3fb585e00a90706b04095bc278ee3ff1106
+          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5

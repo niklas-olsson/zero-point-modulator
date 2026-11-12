@@ -43,8 +43,8 @@ The CI job currently pins:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `a1547a7743996d2db9866013135e5adb75c0ec7c`, merged public-discussion component and shared HTTP transport |
-| Keystone Polyphony | `dc18c3fb585e00a90706b04095bc278ee3ff1106`, merged authority and managed-task refusal on legacy paths |
+| OpenJules | `5bdda3de5bc3b2f8afb8de9abc191661245fe8ba`, merged public-discussion participant with explicit loopback bootstrap |
+| Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out candidate revision, recorded in the report |
 
 All installed-stack jobs use this same three-repository candidate set. The HTTP
@@ -54,6 +54,15 @@ Docker trials, must pass on the exact candidate revision. Qualification and CI e
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 Update all component pins and trial guides together with the workflow, then
 rerun all integration gates.
+
+After this managed-service scene stops, the same CI job runs the separate
+[installed public-discussion trial](public-discussion-stack-trial.md) through
+the retained OpenJules and Polyphony interpreters. It installs the locked native
+sidecar dependencies and requires three explicit fixture-provider turns between
+two independent public identities, original signed remote delivery, retained
+dissent and replay without extra calls. This adds no Docker build, stack
+installation or canonical mutation. Its own report is required; a passing root
+execution report does not establish the later discussion scene.
 
 Build the small test-only image and record the resulting immutable image ID:
 
