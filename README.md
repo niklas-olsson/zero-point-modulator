@@ -299,6 +299,12 @@ explicit completion, decline, clarification or failure through final capture
 and service restart. The supporting authority capability is required; an
 outcome never substitutes for verification, termination or independent review.
 
+The supported cold clarification fallback delivers a later private instruction
+through a fresh, correlated child execution. [Qualified measurements and initial
+performance targets](docs/cold-session-measurements.md) bind startup, capacity
+convergence, idle overhead, context bytes and storage growth to three exact
+qualification runs. Warm reuse remains unsupported.
+
 ```sh
 python -m unittest discover -v
 ```
