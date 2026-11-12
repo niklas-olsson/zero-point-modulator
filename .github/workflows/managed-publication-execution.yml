@@ -1,0 +1,65 @@
+name: Managed publication execution qualification
+
+# A separate manual execution qualification. It cannot publish or preserve a
+# runner's private journal for publication by a later job.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: managed-publication-qualification
+  cancel-in-progress: false
+
+jobs:
+  managed-publication-execution:
+    name: Qualify managed execution without publication
+    if: github.repository_id == '1453104676' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: zpm
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/OpenJules
+          ref: c925dee46765d2b22c9e38b55f614fc29f8068c1
+          path: openjules
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/keystone-polyphony
+          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
+          path: polyphony
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the actual local Docker Engine
+        run: docker info
+      - name: Build the approved managed root and child image
+        run: |
+          docker build --build-arg PYTHON_BASE=python:3.12-slim \
+            --iidfile "$RUNNER_TEMP/managed-publication-image.id" \
+            -f openjules/docker/Dockerfile.managed-agent openjules
+      - name: Execute genuine parent and children without a forge credential
+        run: |
+          python zpm/tests/contracts/check_publication_stack.py execute \
+            --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
+            --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
+            --image "$(cat "$RUNNER_TEMP/managed-publication-image.id")" \
+            --work-dir "$RUNNER_TEMP/managed-publication-trial"
+      - name: Retain only safe aggregate execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: managed-publication-execution-evidence
+          path: |
+            ${{ runner.temp }}/managed-publication-trial/execution-report.json
+            ${{ runner.temp }}/managed-publication-trial/failure-report.json
+          if-no-files-found: warn
+          retention-days: 14

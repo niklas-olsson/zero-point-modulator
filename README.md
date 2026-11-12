@@ -313,7 +313,7 @@ The table is navigation, not another protocol specification.
 | Installation, bootstrap and generated configuration | [deployment](zpm/deployment.py), [interpreter context](zpm/installation_context.py) | [Single-host installation](docs/single-host-installation.md) |
 | Installed trials and component pins | [trial harnesses](tests/contracts), [CI workflow](.github/workflows/ci.yml) | The corresponding trial guide above; [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3) for integrated acceptance |
 | Cold-session and idle observations | [operational measurements](tests/contracts/operational_measurement.py), [cold trial](tests/contracts/check_cold_children_stack.py) | [Cold-session measurements](docs/cold-session-measurements.md) |
-| Installed publication procedure and trial | [publication trial](tests/contracts/check_publication_stack.py), [manual workflow](.github/workflows/managed-publication.yml) | [Publish a final child composition](docs/single-host-installation.md#publish-a-final-child-composition); OpenJules owns the publisher |
+| Installed publication procedure and trial | [publication trial](tests/contracts/check_publication_stack.py), [execution-only workflow](.github/workflows/managed-publication-execution.yml), [full publication workflow](.github/workflows/managed-publication.yml) | [Publish a final child composition](docs/single-host-installation.md#publish-a-final-child-composition); OpenJules owns the publisher |
 
 Update the canonical explanation when behavior, commands, configuration,
 recovery, guarantees or evidence change, and update this map when routing
