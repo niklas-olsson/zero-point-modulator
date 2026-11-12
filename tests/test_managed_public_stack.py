@@ -1110,6 +1110,123 @@ print(json.dumps(observed,sort_keys=True))
         finally:
             model.close(time.monotonic() + 5)
 
+
+    @unittest.skipUnless(sys.platform == "linux" and hasattr(os, "WNOWAIT"), "Linux original peer lifetimes")
+    def test_live_peer_refuses_an_original_exit_marker_discovered_during_tick(self):
+        from check_public_discussion_stack import OwnedTrial
+        import check_public_discussion_stack as shared
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            processes = []
+            try:
+                for _ in range(3):
+                    processes.append(subprocess.Popen(
+                        [sys.executable, "-I", "-S", "-c", "import time; time.sleep(30)"],
+                        env=trial.PROFILE_ENVIRONMENT, start_new_session=True,
+                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    ))
+                live = {
+                    name: trial.process_info(process.pid)
+                    for name, process in zip(("profile", "node"), processes[1:])
+                }
+                self.assertTrue(all(value is not None and value["state"] not in {"Z", "X"}
+                                    for value in live.values()))
+                config, scope = root / "profile.json", root / "scope"
+                config.write_bytes(b"original profile binding")
+                scope.write_bytes(b"original private scope bytes")
+                hashes = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in (config, scope)}
+                original_read = shared.bounded_file
+
+                for kind in ("profile", "node"):
+                    with self.subTest(marked_role=kind):
+                        # Real otherwise-live process identities and real binding
+                        # files establish the positive. Only the denied read and
+                        # PF_EXITING stat below are named source-join projections;
+                        # the separate C tests supply actual kernel EACCES.
+                        owner = object.__new__(OwnedTrial)
+                        owner.closing = False
+                        owner.deadline = time.monotonic() + 10
+                        original_deadline = owner.deadline
+                        observed = {
+                            (value["pid"], value["starttime"]): copy.deepcopy(value) | {"kind": name}
+                            for name, value in live.items()
+                        }
+                        target = live[kind]
+                        key = (target["pid"], target["starttime"])
+                        different_lifetime = (key[0], str(int(key[1]) + 1))
+                        entry = {"process": processes[0], "observed": copy.deepcopy(observed),
+                                 "exiting_observations": {different_lifetime}}
+                        peer = object.__new__(trial.IndependentPeer)
+                        peer.owner, peer.entry, peer.live_identity = owner, entry, copy.deepcopy(live)
+                        peer.config, peer.scope_file = config, scope
+                        peer.config_hash, peer.scope_hash = hashes[config], hashes[scope]
+                        scheduled = [False]
+                        ticks = []
+
+                        def projected_stat(path, maximum):
+                            raw = original_read(path, maximum)
+                            if str(path) == f"/proc/{key[0]}/stat":
+                                prefix, tail = raw.rsplit(b")", 1)
+                                fields = tail.split()
+                                # This is not an observed pre-Z exit. It models
+                                # that exact guard input while the real task lives.
+                                fields[0] = b"S"
+                                fields[6] = str(int(fields[6]) | 4).encode("ascii")
+                                return prefix + b") " + b" ".join(fields) + b"\n"
+                            return raw
+
+                        def denied_read():
+                            raise PermissionError(13, "named terminal metadata projection")
+
+                        def tick(*, cutoff):
+                            ticks.append(cutoff)
+                            if scheduled[0]:
+                                scheduled[0] = False
+                                with patch.object(shared, "bounded_file", side_effect=projected_stat):
+                                    value = owner._observe_metadata(
+                                        entry, target, kind + "_environment", denied_read,
+                                    )
+                                self.assertIsNone(value)
+                                self.assertIn(key, entry["exiting_observations"])
+
+                        owner.tick = tick
+                        self.assertEqual(peer.check_live(), live)
+                        self.assertEqual(entry["exiting_observations"], {different_lifetime})
+                        scheduled[0] = True
+                        with self.assertRaisesRegex(AssertionError, "replaced or stopped"):
+                            peer.check_live()
+                        # A guard evaluated only before tick would miss the new
+                        # marker and incorrectly accept these same live identities.
+                        self.assertFalse(scheduled[0])
+                        self.assertEqual(entry["exiting_observations"], {different_lifetime, key})
+                        self.assertEqual(entry["observed"], observed)
+                        self.assertTrue(all(process.poll() is None for process in processes))
+                        self.assertTrue(all(trial.process_info(value["pid"])["state"] not in {"Z", "X"}
+                                            for value in live.values()))
+                        with self.assertRaisesRegex(AssertionError, "replaced or stopped"):
+                            peer.check_live()
+                        self.assertEqual(entry["exiting_observations"], {different_lifetime, key})
+                        self.assertEqual(entry["observed"], observed)
+                        self.assertEqual(ticks, [original_deadline] * 3)
+                        self.assertEqual(owner.deadline, original_deadline)
+                        self.assertEqual({path: hashlib.sha256(path.read_bytes()).hexdigest()
+                                          for path in hashes}, hashes)
+            finally:
+                for process in processes:
+                    if process.poll() is None:
+                        process.terminate()
+                for process in processes:
+                    try:
+                        process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=3)
+            self.assertTrue(all(process.returncode is not None for process in processes))
+            for process in processes:
+                with self.assertRaises(ChildProcessError):
+                    os.waitpid(process.pid, os.WNOHANG)
+
     def test_public_body_excludes_tools_private_data_and_unselected_records(self):
         original = proposal()
         correct = original["slot"]["receipt"]["record"]

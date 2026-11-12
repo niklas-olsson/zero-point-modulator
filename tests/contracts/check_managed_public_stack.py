@@ -1251,6 +1251,7 @@ class IndependentPeer:
             original = self.live_identity[kind]
             current = process_info(original["pid"])
             require(current is not None and current["state"] not in {"Z", "X"}
+                    and (original["pid"], original["starttime"]) not in self.entry.get("exiting_observations", ())
                     and all(current[key] == original[key]
                             for key in ("pid", "parent", "group", "session", "starttime")),
                     "independent peer process generation was replaced or stopped")
