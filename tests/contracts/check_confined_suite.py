@@ -25,6 +25,7 @@ from uuid import uuid4
 MAX_REPORT = 131072
 MAX_FAILURES = 64
 MAX_TESTS = 1024
+MAX_TIMINGS = 16
 SUITE_SECONDS = 110
 COMMAND_SECONDS = 120
 SHA = re.compile(r"[0-9a-f]{40}")
@@ -35,6 +36,7 @@ COUNTERS = {
     "memory.events": ("low", "high", "max", "oom", "oom_kill", "oom_group_kill"),
     "cpu.stat": ("usage_usec", "nr_periods", "nr_throttled", "throttled_usec"),
 }
+CACHE_MODULES = {"json": json, "subprocess": subprocess, "tempfile": tempfile, "unittest": unittest}
 
 
 class Deadline(BaseException):
@@ -164,6 +166,14 @@ def resources(cgroup=Path("/sys/fs/cgroup"), proc=Path("/proc")):
     return result
 
 
+def bytecode_cache():
+    observation = {"dont_write_bytecode": bool(sys.dont_write_bytecode)}
+    for name, module in CACHE_MODULES.items():
+        cached = getattr(module, "__cached__", None)
+        observation[name] = isinstance(cached, str) and Path(cached).is_file()
+    return observation
+
+
 class BoundedLog:
     """Keep raw private unittest output bounded without skipping any test."""
 
@@ -182,15 +192,34 @@ class BoundedLog:
 
 
 class ObservedResult(unittest.TextTestResult):
-    def __init__(self, *args, report, destination, root, files, approved, **kwargs):
+    def __init__(self, *args, report, destination, root, files, approved, suite_started, **kwargs):
         super().__init__(*args, **kwargs)
         self.report, self.destination, self.root, self.files, self.approved = report, destination, root, files, approved
         self.started = []
+        self.suite_started, self.test_started = suite_started, None
 
     def startTest(self, test):
         need(test.id() in self.approved and len(self.started) < MAX_TESTS)
+        need(self.report["progress"]["active_test_id"] is None)
         self.started.append(test.id())
+        self.test_started = time.monotonic()
+        self.report["progress"].update(started=len(self.started), active_test_id=test.id(),
+                                       elapsed_seconds=round(self.test_started - self.suite_started, 3))
+        save(self.destination, self.report)
         super().startTest(test)
+
+    def stopTest(self, test):
+        need(self.report["progress"]["active_test_id"] == test.id() and self.test_started is not None)
+        now = time.monotonic()
+        timings = self.report["slowest_completed"]
+        timings.append({"test_id": test.id(), "seconds": round(now - self.test_started, 3)})
+        timings.sort(key=lambda row: (-row["seconds"], row["test_id"]))
+        del timings[MAX_TIMINGS:]
+        self.report["progress"].update(completed=self.report["progress"]["completed"] + 1,
+                                       active_test_id=None, elapsed_seconds=round(now - self.suite_started, 3))
+        save(self.destination, self.report)
+        self.test_started = None
+        super().stopTest(test)
 
     def observe(self, test, error, outcome):
         need(test.id() in self.approved)
@@ -236,6 +265,9 @@ def run_suite(base, destination):
               "executed_inventory_sha256": None, "log_limited": False,
               "failure_count": 0, "failures": [], "failures_limited": False,
               "skipped": 0, "expected_failures": 0, "unexpected_successes": 0,
+              "progress": {"started": 0, "completed": 0, "active_test_id": None, "elapsed_seconds": 0},
+              "slowest_completed": [],
+              "bytecode_cache": bytecode_cache(),
               "resources_before": resources(), "resources_after": None}
     save(destination, report)
     started = time.monotonic()
@@ -244,7 +276,8 @@ def run_suite(base, destination):
         result = unittest.TextTestRunner(
             stream=bounded, verbosity=2,
             resultclass=lambda *a, **kw: ObservedResult(*a, report=report, destination=destination,
-                                                       root=root, files=files, approved=approved, **kw),
+                                                       root=root, files=files, approved=approved,
+                                                       suite_started=started, **kw),
         ).run(suite)
     complete = result.testsRun == len(approved) and sorted(result.started) == sorted(approved)
     report.update(complete=complete, executed=result.testsRun, skipped=len(result.skipped),
@@ -298,6 +331,33 @@ def safe_suite(value, approved, files):
     need(not output["complete"] or output["executed_inventory_sha256"] == expected_hash)
     seconds = value.get("seconds")
     output["seconds"] = seconds if type(seconds) in (int, float) and 0 <= seconds <= SUITE_SECONDS else None
+    cache = value.get("bytecode_cache")
+    need(type(cache) is dict and set(cache) == {"dont_write_bytecode", *CACHE_MODULES}
+         and all(type(present) is bool for present in cache.values()))
+    output["bytecode_cache"] = dict(cache)
+    progress = value.get("progress")
+    need(type(progress) is dict)
+    begun = integer(progress.get("started"), len(approved))
+    completed = integer(progress.get("completed"), len(approved))
+    active = progress.get("active_test_id")
+    elapsed = progress.get("elapsed_seconds")
+    need(begun is not None and completed is not None and completed <= begun
+         and type(elapsed) in (int, float) and 0 <= elapsed <= SUITE_SECONDS)
+    need((active is None and begun == completed)
+         or (type(active) is str and active in approved and begun == completed + 1))
+    need(not output["complete"] or (active is None and completed == output["executed"] == len(approved)))
+    output["progress"] = {"started": begun, "completed": completed, "active_test_id": active,
+                          "elapsed_seconds": elapsed}
+    timings = value.get("slowest_completed")
+    need(type(timings) is list and len(timings) == min(MAX_TIMINGS, completed))
+    output["slowest_completed"] = []
+    seen = set()
+    for row in timings:
+        need(type(row) is dict and type(row.get("test_id")) is str
+             and row["test_id"] in approved and row["test_id"] != active and row["test_id"] not in seen
+             and type(row.get("seconds")) in (int, float) and 0 <= row["seconds"] <= elapsed)
+        seen.add(row["test_id"])
+        output["slowest_completed"].append({"test_id": row["test_id"], "seconds": row["seconds"]})
     counter_keys = {name + ":" + key for name, keys in COUNTERS.items() for key in keys or ("value",)} | {"processes", "zombies", "process_stats_unavailable"}
 
     def counters(row):

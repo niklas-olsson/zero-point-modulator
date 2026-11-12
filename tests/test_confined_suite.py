@@ -81,6 +81,10 @@ class ConfinedSuiteTests(unittest.TestCase):
             self.assertTrue(selected["complete"])
             self.assertEqual((selected["expected"], selected["executed"], selected["skipped"], selected["failure_count"]), (3, 3, 1, 1))
             self.assertEqual(selected["inventory_sha256"], selected["executed_inventory_sha256"])
+            self.assertEqual(selected["progress"]["started"], 3)
+            self.assertEqual(selected["progress"]["completed"], 3)
+            self.assertIsNone(selected["progress"]["active_test_id"])
+            self.assertEqual(len(selected["slowest_completed"]), 3)
             self.assertFalse(selected["passed"])
             self.assertNotIn("PRIVATE", json.dumps(selected))
             self.assertIn("PRIVATE_ASSERTION", (destination.parent / "confined-unittest.log").read_text())
@@ -96,6 +100,115 @@ class ConfinedSuiteTests(unittest.TestCase):
             changed["executed_inventory_sha256"] = "b" * 64
             with self.assertRaises(AssertionError):
                 trial.safe_suite(changed, approved, {})
+
+    def test_bytecode_cache_observation_exports_only_fixed_boolean_presence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            present = Path(temporary) / "PRIVATE_PRESENT.pyc"
+            present.write_bytes(b"PRIVATE_CONTENT")
+            modules = {name: SimpleNamespace(__cached__=str(present)) for name in trial.CACHE_MODULES}
+            modules["subprocess"].__cached__ = str(Path(temporary) / "PRIVATE_ABSENT.pyc")
+            modules["tempfile"] = SimpleNamespace()
+            with patch.object(trial, "CACHE_MODULES", modules), patch.object(trial.sys, "dont_write_bytecode", True):
+                value = trial.bytecode_cache()
+            self.assertEqual(value, {"dont_write_bytecode": True, "json": True,
+                                     "subprocess": False, "tempfile": False, "unittest": True})
+            self.assertNotIn("PRIVATE", json.dumps(value))
+
+    def test_progress_checkpoint_identifies_active_test_without_claiming_completion(self):
+        checkpoints = []
+
+        class Cases(unittest.TestCase):
+            pass
+
+        def case(test):
+            checkpoints.append(json.loads(destination.read_text()))
+
+        for index in range(20):
+            setattr(Cases, f"test_{index:02}", case)
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(Cases)
+        approved = frozenset(trial.flatten(suite))
+        final_checkpoint = []
+        original_save = trial.save
+
+        def retain_checkpoint(path, value):
+            original_save(path, value)
+            if value["progress"]["completed"] == len(approved) and not value["complete"]:
+                final_checkpoint.append(json.loads(path.read_text()))
+
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "report.json"
+            with patch.object(trial, "source_inventory", return_value=(approved, {})), \
+                    patch.object(trial.unittest.TestLoader, "discover", return_value=suite), \
+                    patch.object(trial, "resources", return_value={}) as resource_scan, \
+                    patch.object(trial, "save", side_effect=retain_checkpoint):
+                self.assertEqual(trial.run_suite("a" * 40, destination), 0)
+            self.assertEqual(resource_scan.call_count, 2)
+            for index, checkpoint in enumerate(checkpoints):
+                selected = trial.safe_suite(checkpoint, approved, {})
+                self.assertEqual((selected["progress"]["started"], selected["progress"]["completed"]),
+                                 (index + 1, index))
+                self.assertEqual(selected["progress"]["active_test_id"], sorted(approved)[index])
+                self.assertEqual(len(selected["slowest_completed"]), min(trial.MAX_TIMINGS, index))
+                self.assertNotIn(selected["progress"]["active_test_id"],
+                                 [row["test_id"] for row in selected["slowest_completed"]])
+                self.assertFalse(selected["complete"] or selected["passed"])
+            self.assertEqual(len(final_checkpoint), 1)
+            selected = trial.safe_suite(final_checkpoint[0], approved, {})
+            self.assertEqual(selected["progress"]["completed"], len(approved))
+            self.assertIsNone(selected["progress"]["active_test_id"])
+            self.assertFalse(selected["complete"] or selected["passed"])
+            final = trial.safe_suite(json.loads(destination.read_text()), approved, {})
+            self.assertTrue(final["complete"] and final["passed"])
+            self.assertEqual(len(final["slowest_completed"]), trial.MAX_TIMINGS)
+
+        original = checkpoints[1]
+        for change in (
+            {"active_test_id": "PRIVATE_TEST_ID"},
+            {"active_test_id": None},
+            {"started": 0}, {"completed": 2}, {"started": len(approved) + 1},
+            {"elapsed_seconds": -1}, {"elapsed_seconds": float("inf")},
+            {"elapsed_seconds": float("nan")}, {"elapsed_seconds": True},
+        ):
+            with self.subTest(progress=tuple(change)):
+                value = copy.deepcopy(original)
+                value["progress"].update(change)
+                with self.assertRaises(AssertionError):
+                    trial.safe_suite(value, approved, {})
+        for change in (
+            {"test_id": "PRIVATE_TEST_ID"},
+            {"test_id": original["progress"]["active_test_id"]},
+            {"seconds": -1}, {"seconds": float("inf")},
+            {"seconds": float("nan")}, {"seconds": True},
+        ):
+            with self.subTest(timing=tuple(change)):
+                value = copy.deepcopy(original)
+                value["slowest_completed"][0].update(change)
+                with self.assertRaises(AssertionError):
+                    trial.safe_suite(value, approved, {})
+        value = copy.deepcopy(checkpoints[2])
+        value["slowest_completed"][1] = value["slowest_completed"][0]
+        with self.assertRaises(AssertionError):
+            trial.safe_suite(value, approved, {})
+        value = copy.deepcopy(final)
+        value["slowest_completed"].append(value["slowest_completed"][0])
+        with self.assertRaises(AssertionError):
+            trial.safe_suite(value, approved, {})
+        value = copy.deepcopy(original)
+        value["complete"] = True
+        value["executed_inventory_sha256"] = value["inventory_sha256"]
+        with self.assertRaises(AssertionError):
+            trial.safe_suite(value, approved, {})
+        value = copy.deepcopy(final)
+        value["executed"] = 0
+        with self.assertRaises(AssertionError):
+            trial.safe_suite(value, approved, {})
+        for cache in ({}, final["bytecode_cache"] | {"PRIVATE_MODULE": True},
+                      final["bytecode_cache"] | {"json": "PRIVATE_PATH"},
+                      final["bytecode_cache"] | {"dont_write_bytecode": 1}):
+            value = copy.deepcopy(final)
+            value["bytecode_cache"] = cache
+            with self.assertRaises(AssertionError):
+                trial.safe_suite(value, approved, {})
 
     def test_missing_or_repeated_test_inventory_refuses_before_running(self):
         class Case(unittest.TestCase):

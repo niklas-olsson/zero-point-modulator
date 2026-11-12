@@ -930,8 +930,18 @@ must execute once; skips, incomplete execution or failures prevent a pass.
 
 Only `confined-suite-trial/report.json` is exported. It contains bounded
 exception categories, numeric error/exit codes, frame coordinates checked
-against public source, and resource counters. Missing kernel observations remain
-unknown. The suite projection is a fresh bounded read from the stopped fixture,
+against public source, and resource counters. Atomic checkpoints also retain
+started and completed counts, the active approved test identity, elapsed suite
+time and at most sixteen slowest completed approved identities with wall times.
+These bounded fields locate unfinished work without exposing test messages or
+arguments. Counts observe unittest start/stop callbacks; a checkpoint with every
+test stopped is not a completed suite or successful process exit. Fixed booleans
+also record the interpreter's bytecode-write setting and existing cache-file
+presence for the already imported `json`, `subprocess`, `tempfile` and `unittest`
+modules, without paths or file contents. Resource scans remain outside the
+successful test start/stop path. Cache presence does not establish cache validity
+or use. Missing kernel observations remain unknown. The suite projection is a
+fresh bounded read from the stopped fixture,
 separate from the native capture. Raw logs and captures stay private. Cleanup
 checks exact native container/volume identities and confirmed removal; uncertain
 cleanup fails. This fixture has fewer processes than a managed root and two
@@ -949,6 +959,19 @@ Both suites completed their test inventory but did not exit before the
 110-second process guard. Native capture, termination and exact fixture cleanup
 were confirmed. This records the reproduced producer defect; earlier private
 operations retain their original evidence limits.
+
+With the merged reaping runtime, the
+[`33f53a95` HEAD diagnostic](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43316687385/job/131527195970)
+passed all 422 tests with no skips or failures in 106.599 seconds and exited
+normally. PID usage remained four, with no observed zombies or PID-ceiling
+rejections. The matching
+[`ee9595ea` proposed-merge diagnostic](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43316695748/job/131527231504)
+reached the unchanged 110-second suite guard without a completion record or
+observed failure details. Both used OpenJules
+`34a005a731ee4614ab1f105669378fcf814f092d` and confirmed native capture,
+termination and exact fixture cleanup. The added progress and timing fields
+locate remaining slow work; these results do not qualify the combined revision
+set or justify increasing its bounds.
 
 Dispatch this execution-only workflow from its reviewed main revision as a new
 source qualification. It is not a rerun or recovery of the original publication
