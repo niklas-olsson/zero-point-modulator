@@ -28,6 +28,20 @@ acquisition = load("prepare_dependencies")
 
 
 class SealedBootstrapTrialTests(unittest.TestCase):
+    def test_explicit_online_acquisition_keeps_proxy_routing_without_ambient_pip_policy(self):
+        supplied = {"HTTPS_PROXY": "http://approved-proxy.invalid:8080", "no_proxy": "127.0.0.1",
+                    "ALL_PROXY": "http://approved-fallback.invalid:8080", "PATH": "/usr/bin",
+                    "PIP_CONFIG_FILE": "/unapproved/pip.conf", "PIP_INDEX_URL": "https://unapproved.invalid",
+                    "PYTHONPATH": "/unapproved/modules"}
+        with patch.dict(acquisition.os.environ, supplied, clear=True):
+            result = acquisition.acquisition_environment(Path("/private/home"), Path("/private/tmp"))
+        for key in ("HTTPS_PROXY", "ALL_PROXY", "no_proxy", "PATH"):
+            self.assertEqual(result[key], supplied[key])
+        self.assertEqual(result["PIP_CONFIG_FILE"], acquisition.os.devnull)
+        self.assertNotIn("PIP_INDEX_URL", result)
+        self.assertNotIn("PYTHONPATH", result)
+        self.assertEqual(result["HOME"], "/private/home")
+
     def test_default_bootstrap_still_uses_existing_manager(self):
         self.assertEqual(stack.bootstrap_command(Path("/bundle"), Path("/trial"), "bootstrap", deny_network=False),
                          [sys.executable, "/bundle/manage.py", "bootstrap"])

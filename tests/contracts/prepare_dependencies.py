@@ -32,6 +32,19 @@ MAX_ACQUISITION_STORAGE = 4 * MAX_TOTAL_BYTES
 MAX_COMMAND_OUTPUT = 1024 * 1024
 
 
+def acquisition_environment(home, temporary):
+    # Acquisition is explicitly online. Keep the host's approved transport
+    # routing, without copying pip configuration or exposing proxy values in
+    # reports. The installer's separate offline environment remains unchanged.
+    allowed = {"PATH", "LANG", "LC_ALL", "SSL_CERT_FILE", "SSL_CERT_DIR",
+               "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+               "http_proxy", "https_proxy", "all_proxy", "no_proxy"}
+    environment = {key: value for key, value in os.environ.items() if key in allowed}
+    environment.update(HOME=str(home), TMPDIR=str(temporary), PIP_CONFIG_FILE=os.devnull,
+                       PIP_DISABLE_PIP_VERSION_CHECK="1", PIP_NO_CACHE_DIR="1")
+    return environment
+
+
 def observed_storage(directory):
     total, count = 0, 0
     for current, subdirectories, files in os.walk(directory, followlinks=False):
@@ -127,10 +140,7 @@ def acquire(checkouts, directory):
     home.mkdir(mode=0o700)
     temporary = directory / "temporary"
     temporary.mkdir(mode=0o700)
-    environment = {key: value for key, value in os.environ.items()
-                   if key in {"PATH", "LANG", "LC_ALL", "SSL_CERT_FILE", "SSL_CERT_DIR"}}
-    environment.update(HOME=str(home), TMPDIR=str(temporary), PIP_CONFIG_FILE=os.devnull,
-                       PIP_DISABLE_PIP_VERSION_CHECK="1", PIP_NO_CACHE_DIR="1")
+    environment = acquisition_environment(home, temporary)
     revisions = {}
     dependencies = {}
     for name, checkout in checkouts.items():
