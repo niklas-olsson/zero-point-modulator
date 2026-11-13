@@ -200,12 +200,24 @@ class OwnedTrial:
         """A terminal sample never creates observation or cleanup authority."""
         try:
             return read()
-        except PermissionError as error:
+        except (PermissionError, FileNotFoundError) as error:
+            if isinstance(error, FileNotFoundError):
+                # A parent may reap a descendant between the inventory/cmdline
+                # sample and this read. Absence adds no observation, readiness,
+                # signal authority or cleanup evidence. A live/reused PID or an
+                # unreadable fresh sample must retain the original failure.
+                try:
+                    absent = process_info(info["pid"]) is None
+                except Exception:
+                    absent = False
+                if absent:
+                    return None
             try:
                 previous = entry["observed"].get((info["pid"], info["starttime"]))
                 kind = {"profile_environment": "profile", "node_environment": "node",
                         "node_executable": "node"}.get(operation)
-                if (previous is not None and previous.get("kind") in {"profile", "node"}
+                if (isinstance(error, PermissionError)
+                        and previous is not None and previous.get("kind") in {"profile", "node"}
                         and (kind is None or previous["kind"] == kind)):
                     raw = bounded_file(f"/proc/{info['pid']}/stat", 4096)
                     prefix, tail = raw.rsplit(b")", 1)
@@ -231,7 +243,7 @@ class OwnedTrial:
                 pass
             self.observation_failure = {
                 "operation": operation,
-                "errno": error.errno if type(error.errno) is int and error.errno in (1, 13) else None,
+                "errno": error.errno if type(error.errno) is int and error.errno in (1, 2, 13) else None,
             }
             raise
 
@@ -252,14 +264,11 @@ class OwnedTrial:
             if info is None:
                 continue
             pending.extend(child for child, item in inventory.items() if item["parent"] == pid)
-            try:
-                raw = self._observe_metadata(entry, info, "cmdline",
-                                             lambda: bounded_file(f"/proc/{pid}/cmdline", 65536))
-                if raw is None:
-                    continue
-                argv = raw.split(b"\0")[:-1]
-            except FileNotFoundError:
+            raw = self._observe_metadata(entry, info, "cmdline",
+                                         lambda: bounded_file(f"/proc/{pid}/cmdline", 65536))
+            if raw is None:
                 continue
+            argv = raw.split(b"\0")[:-1]
             profile_argv = [os.fsencode(expected["python"]), b"-m",
                             b"src.liminal_bridge.conversation_server", b"--config",
                             os.fsencode(expected["config"])]
@@ -289,7 +298,7 @@ class OwnedTrial:
                 require(environment == {os.fsencode(k): os.fsencode(v) for k, v in NODE_ENVIRONMENT.items()},
                         "native child inherited an unapproved environment")
                 executable = self._observe_metadata(entry, info, "node_executable",
-                                                    lambda: Path(f"/proc/{pid}/exe").resolve())
+                                                    lambda: Path(f"/proc/{pid}/exe").resolve(strict=True))
                 if executable is None:
                     continue
                 require(executable == Path(expected["node"]).resolve(),
@@ -919,7 +928,7 @@ def run(args):
         scene(owner, root, stack, evidence)
     except BaseException as error:
         failure = str(error) if isinstance(error, AssertionError) else type(error).__name__
-        if isinstance(error, PermissionError) and hasattr(owner, "observation_failure"):
+        if isinstance(error, (PermissionError, FileNotFoundError)) and hasattr(owner, "observation_failure"):
             evidence["observation_failure"] = dict(owner.observation_failure)
     finally:
         evidence["action_elapsed_seconds"] = round(time.monotonic() - started, 3)

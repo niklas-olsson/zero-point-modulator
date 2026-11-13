@@ -116,12 +116,25 @@ identities until final signals and reaping. It never signals an unrelated PID
 or an unowned nested group. Normal success also requires observed A/Node
 relationships and their disappearance after the real participant shuts down.
 
+A descendant may be reaped between its command-line sample and a subsequent
+environment or executable read. A missing file is ignored only when a fresh
+kernel process lookup also finds no such PID. That sample adds no observation,
+readiness, signal authority or cleanup evidence. Existing observations and
+deadlines remain unchanged; positive readiness and final owned-process reaping
+are still required separately. A live PID, an unreadable fresh lookup or another
+observation failure retains the original error and a bounded operation/errno
+diagnostic. A permission denial has its separate, stricter existing check for a
+previously verified task with unchanged identity and the kernel's exiting flag.
+
 The dedicated unit controls exercise an early-exited parent with a separate
 session child, an already expired action budget, failures immediately after
 spawn or during ownership inspection, and a normal command alongside unrelated
 process work. They are process and provenance fixtures, not installed native
 evidence. Missing ownership metadata remains a cleanup failure even when a
 still-held child's individual termination can be established safely.
+Additional Linux controls force an actual child exit and reap between metadata
+reads, both before and after its observation is retained, and check that a
+missing-file error against a live or unreadable task remains a failure.
 
 ## Evidence and interpretation
 

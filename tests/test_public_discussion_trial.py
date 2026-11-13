@@ -684,5 +684,130 @@ class ExitingObservationTests(unittest.TestCase):
                 self.assertEqual(value["diagnostic"], {"operation": "node_environment", "errno": 13})
 
 
+@unittest.skipUnless(sys.platform == "linux", "Linux proc lifetime qualification")
+class DisappearingObservationTests(unittest.TestCase):
+    """Real reap between metadata reads; the parent profile is a named fixture."""
+
+    def probe(self, mode):
+        with tempfile.TemporaryDirectory() as temporary:
+            script = textwrap.dedent(r'''
+                import importlib.util,json,os,subprocess,sys,time
+                from copy import deepcopy
+                from pathlib import Path
+                from types import SimpleNamespace
+                spec=importlib.util.spec_from_file_location("trial",sys.argv[1])
+                trial=importlib.util.module_from_spec(spec); spec.loader.exec_module(trial)
+                mode=sys.argv[2]; directory=Path(sys.argv[3])
+                bridge=directory/"node_fixture.py"
+                bridge.write_text("import sys\nprint('ready',flush=True)\nsys.stdin.readline()\n")
+                argv=[sys.executable,str(bridge),"a"*64,"--conversation-bootstrap-port","31337"]
+                node=subprocess.Popen(argv,env=trial.NODE_ENVIRONMENT,stdin=subprocess.PIPE,
+                                      stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+                original_file=trial.bounded_file; original_info=trial.process_info
+                try:
+                    assert node.stdout.readline()=="ready\n"
+                    parent=trial.process_info(os.getpid())
+                    assert parent["pid"]==parent["group"]==parent["session"]
+                    expected={"python":sys.executable,"config":str(directory/"named-profile-fixture"),
+                              "node":sys.executable,"bridge":str(bridge),"scope_hash":"a"*64,"port":31337}
+                    entry={"process":SimpleNamespace(pid=os.getpid()),"profile":expected,
+                           "start":time.monotonic(),
+                           "observed":{(parent["pid"],parent["starttime"]):parent|{"kind":"profile"}}}
+                    owner=object.__new__(trial.OwnedTrial)
+                    owner.deadline=time.monotonic()+8
+                    inventory=trial.process_inventory(owner.deadline)
+                    owner._observe(entry,inventory)
+                    info=inventory[node.pid]; key=(node.pid,info["starttime"])
+                    assert entry["observed"][key]==info|{"kind":"node"}
+                    if mode.startswith("unbound"):
+                        del entry["observed"][key]
+                    before=deepcopy(entry["observed"])
+                    original_start=entry["start"]; original_deadline=owner.deadline
+                    if mode in {"known","unbound","known-exe","unbound-exe"}:
+                        actual_errors=[]; armed=[True]
+                        operation="node_executable" if mode.endswith("-exe") else "node_environment"
+                        original_metadata=owner._observe_metadata
+                        def tracked_metadata(entry,info,name,read):
+                            def tracked_read():
+                                try:
+                                    return read()
+                                except FileNotFoundError as error:
+                                    assert name==operation and error.errno==2
+                                    actual_errors.append(error)
+                                    raise
+                            return original_metadata(entry,info,name,tracked_read)
+                        owner._observe_metadata=tracked_metadata
+                        def gated_file(path,maximum):
+                            path=str(path)
+                            preceding="environ" if mode.endswith("-exe") else "cmdline"
+                            if path==f"/proc/{node.pid}/{preceding}" and armed[0]:
+                                raw=original_file(path,maximum)
+                                if preceding=="cmdline":
+                                    assert raw.split(b"\0")[:-1]==[os.fsencode(value) for value in argv]
+                                armed[0]=False
+                                node.stdin.write("stop\n"); node.stdin.flush()
+                                assert node.wait(timeout=3)==0
+                                assert trial.process_info(node.pid) is None
+                                return raw
+                            return original_file(path,maximum)
+                        trial.bounded_file=gated_file
+                        owner._observe(entry,inventory)
+                        assert len(actual_errors)==1
+                        assert not hasattr(owner,"observation_failure")
+                        assert trial.process_info(node.pid) is None
+                    else:
+                        # A deliberately injected missing-file error while the
+                        # actual process is alive cannot establish disappearance.
+                        original_error=FileNotFoundError(2,"private fixture path")
+                        def missing():
+                            raise original_error
+                        if mode=="unreadable":
+                            def unreadable(_pid):
+                                raise PermissionError(13,"private fixture path")
+                            trial.process_info=unreadable
+                        caught=None
+                        try:
+                            owner._observe_metadata(entry,info,"node_environment",missing)
+                        except FileNotFoundError as error:
+                            caught=error
+                        assert caught is original_error
+                        assert owner.observation_failure=={"operation":"node_environment","errno":2}
+                        assert "private" not in json.dumps(owner.observation_failure)
+                        trial.process_info=original_info
+                        assert trial.process_info(node.pid)["starttime"]==info["starttime"]
+                        node.stdin.write("stop\n"); node.stdin.flush()
+                        assert node.wait(timeout=3)==0
+                    assert entry["observed"]==before and not entry.get("exiting_observations")
+                    assert entry["start"]==original_start and owner.deadline==original_deadline
+                    print(json.dumps({"mode":mode,"observations_unchanged":True,
+                                      "deadlines_unchanged":True,"reaped":node.returncode==0}))
+                finally:
+                    trial.bounded_file=original_file; trial.process_info=original_info
+                    if node.poll() is None:
+                        node.kill(); node.wait(timeout=3)
+                    node.stdin.close(); node.stdout.close()
+            ''')
+            result = subprocess.run(
+                [sys.executable, "-c", script, str(Path(trial.__file__).resolve()), mode, temporary],
+                stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                start_new_session=True, timeout=20,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            value = json.loads(result.stdout)
+            self.assertTrue(value["observations_unchanged"])
+            self.assertTrue(value["deadlines_unchanged"])
+            self.assertTrue(value["reaped"])
+
+    def test_reaped_descendant_adds_no_observation_or_readiness(self):
+        for mode in ("known", "unbound", "known-exe", "unbound-exe"):
+            with self.subTest(mode=mode):
+                self.probe(mode)
+
+    def test_live_or_unreadable_process_preserves_original_missing_file_error(self):
+        for mode in ("live", "unreadable"):
+            with self.subTest(mode=mode):
+                self.probe(mode)
+
+
 if __name__ == "__main__":
     unittest.main()
