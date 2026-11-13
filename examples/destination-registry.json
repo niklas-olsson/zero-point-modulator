@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "max_workers": 4,
+  "timeout_seconds": 10,
+  "destinations": [
+    {
+      "destination_id": "host-a",
+      "journal_incarnation": "11111111111141118111111111111111",
+      "endpoint": "https://worker.example:8443/approved/runtime",
+      "token_ref": "env:OPENJULES_HOST_A_TOKEN",
+      "max_workers": 2,
+      "enabled": false
+    }
+  ],
+  "profiles": [
+    {
+      "destination_id": "host-a",
+      "repository": "github:github.com/example/project",
+      "profile": "approved-coding",
+      "policy_binding_id": "22222222222242228222222222222222",
+      "policy_binding_version": 1
+    }
+  ]
+}
