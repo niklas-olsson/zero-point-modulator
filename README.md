@@ -105,9 +105,12 @@ and ignores proxy settings so that its bearer credential stays on the local
 route. `localhost`, other DNS aliases, ambiguous numeric addresses and scoped
 IPv6 addresses are not HTTP exceptions. Use a literal loopback IP for a local
 service, or configure a verified HTTPS reverse proxy for remote access.
-Embedded URL credentials, query/fragment delimiters, whitespace/control
+Embedded URL credentials, query/fragment delimiters, whitespace/control/format
 characters and invalid ports are rejected before credential resolution or
-transport. HTTPS service path prefixes remain supported.
+transport. Host and port text cannot use percent escapes; percent-encoded path
+prefixes remain supported. For example, `http://[::1]:8000` selects an IPv6
+loopback listener, and `https://worker.example:8443/approved/runtime` preserves
+the HTTPS service prefix before ZPM appends `/api/workers`.
 
 The deployment `max_workers` is a required admission ceiling across all owned
 reservations, including starting, draining, and unknown workers. It is not a

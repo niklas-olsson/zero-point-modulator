@@ -84,6 +84,40 @@ class EndpointPolicyTests(unittest.TestCase):
             process.assert_not_called()
             dns.assert_not_called()
 
+    def test_encoded_authorities_and_unicode_controls_fail_before_credentials(self):
+        endpoints = (
+            "https://worker.invalid%3A0", "https://worker.invalid%3A65536",
+            "https://worker.invalid%0a", "https://worker.invalid%40other.invalid",
+            "https://worker.invalid%23fragment", "https://worker.invalid%3Fquery",
+            "https://worker.invalid%2Fpath", "https://%77orker.invalid",
+            "https://[::1%25lo]", "https://worker.invalid/\u0080",
+            "https://worker.invalid/\u202e", "https://worker.invalid/\ud800",
+        )
+        for endpoint in endpoints:
+            for direct in (False, True):
+                with self.subTest(endpoint=endpoint, direct=direct), \
+                        patch("zpm.provider.os.environ.get", side_effect=AssertionError("credential read")) as credential, \
+                        patch("zpm.provider.subprocess.Popen", side_effect=AssertionError("helper started")) as process, \
+                        patch("socket.getaddrinfo", side_effect=AssertionError("DNS lookup")) as dns:
+                    with self.assertRaises(ConfigurationError):
+                        config = (ProviderConfig(**configuration(endpoint)) if direct
+                                  else ProviderConfig.parse(configuration(endpoint)))
+                        OpenJulesProvider(config).discover("deployment-a", "github:github.com/owner/project")
+                    credential.assert_not_called()
+                    process.assert_not_called()
+                    dns.assert_not_called()
+
+    def test_percent_encoded_path_prefixes_remain_supported(self):
+        for endpoint in ("https://worker.example:8443/approved%20runtime/%7Euser/",
+                         "http://[::1]:8000/local%2Fprefix/"):
+            with self.subTest(endpoint=endpoint), patch("zpm.provider.os.environ.get") as credential, \
+                    patch("zpm.provider.subprocess.Popen") as process, patch("socket.getaddrinfo") as dns:
+                for config in (ProviderConfig.parse(configuration(endpoint)), ProviderConfig(**configuration(endpoint))):
+                    self.assertEqual(OpenJulesProvider(config).config.endpoint, endpoint.rstrip("/"))
+                credential.assert_not_called()
+                process.assert_not_called()
+                dns.assert_not_called()
+
 
 class CredentialTransportTests(unittest.TestCase):
     @contextmanager

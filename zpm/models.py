@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import unicodedata
 from dataclasses import asdict, dataclass
 from typing import Any
 from urllib.parse import urlsplit
@@ -105,12 +106,14 @@ class ProviderConfig:
         if not isinstance(endpoint, str):
             raise ConfigurationError("provider endpoint must be a URL")
         try:
-            if any(character.isspace() or ord(character) < 32 or ord(character) == 127 for character in endpoint):
+            if any(character.isspace() or unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+                   for character in endpoint):
                 raise ValueError
             parsed = urlsplit(endpoint)
             if (parsed.scheme not in {"http", "https"} or not parsed.hostname
                     or parsed.username is not None or parsed.password is not None
-                    or "?" in endpoint or "#" in endpoint or parsed.netloc.endswith(":")):
+                    or "?" in endpoint or "#" in endpoint or "%" in parsed.netloc
+                    or parsed.netloc.endswith(":")):
                 raise ValueError
             if parsed.port is not None and not 1 <= parsed.port <= 65535:
                 raise ValueError
