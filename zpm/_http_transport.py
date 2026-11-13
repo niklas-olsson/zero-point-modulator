@@ -12,7 +12,8 @@ from http.client import HTTPException
 import json
 import sys
 from urllib.error import HTTPError, URLError
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 
 class _NoRedirects(HTTPRedirectHandler):
@@ -27,7 +28,12 @@ def main() -> int:
         request = Request(value["url"], data=data, method=value["method"], headers={
             "Authorization": "Bearer " + value["token"], "Accept": "application/json", "Content-Type": "application/json",
         })
-        with build_opener(_NoRedirects()).open(request, timeout=value["timeout"]) as response:
+        handlers = [_NoRedirects()]
+        if urlsplit(value["url"]).scheme == "http":
+            # Configuration permits plaintext only to literal loopback. Ambient
+            # proxies must not move that bearer-bearing request off this host.
+            handlers.append(ProxyHandler({}))
+        with build_opener(*handlers).open(request, timeout=value["timeout"]) as response:
             raw = response.read(1_000_001)
         if len(raw) > 1_000_000:
             return 4

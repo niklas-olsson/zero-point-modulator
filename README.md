@@ -98,8 +98,19 @@ The shared provider configuration is separate from individual enrollments:
 `endpoint` identifies the OpenJules service root. `token_ref` names an environment
 variable; it is not the token itself. Credentials are resolved only when making
 a request and are not stored in the state journal. The provider rejects
-redirects and does not copy error-response bodies into diagnostics. Use HTTPS
-for a remote service. The HTTP example assumes a local host boundary.
+redirects and does not copy error-response bodies into diagnostics. Remote
+services require HTTPS with certificate and hostname verification. Plain HTTP
+is accepted only for literal loopback IPs (IPv4 `127.0.0.0/8` or IPv6 `::1`),
+and ignores proxy settings so that its bearer credential stays on the local
+route. `localhost`, other DNS aliases, ambiguous numeric addresses and scoped
+IPv6 addresses are not HTTP exceptions. Use a literal loopback IP for a local
+service, or configure a verified HTTPS reverse proxy for remote access.
+Embedded URL credentials, query/fragment delimiters, whitespace/control/format
+characters and invalid ports are rejected before credential resolution or
+transport. Host and port text cannot use percent escapes; percent-encoded path
+prefixes remain supported. For example, `http://[::1]:8000` selects an IPv6
+loopback listener, and `https://worker.example:8443/approved/runtime` preserves
+the HTTPS service prefix before ZPM appends `/api/workers`.
 
 The deployment `max_workers` is a required admission ceiling across all owned
 reservations, including starting, draining, and unknown workers. It is not a
@@ -114,8 +125,8 @@ connection/TLS setup, request transmission, and response headers/body. A
 short-lived standard-library helper isolates each request; expiry kills and
 reaps it so trickled responses cannot leave active local I/O holding the
 controller. Process cleanup and OS scheduling can add a small return delay.
-Credentials pass through a private pipe, never process arguments. Proxy and TLS
-certificate environment settings retain their normal transport behavior;
+Credentials pass through a private pipe, never process arguments. HTTPS proxy
+and TLS certificate environment settings retain their normal transport behavior;
 unrelated credentials are not inherited. Each request incurs interpreter startup
 overhead, and requests remain sequential. This is a per-request bound, not a
 deadline for an entire reconciliation tick. A timeout is an uncertain remote

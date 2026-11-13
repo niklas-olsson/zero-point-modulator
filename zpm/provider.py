@@ -37,7 +37,8 @@ def _transport_environment() -> dict[str, str]:
 
 class OpenJulesProvider:
     def __init__(self, config: ProviderConfig):
-        self.config = config
+        # Direct dataclass construction must not bypass the endpoint boundary.
+        self.config = ProviderConfig.parse(config.__dict__)
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None, query: dict[str, Any] | None = None) -> Any:
         token = os.environ.get(self.config.token_ref[len("env:"):])

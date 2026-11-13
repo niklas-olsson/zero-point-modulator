@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
 import re
+import unicodedata
 from dataclasses import asdict, dataclass
 from typing import Any
 from urllib.parse import urlsplit
@@ -103,9 +105,29 @@ class ProviderConfig:
         endpoint = data.get("endpoint")
         if not isinstance(endpoint, str):
             raise ConfigurationError("provider endpoint must be a URL")
-        parsed = urlsplit(endpoint)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
-            raise ConfigurationError("provider endpoint must be HTTP(S), without credentials, query or fragment")
+        try:
+            if any(character.isspace() or unicodedata.category(character) in {"Cc", "Cf", "Cs"}
+                   for character in endpoint):
+                raise ValueError
+            parsed = urlsplit(endpoint)
+            if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                    or parsed.username is not None or parsed.password is not None
+                    or "?" in endpoint or "#" in endpoint or "%" in parsed.netloc
+                    or parsed.netloc.endswith(":")):
+                raise ValueError
+            if parsed.port is not None and not 1 <= parsed.port <= 65535:
+                raise ValueError
+            if "[" in parsed.netloc or "]" in parsed.netloc:
+                if not re.fullmatch(r"\[[^\[\]]+\](?::[0-9]+)?", parsed.netloc):
+                    raise ValueError
+                ipaddress.IPv6Address(parsed.hostname)
+            if parsed.scheme == "http":
+                address = ipaddress.ip_address(parsed.hostname)
+                if ("%" in parsed.hostname or not address.is_loopback
+                        or (address.version == 6 and int(address) != 1)):
+                    raise ValueError
+        except ValueError:
+            raise ConfigurationError("provider endpoint requires HTTPS or literal loopback HTTP, without credentials, query or fragment") from None
         ref = data.get("token_ref")
         if not isinstance(ref, str) or not re.fullmatch(r"env:[A-Za-z_][A-Za-z0-9_]*", ref):
             raise ConfigurationError("token_ref must name an environment variable, not contain a token")
