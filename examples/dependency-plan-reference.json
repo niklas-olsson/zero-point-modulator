@@ -1,0 +1,5 @@
+{
+  "manifest": "/absolute/approved/python-artifacts/dependencies.json",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "artifacts": "/absolute/approved/python-artifacts/wheels"
+}

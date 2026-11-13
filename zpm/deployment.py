@@ -28,7 +28,7 @@ import time
 from typing import Any
 from urllib.parse import urlsplit
 
-from . import installation_context
+from . import dependencies, installation_context
 from .models import Binding, ConfigurationError, ProviderConfig, identifier
 from .store import Store
 
@@ -452,7 +452,7 @@ def parse_configuration(value: Any) -> dict:
 
 def _parse_single_configuration(value: Any, *, validated_sources: dict | None = None) -> dict:
     required = {"schema_version", "deployment_id", "binding", "max_workers", "sources", "source", "image", "command", "policy"}
-    data = _object(value, required | {"ports", "runtime", "environment_refs", "model_policy", "child_policy"}, "deployment configuration", required)
+    data = _object(value, required | {"ports", "runtime", "environment_refs", "model_policy", "child_policy", "dependency_plan"}, "deployment configuration", required)
     if type(data["schema_version"]) is not int or data["schema_version"] != 1:
         raise ConfigurationError("deployment schema_version must be 1")
     deployment = identifier(data["deployment_id"], "deployment_id")
@@ -470,6 +470,8 @@ def _parse_single_configuration(value: Any, *, validated_sources: dict | None = 
                 raise ConfigurationError(f"{name} revision lacks the required managed entry point")
     else:
         sources = validated_sources
+    dependency = ({"dependency_plan": dependencies.normalize_reference(data["dependency_plan"], sources)}
+                  if "dependency_plan" in data else {})
     source = _checkout(data["source"], "repository source")
     if len(source["revision"]) != 40:
         raise ConfigurationError("the managed Docker baseline requires a SHA-1 Git repository")
@@ -538,7 +540,7 @@ def _parse_single_configuration(value: Any, *, validated_sources: dict | None = 
                 raise ConfigurationError(f"{name} revision lacks the required managed child entry points")
     return {"schema_version": 1, "deployment_id": deployment, "binding": binding.to_dict(), "max_workers": maximum,
             "sources": sources, "source": source, "image": image, "command": command, "ports": ports,
-            "runtime": runtime, "environment_refs": environment, **model,
+            "runtime": runtime, "environment_refs": environment, **model, **dependency,
             "policy": {"checks": checks, "reviewers": reviewers, "max_attempts": attempts,
                        "budget_seconds": budget, "attempt_seconds": seconds, "capabilities": capabilities}}
 
@@ -546,7 +548,7 @@ def _parse_single_configuration(value: Any, *, validated_sources: dict | None = 
 
 def _parse_multiple_configuration(value: Any) -> dict:
     required = {"schema_version", "deployment_id", "max_workers", "sources", "repositories"}
-    data = _object(value, required | {"ports"}, "multiple-repository deployment configuration", required)
+    data = _object(value, required | {"ports", "dependency_plan"}, "multiple-repository deployment configuration", required)
     entries = data["repositories"]
     if not isinstance(entries, list) or not 2 <= len(entries) <= 100:
         raise ConfigurationError("schema 2 requires 2 to 100 repository entries")
@@ -575,6 +577,8 @@ def _parse_multiple_configuration(value: Any) -> dict:
             common = {name: single[name] for name in ("deployment_id", "max_workers", "sources", "ports")}
         normalized.append({name: single[name] for name in single if name in entry_fields})
     result = {"schema_version": 2, **common, "repositories": normalized}
+    if "dependency_plan" in data:
+        result["dependency_plan"] = dependencies.normalize_reference(data["dependency_plan"], result["sources"])
     keys = [_repository_key(entry["binding"]["repository"]) for entry in normalized]
     if len(set(keys)) != len(keys):
         raise ConfigurationError("repository-derived configuration paths collide")
@@ -912,6 +916,12 @@ ceiling with journalled capacity. Its ready flag does not prove target convergen
 
 
 def _finish_bundle(data: dict, root: Path, final: Path, readme: str) -> None:
+    if "dependency_plan" in data:
+        dependencies.seal(data["dependency_plan"], data["sources"], root)
+        readme += "\nDependency mode: sealed-local-wheels-v1. Bootstrap uses only the admitted\n"
+        readme += "private wheel copies, an explicit pip seed and sealed ZPM source. It disables\n"
+        readme += "package acquisition; prepare/verify still do not execute package code.\n"
+        readme += "Keep the original plan/artifacts and exact source/interpreter tuple for reuse.\n"
     manager = '''#!/usr/bin/env python3
 import json
 from pathlib import Path
@@ -931,6 +941,8 @@ raise SystemExit(manage(root, sys.argv[1:]))
     _write(root / "README.txt", readme)
     sealed = [str(path.relative_to(root)) for folder in ("config", "secrets") for path in sorted((root / folder).iterdir())]
     sealed.extend(["manage.py", "README.txt", "preparation.json"])
+    if "dependency_plan" in data:
+        sealed.append("dependencies/files.json")
     manifest = {"schema_version": 1, "configuration": data, "directory": str(final),
                 "files": {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in sealed}}
     _write(root / "manifest.json", manifest)
@@ -942,6 +954,7 @@ def _prepared_report(root: Path, data: dict, *, reused: bool) -> dict:
              if data["schema_version"] == 2 else {"repository": data["binding"]["repository"]})
     return {"prepared": True, "reused": reused, "directory": str(root), "deployment_id": data["deployment_id"],
             **scope, "services_started": False, "remote_access_checked": False,
+            "dependency_mode": "sealed-local-wheels-v1" if "dependency_plan" in data else "ranged-install",
             "next": ["python3 manage.py bootstrap", "python3 manage.py start", "python3 manage.py doctor"]}
 
 
@@ -984,6 +997,8 @@ def verify(directory: str | Path) -> dict:
             raise ConfigurationError("bundle files must be private regular files")
         if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             raise ConfigurationError("deployment configuration integrity mismatch")
+    if "dependency_plan" in data:
+        dependencies.verify(data["dependency_plan"], data["sources"], root)
     journal = root / "state/zpm.sqlite3"
     if journal.is_symlink() or not journal.is_file() or journal.stat().st_mode & 0o077:
         raise ConfigurationError("deployment journal must remain a private regular file; restore retained state before continuing")
@@ -1053,13 +1068,18 @@ def _command(root: Path, service: str, data: dict) -> list[str]:
 
 
 def _installation_context(root: Path, data: dict, *, require_complete: bool = True) -> None:
+    if require_complete and "dependency_plan" in data:
+        dependencies.check_completed(root, data, _environment(root, "bootstrap", data))
     installation_context.probe(
         root, Path(data["sources"]["openjules"]["checkout"]), _environment(root, "bootstrap", data),
         require_complete=require_complete, revision=data["sources"]["openjules"]["revision"],
     )
 
 
-def _bootstrap_locked(root: Path, data: dict) -> dict:
+def _bootstrap_locked(root: Path, data: dict, lock_fd: int | None = None) -> dict:
+    if "dependency_plan" in data:
+        with dependencies.command_guard(lock_fd):
+            return dependencies.bootstrap(root, data, _environment(root, "bootstrap", data))
     # Check retained OpenJules evidence before installing or rewriting anything.
     openjules_complete = installation_context.completed(root, data["sources"]["openjules"]["revision"])
     if openjules_complete:
@@ -1088,7 +1108,7 @@ def _bootstrap_locked(root: Path, data: dict) -> dict:
             installation_context.publish_private(marker, (json.dumps(completion, sort_keys=True, indent=2) + "\n").encode("utf-8"))
         else:
             _write(marker, completion)
-    return {"installed": True, "services_started": False, "remote_access_checked": False}
+    return {"installed": True, "dependency_mode": "ranged-install", "services_started": False, "remote_access_checked": False}
 
 @contextmanager
 def _manager_lock(root: Path):
@@ -1099,12 +1119,12 @@ def _manager_lock(root: Path):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise ConfigurationError("this deployment manager or bootstrap is already running") from None
-        yield
+        yield lock.fileno()
 
 
 def _bootstrap(root: Path, data: dict) -> dict:
-    with _manager_lock(root):
-        return _bootstrap_locked(root, data)
+    with _manager_lock(root) as lock_fd:
+        return _bootstrap_locked(root, data, lock_fd)
 
 
 def _start(root: Path, data: dict) -> int:

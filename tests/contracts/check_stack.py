@@ -73,6 +73,51 @@ def clean_environment(extra=None):
     return environment | {"PYTHONUNBUFFERED": "1", "PYTHONNOUSERSITE": "1"} | (extra or {})
 
 
+def bootstrap_command(bundle, trial_root, label, *, deny_network):
+    command = [sys.executable, str(bundle / "manage.py"), "bootstrap"]
+    if not deny_network:
+        return command
+    require(os.getuid() > 0 and os.getgid() > 0, "sealed network trial requires an ordinary runner user")
+    for executable in ("/usr/bin/sudo", "/usr/bin/unshare", "/usr/bin/setpriv"):
+        require(Path(executable).is_file(), "sealed network trial requires sudo, unshare and setpriv")
+    helper = Path(__file__).with_name("denied_bootstrap.py").resolve()
+    # Only trusted system tools execute before the UID, groups and all process
+    # capabilities have been dropped. No candidate Python code runs as root.
+    return ["/usr/bin/sudo", "-n", "--", "/usr/bin/unshare", "--net", "--pid", "--fork", "--kill-child=SIGKILL",
+            "--mount-proc=/proc", "--propagation=private", "--",
+            "/usr/bin/setpriv", "--reuid=" + str(os.getuid()), "--regid=" + str(os.getgid()),
+            "--clear-groups", "--no-new-privs", "--bounding-set=-all", "--inh-caps=-all", "--ambient-caps=-all",
+            "--", sys.executable, "-I", str(helper), "--manager", str(bundle / "manage.py"),
+            "--bundle", str(bundle), "--evidence", str(trial_root / (label + "-network.json")),
+            "--parent-network-namespace", os.readlink("/proc/self/ns/net"),
+            "--parent-pid-namespace", os.readlink("/proc/self/ns/pid"),
+            "--uid", str(os.getuid()), "--gid", str(os.getgid())]
+
+
+def sealed_report(bundle, reference, trial_root, *, deny_network):
+    if reference is None:
+        return None
+    receipts = {}
+    for service in ("zpm", "openjules", "polyphony"):
+        receipt = json.loads((bundle / "environments" / service / "sealed-complete.json").read_text())
+        require(receipt["plan_sha256"] == reference["sha256"], "sealed completion changed the approved plan")
+        installed = receipt["installed"]
+        receipts[service] = {"source_revision": receipt["source_revision"],
+                             "interpreter": receipt["interpreter"], "distribution_count": len(installed),
+                             "installed_set_sha256": hashlib.sha256(
+                                 json.dumps(installed, sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
+    network = []
+    if deny_network:
+        for label in ("bootstrap", "bootstrap-repeat", "bootstrap-retained"):
+            record = json.loads((trial_root / (label + "-network.json")).read_text())
+            require(record["bootstrap_returncode"] == 0 and record["ambient_target_unused"],
+                    "sealed bootstrap network evidence is incomplete")
+            network.append(record)
+    return {"plan_sha256": reference["sha256"], "environments": receipts,
+            "bootstrap_ip_network_denied": deny_network, "network_observations": network,
+            "later_service_network": "explicit loopback in the ordinary runner namespace"}
+
+
 def diagnostics(root, error, checks, revisions, sensitive):
     """Bound exported logs and redact secrets before cutting the final tail."""
     def redact(content):
@@ -242,6 +287,14 @@ def run(args):
     from zpm.models import released, snapshot as worker_snapshot
     from zpm.store import Store
 
+    dependency_reference = None
+    reference_path = getattr(args, "dependency_plan", None)
+    deny_network = getattr(args, "deny_bootstrap_network", False)
+    require(not deny_network or reference_path is not None,
+            "network-denied bootstrap requires an explicit sealed dependency plan")
+    if reference_path is not None:
+        require(reference_path.stat().st_size <= 16384, "dependency plan reference is oversized")
+        dependency_reference = json.loads(reference_path.read_text(encoding="utf-8"))
     root = args.work_dir.absolute()
     require(not root.exists(), "trial work directory must be new")
     root.mkdir(mode=0o700)
@@ -272,7 +325,7 @@ def run(args):
     revisions = {name: subprocess.check_output(["git", "-C", str(path), "rev-parse", "HEAD"], text=True, timeout=15).strip()
                  for name, path in source_paths.items()}
     bundle = root / "installation"
-    prepare({
+    configuration = {
         "schema_version": 1, "deployment_id": deployment,
         "binding": {"schema_version": 1, "repository": repository, "profile": profile, "desired_workers": 0},
         "max_workers": 3,
@@ -282,7 +335,10 @@ def run(args):
         "runtime": {"max_seconds": 90, "pids_limit": 64},
         "policy": {"checks": ["controlled-test"], "reviewers": ["operator"], "max_attempts": 1,
                    "budget_seconds": 120, "attempt_seconds": 12, "capabilities": ["python"]},
-    }, bundle)
+    }
+    if dependency_reference is not None:
+        configuration["dependency_plan"] = dependency_reference
+    prepare(configuration, bundle)
     verify(bundle)
     data = json.loads((bundle / "manifest.json").read_text())["configuration"]
     environment_tokens = json.loads((bundle / "secrets/environment.json").read_text())
@@ -321,11 +377,13 @@ def run(args):
                          ("manifest.json", "secrets/environment.json", "secrets/operator.json")}
         require(prepare(data, bundle)["reused"] is True, "identical preparation did not reuse the installation")
         require(sealed_before == {name: (bundle / name).read_bytes() for name in sealed_before}, "repeat preparation changed credentials or configuration")
-        processes.run_once("bootstrap", [sys.executable, str(bundle / "manage.py"), "bootstrap"], bundle, clean_environment(), 900)
+        processes.run_once("bootstrap", bootstrap_command(bundle, root, "bootstrap", deny_network=deny_network),
+                           bundle, clean_environment(), 900)
         bootstrapped = {name: (bundle / "environments" / name / "bootstrap-complete.json").read_bytes() for name in source_paths}
         from zpm.installation_context import selector_path
         original_context = selector_path(bundle).read_bytes()
-        processes.run_once("bootstrap-repeat", [sys.executable, str(bundle / "manage.py"), "bootstrap"], bundle, clean_environment(), 60)
+        processes.run_once("bootstrap-repeat", bootstrap_command(bundle, root, "bootstrap-repeat", deny_network=deny_network),
+                           bundle, clean_environment(), 60)
         require(bootstrapped == {name: (bundle / "environments" / name / "bootstrap-complete.json").read_bytes() for name in source_paths}, "repeated bootstrap replaced completed environments")
         require(selector_path(bundle).read_bytes() == original_context, "repeated bootstrap changed the managed installation context")
         checks.append("repeat preparation and bootstrap reuse the verified private bundle, credentials and completed environments")
@@ -493,7 +551,8 @@ def run(args):
         processes.stop("zpm")
         processes.stop("openjules")
         processes.stop("polyphony")
-        processes.run_once("bootstrap-retained", [sys.executable, str(bundle / "manage.py"), "bootstrap"], bundle, clean_environment(), 60)
+        processes.run_once("bootstrap-retained", bootstrap_command(bundle, root, "bootstrap-retained", deny_network=deny_network),
+                           bundle, clean_environment(), 60)
         processes.start("polyphony", commands["polyphony"], args.polyphony_checkout, environments["polyphony"])
         eventually(snapshot, processes, "retained authority restart", 15)
         start_runtime()
@@ -527,6 +586,7 @@ def run(args):
                   "checks": checks, "canonical_task": first["task"]["id"], "candidate": candidate["id"],
                   "captured_artifacts": attempt["captured_artifacts"], "final_reserved": final_reserved,
                   "two_runtime_contention": contention,
+                  "sealed_dependencies": sealed_report(bundle, dependency_reference, root, deny_network=deny_network),
                   "proof": "real Docker, real HTTP, separate services, controlled code change",
                   "not_proven": ["live model inference", "child delegation", "independent semantic review", "forge publication", "merge authorization",
                                  "interrupted preparation recovery", "version upgrade", "destructive removal"]}
@@ -554,6 +614,9 @@ def main():
         parser.add_argument(f"--{name}-checkout", type=Path, required=True)
     parser.add_argument("--image", required=True, help="already-present full sha256 image ID")
     parser.add_argument("--work-dir", type=Path, required=True, help="new private directory, retained for recovery")
+    parser.add_argument("--dependency-plan", type=Path, help="explicit local sealed dependency reference JSON")
+    parser.add_argument("--deny-bootstrap-network", action="store_true",
+                        help="qualify bootstrap in a new IP network namespace, then run services on explicit loopback")
     args = parser.parse_args()
     args.polyphony_checkout = args.polyphony_checkout.resolve(strict=True)
     args.openjules_checkout = args.openjules_checkout.resolve(strict=True)

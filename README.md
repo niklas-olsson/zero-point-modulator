@@ -271,6 +271,15 @@ and publication. It covers the [single-repository](examples/deployment.json) and
 [model](examples/deployment-model.json) and
 [child](examples/deployment-children.json) examples.
 
+Both deployment forms accept an optional [sealed Python dependency
+plan](docs/single-host-installation.md#sealed-local-python-artifacts). It binds
+reviewed local wheel bytes, an explicit pip seed, producer revisions and an
+exact Linux CPython 3.11/3.12 tuple. Bootstrap uses private sealed copies and a
+local ZPM build with the admitted toolset; it checks installed contents and
+retains the same identity on retry. Without that opt-in, the existing ranged
+installation remains supported. Neither mode qualifies browser execution or a
+different interpreter/platform.
+
 `zpm deployment prepare` and `verify` are offline. Preparation does not establish
 managed-runtime readiness or run an agent; the generated `doctor` checks actual
 scoped capabilities. The bundle requires supported managed service entry points
@@ -328,7 +337,7 @@ The table is navigation, not another protocol specification.
 | Disabled destination registry and offline state transition | [registry](zpm/registry.py), [store](zpm/store.py), [CLI](zpm/cli.py) | [Offline destination registry](docs/offline-destination-registry.md); [#50](https://github.com/niklas-olsson/zero-point-modulator/issues/50) for the consumer contract |
 | Capacity, durable intent and recovery | [controller](zpm/controller.py), [store](zpm/store.py) | [Recovery and capacity rules](#recovery-and-capacity-rules) in this README |
 | Provider transport and lifecycle responses | [provider](zpm/provider.py), [HTTP transport](zpm/_http_transport.py), [response models](zpm/models.py) | [Wire contract](#openjules-wire-contract) in this README; [HTTP trial](docs/http-contract-trial.md) |
-| Installation, bootstrap and generated configuration | [deployment](zpm/deployment.py), [interpreter context](zpm/installation_context.py) | [Single-host installation](docs/single-host-installation.md) |
+| Installation, bootstrap and generated configuration | [deployment](zpm/deployment.py), [sealed dependencies](zpm/dependencies.py), [interpreter context](zpm/installation_context.py) | [Single-host installation](docs/single-host-installation.md) |
 | Installed trials and component pins | [trial harnesses](tests/contracts), [CI workflow](.github/workflows/ci.yml) | The corresponding trial guide above; [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3) for integrated acceptance |
 | Cold-session and idle observations | [operational measurements](tests/contracts/operational_measurement.py), [cold trial](tests/contracts/check_cold_children_stack.py) | [Cold-session measurements](docs/cold-session-measurements.md) |
 | Installed publication procedure and trial | [publication trial](tests/contracts/check_publication_stack.py), [execution-only workflow](.github/workflows/managed-publication-execution.yml), [full publication workflow](.github/workflows/managed-publication.yml) | [Publish a final child composition](docs/single-host-installation.md#publish-a-final-child-composition); OpenJules owns the publisher |
