@@ -165,6 +165,7 @@ jobs:
           name: sealed-managed-stack-evidence
           path: |
             ${{ runner.temp }}/sealed-python-inputs/acquisition-report.json
+            ${{ runner.temp }}/sealed-python-inputs/dependencies.json
             ${{ runner.temp }}/sealed-managed-stack-trial/report.json
             ${{ runner.temp }}/sealed-managed-stack-trial/diagnostics.json
             ${{ runner.temp }}/sealed-managed-stack-trial/*-network.json
