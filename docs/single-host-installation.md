@@ -1071,12 +1071,148 @@ python3 manage.py bootstrap
 python3 manage.py start
 ```
 
-Bootstrap is the explicit dependency-installing step. It uses each repository's
+Bootstrap is the explicit dependency-installing step. Without `dependency_plan`,
+it uses each repository's
 declared dependency file and records the resolved versions in that service's
 `environments/<service>/resolved-requirements.txt`. Application revisions are
 pinned. Existing upstream dependency ranges are not represented as a complete
 reproducible dependency lockfile. Re-running bootstrap retains completed
 environments instead of silently upgrading them.
+
+### Sealed local Python artifacts
+
+The optional `dependency_plan` field in deployment schema 1 or 2 selects
+`sealed-local-wheels-v1`. Omission retains `ranged-install`. This opt-in is for a
+fresh installation; it does not convert or upgrade an existing bundle. It
+supports explicitly declared Linux CPython 3.11/3.12 tuples. In particular,
+Alpine/Python 3.14 and a Terrarium browser image are not qualified by this path.
+
+Add the [reference object](../examples/dependency-plan-reference.json) at the
+top level of the deployment configuration, replacing its placeholder paths and
+zero hash with the approved values:
+
+```json
+"dependency_plan": {
+  "manifest": "/absolute/approved/python-artifacts/dependencies.json",
+  "sha256": "<SHA-256 of the exact manifest bytes>",
+  "artifacts": "/absolute/approved/python-artifacts/wheels"
+}
+```
+
+The [closed structural schema](../examples/dependency-plan.schema.json) describes
+the manifest. The installer additionally enforces the semantic rules below.
+Duplicate JSON keys, unknown fields and nonfinite values fail admission.
+
+| Field | Required value and meaning |
+| --- | --- |
+| `schema_version` | Integer `1`. This version is separate from deployment and lifecycle-wire versions. |
+| `interpreter` | Exact `implementation`, three-part `version`, `cache_tag`, `abi` (Python `SOABI`) and `platform` (`sysconfig.get_platform()`). Bootstrap checks its interpreter and each actual service interpreter. |
+| `seed` | `method: "sealed-pip-wheel"` and the filename of one admitted pip wheel present in all three environment lists. No host ensurepip package is used. |
+| `artifacts` | A finite list of unique safe wheel filenames, byte sizes, SHA-256 hashes, normalized distribution names and metadata versions. No URLs, sdists or arbitrary pip options. Wheel metadata must match the approved identity. |
+| `environments` | Exactly `zpm`, `openjules` and `polyphony`, each with its full `source_revision`, `dependency_files` digests and complete `wheels` list. Each list has one version per distribution. Separate environments may select different versions. |
+| `dependency_files` | Exactly `pyproject.toml` for ZPM and exactly `requirements.txt` for each producer. Simple package requirements, extras and markers are checked against installed metadata. Requirement includes, URLs and package-manager options are unsupported. |
+
+The manifest is at most 1,000,000 bytes. It admits at most 512 wheels, 128 MiB
+per wheel and 1 GiB in total; every wheel must be used. These are artifact input
+bounds, not a guarantee of installed disk use or package-code confinement.
+ZPM's build requires admitted `pip`, `setuptools` and `wheel` distributions and
+any dependencies they need. The current setuptools backend is supported;
+alternate backends and backend paths are refused. The whole tracked ZPM source
+is bounded to 2,048 regular files and 32 MiB, verified against its Git blob
+identities and copied into the private bundle during preparation.
+
+Acquire and review artifacts separately. Preparation and verification read
+bytes and metadata only. They never create a virtual environment, import a
+producer, invoke package/build hooks or acquire packages. They reject linked,
+nonregular, changed or escaping inputs and copy hash-verified opened bytes into
+private read-only bundle files. Retain the original manifest, wheelhouse and
+clean source checkouts: all subsequent verify/bootstrap/start/doctor operations
+recheck their original identities as well as the sealed copies. Moving or
+deleting these inputs is not a supported migration.
+
+At explicit bootstrap, each environment starts with `venv --without-pip`.
+Its isolated interpreter runs the exact sealed pip wheel. All third-party
+installs use only the admitted hash-pinned local wheels, `--no-index`,
+`--no-deps`, `--require-hashes`, `--only-binary=:all:` and `--no-cache-dir`.
+The installer strips ambient pip variables, sets `PIP_CONFIG_FILE=/dev/null`
+and uses private HOME and temporary directories. It does not use pip's
+`--isolated` option, which would ignore that configuration-file setting.
+ZPM builds from its sealed source copy with the exact admitted build toolset
+and `--no-build-isolation`; the original checkout remains clean. Its built wheel
+and source/toolset/hash record remain in `environments/zpm/sealed-build/`.
+
+Before completion, each interpreter passes `pip check`, declared-root and
+extra dependency checks, its native service import and exact installed-set
+validation. Installed RECORD hashes and an aggregate digest of each
+distribution's actual files are checked; generated bytecode is excluded.
+OpenJules also passes its existing managed-context probe before completion.
+`sealed-complete.json` records the admitted plan, source/interpreter identity,
+installed versions/content digests and the ZPM build-record digest. The existing
+`bootstrap-complete.json` format remains compatible. Reuse checks these receipts
+and actual installed contents before accepting an environment. A version list
+alone is not accepted as the original installation.
+
+Bootstrap writes its original intent before changing an environment. A stopped
+or interrupted attempt can resume only that same plan and interpreter tuple.
+The Linux command guardian inherits the manager lock, monitors the manager's
+private pipe, kills its owned package-process group, and reaps adopted children
+before releasing the lock. A descendant that creates another session is outside
+that group signal; the guardian retains the lock until that descendant exits.
+A killed manager therefore cannot allow a
+second installer while its old package command still writes. Unconfirmed
+kernel cleanup retains the lock and does not produce completion. Packages and
+build hooks execute with the installation account's authority; approved wheel
+identity is not a sandbox against malicious package code or that trusted UID.
+
+Individual commands have 60/120/300-second bounds and at most 1,000,000 captured
+output bytes. Failed bounded output stays in private `.sealed-command-*.log`
+files, never in normal status. Successful temporary input copies are removed.
+Up to three interrupted `.sealed-bootstrap-<service>-*` stages are retained
+per service; another attempt refuses until the operator inspects and explicitly
+retires only those owned scratch directories. Do not remove intents, completed
+environments, stable build evidence, credentials, journals or captures to force
+a retry. No byte-identical virtual-environment or live-upgrade claim is made.
+
+### Sealed bootstrap qualification
+
+The existing managed-stack trial accepts `--dependency-plan <reference.json>`
+and `--deny-bootstrap-network`. Its acquisition helper is an explicitly online
+test fixture, separate from supported installer admission:
+
+```sh
+python tests/contracts/prepare_dependencies.py \
+  --openjules-checkout /absolute/openjules \
+  --polyphony-checkout /absolute/polyphony \
+  --work-dir /absolute/new-python-artifacts
+python tests/contracts/check_stack.py \
+  --openjules-checkout /absolute/openjules \
+  --polyphony-checkout /absolute/polyphony \
+  --image sha256:<approved-local-trial-image-id> \
+  --dependency-plan /absolute/new-python-artifacts/reference.json \
+  --deny-bootstrap-network \
+  --work-dir /absolute/new-sealed-stack-trial
+```
+
+Acquisition records exact artifacts for the current clean revisions and
+interpreter. It uses the trial's declared pip/setuptools/wheel versions and
+resolves the producers' requirements into a finite input set; it is not a
+dependency update service or an already-reviewed production lock. Review the
+resulting plan and artifacts before using them elsewhere.
+
+The additional CI job retains OpenJules
+`247fe1d4647510d158eb564594a406ef33fcafc8` and Polyphony
+`0cf8b4772b04269505e3e1cd41324e41409b80f9`. Bootstrap and repeat bootstrap run
+in a private network/PID namespace after dropping back to the invoking UID;
+the report retains namespace/network observations, elapsed time, scoped
+waited-child peak RSS and separate artifact/installed-storage measurements.
+Namespace setup requires the qualification host's existing sudo/unshare
+capability, not extra runtime service privileges. Subsequent real loopback
+service traffic uses the ordinary trial, which runs a protected task, captures
+it, drains to zero, restarts and checks retained state. The ordinary ranged-mode
+CI trials remain separate. This evidence uses a controlled task image and
+deterministic execution; it establishes neither live model behavior, external
+forge publication, two-host operation nor browser support. Exact native run and
+revision results belong in the #55 delivery record after they pass.
 
 `start` runs all three services in the foreground. One local manager lock avoids
 two managers operating the same directory. The listeners bind to `127.0.0.1`,
