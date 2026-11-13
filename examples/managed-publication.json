@@ -1,0 +1,21 @@
+{
+  "authority": {
+    "endpoint": "http://127.0.0.1:8765",
+    "token_ref": "env:POLYPHONY_PUBLICATION_READ_TOKEN"
+  },
+  "base_commit": "REPLACE_WITH_FULL_APPROVED_BASE_SHA",
+  "forge": {
+    "author_email": "openjules-qualification@users.noreply.github.com",
+    "author_name": "OpenJules managed qualification",
+    "branch_prefix": "openjules/managed/qualification/",
+    "deployment_id": "REPLACE_WITH_DEPLOYMENT_ID",
+    "repository": "github:github.com/niklas-olsson/zero-point-modulator",
+    "repository_id": 1453104676,
+    "target_branch": "main",
+    "token_ref": "env:GITHUB_PUBLICATION_TOKEN"
+  },
+  "operation_seconds": 120,
+  "schema_version": 1,
+  "source_path": "/absolute/checkouts/zero-point-modulator",
+  "state_directory": "/absolute/private/openjules-publication"
+}
