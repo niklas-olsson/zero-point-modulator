@@ -11,12 +11,15 @@ from typing import Any
 from .controller import Controller
 from .models import Binding, ConfigurationError, ProviderConfig
 from .provider import OpenJulesProvider, ProviderError
+from .registry import configuration as registry_configuration, decode_json as registry_json
 from .store import Store
 
 
-def read_json(path: str, *, deployment: bool = False) -> Any:
+def read_json(path: str, *, deployment: bool = False, registry: bool = False) -> Any:
     try:
         raw = Path(path).read_text(encoding="utf-8")
+        if registry:
+            return registry_json(raw)
         if deployment:
             from .deployment import _decode_configuration_json
 
@@ -44,6 +47,15 @@ def parser() -> argparse.ArgumentParser:
         commands.add_parser(command).add_argument("repository")
     commands.add_parser("status")
     commands.add_parser("plan")
+    registry = commands.add_parser("registry", help="prepare disabled destinations without remote access")
+    registry_commands = registry.add_subparsers(dest="registry_command", required=True)
+    for command in ("init", "import", "validate", "migrate"):
+        sub = registry_commands.add_parser(command)
+        sub.add_argument("configuration", help="strict version 2 disabled-destination JSON")
+        if command == "migrate":
+            sub.add_argument("--backup", required=True, help="new backup file in an existing local directory")
+            sub.add_argument("--offline", action="store_true", help="assert all old controllers and configuration writers are stopped")
+    registry_commands.add_parser("status")
     deployment = commands.add_parser("deployment", help="prepare or verify an explicit private single-host installation")
     deployment_commands = deployment.add_subparsers(dest="deployment_command", required=True)
     prepare = deployment_commands.add_parser("prepare", help="write configuration without installing or starting services")
@@ -71,19 +83,37 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "validate":
             # No database, credentials, model or provider is accessed.
             output = {"valid": True, "binding": Binding.parse(read_json(args.binding)).to_dict(), "remote_access_checked": False}
+        elif args.command == "registry":
+            command = args.registry_command
+            if command == "validate":
+                registry_configuration(read_json(args.configuration, registry=True))
+                output = {"valid": True, "schema_version": 2, "execution_enabled": False, "remote_access_checked": False}
+            elif command == "init":
+                with Store.initialize_registry(args.state, read_json(args.configuration, registry=True), args.deployment_id) as store:
+                    output = store.registry_status()
+            else:
+                with Store(args.state, args.deployment_id, create=False) as store:
+                    if command == "import":
+                        output = store.import_registry(read_json(args.configuration, registry=True))
+                    elif command == "migrate":
+                        output = store.migrate_registry(read_json(args.configuration, registry=True), args.backup, offline=args.offline)
+                    else:
+                        output = store.registry_status()
         else:
             if args.command not in {"init", "enroll"} and not Path(args.state).is_file():
                 raise ConfigurationError("deployment state does not exist; run init or enroll first")
-            with Store(args.state, args.deployment_id) as store:
+            with Store(args.state, args.deployment_id, create=args.command in {"init", "enroll"}) as store:
                 if args.command == "init":
+                    store.require_legacy()
                     output = {"schema_version": 1, "deployment_id": store.deployment_id}
                 elif args.command == "enroll":
                     output = {"deployment_id": store.deployment_id, "binding": store.enroll(read_json(args.binding))}
                 elif args.command in {"target", "resume", "pause", "remove"}:
                     output = store.change(args.repository, args.command, getattr(args, "workers", None))
                 elif args.command in {"status", "plan"}:
-                    output = Controller(store).plan()
+                    output = store.registry_status() if store.format_version == 2 else Controller(store).plan()
                 else:
+                    store.require_legacy()
                     config = ProviderConfig.parse(read_json(args.provider))
                     controller = Controller(store, OpenJulesProvider(config), config.max_workers)
                     if args.command == "check":

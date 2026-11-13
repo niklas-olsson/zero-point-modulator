@@ -13,6 +13,9 @@ Polyphony authority and OpenJules Docker runtime. An explicit optional model
 policy enables a root coding agent through OpenJules' host-owned inference
 broker. Missing capabilities block worker creation. Provider qualification,
 child execution, independent review and publication have their own boundaries.
+An optional [offline destination registry](docs/offline-destination-registry.md)
+retains disabled destination identities and released legacy history. It does not
+enable distributed execution or contact remote services.
 
 ## Install and inspect
 
@@ -51,6 +54,9 @@ healthy and reserved capacity, pending operations, shortfall, and blocking
 reasons. Local output is not a fresh readiness check. A plan without a provider
 configuration reports `max_workers: null`, since it does not know the deployment
 admission ceiling used by the next controller run.
+For an explicitly initialized v2 registry, these commands instead report its
+disabled local records; the v1 controller refuses that state. See the
+[offline registry commands and migration limits](docs/offline-destination-registry.md).
 
 ## Configuration ownership
 
@@ -319,6 +325,7 @@ The table is navigation, not another protocol specification.
 | Change | Representative source | Documentation home |
 | --- | --- | --- |
 | Enrollment, configuration and CLI | [models](zpm/models.py), [CLI](zpm/cli.py), [store](zpm/store.py) | [Install and inspect](#install-and-inspect), [configuration ownership](#configuration-ownership) and [commands](#check-and-reconcile) in this README |
+| Disabled destination registry and offline state transition | [registry](zpm/registry.py), [store](zpm/store.py), [CLI](zpm/cli.py) | [Offline destination registry](docs/offline-destination-registry.md); [#50](https://github.com/niklas-olsson/zero-point-modulator/issues/50) for the consumer contract |
 | Capacity, durable intent and recovery | [controller](zpm/controller.py), [store](zpm/store.py) | [Recovery and capacity rules](#recovery-and-capacity-rules) in this README |
 | Provider transport and lifecycle responses | [provider](zpm/provider.py), [HTTP transport](zpm/_http_transport.py), [response models](zpm/models.py) | [Wire contract](#openjules-wire-contract) in this README; [HTTP trial](docs/http-contract-trial.md) |
 | Installation, bootstrap and generated configuration | [deployment](zpm/deployment.py), [interpreter context](zpm/installation_context.py) | [Single-host installation](docs/single-host-installation.md) |

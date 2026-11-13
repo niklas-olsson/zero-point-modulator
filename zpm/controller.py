@@ -16,12 +16,14 @@ def _binding(row: dict[str, Any]) -> Binding:
 
 class Controller:
     def __init__(self, store: Store, provider: WorkerProvider | None = None, max_workers: int | None = None):
+        store.require_legacy()
         self.store = store
         self.provider = provider
         self.max_workers = None if max_workers is None else count(max_workers, "max_workers")
 
     def plan(self) -> dict[str, Any]:
         """Read local observations only. Never contact a runtime or resolve tokens."""
+        self.store.require_legacy()
         all_workers = self.store.workers()
         occupied = sum(not released(row["snapshot"]) for row in all_workers)
         over_capacity = None if self.max_workers is None else max(0, occupied - self.max_workers)
@@ -58,6 +60,7 @@ class Controller:
         return {"schema_version": 1, "deployment_id": self.store.deployment_id, "max_workers": self.max_workers, "reserved": occupied, "over_capacity": over_capacity, "repositories": results}
 
     def check(self) -> dict[str, Any]:
+        self.store.require_legacy()
         if self.provider is None:
             raise ConfigurationError("provider is required for remote validation")
         for row in self.store.bindings():
@@ -74,6 +77,7 @@ class Controller:
         return self.plan()
 
     def _accept(self, row: dict[str, Any], response: Any, observing: bool = False) -> dict[str, Any]:
+        self.store.require_legacy()
         data = snapshot(response)
         expected = {"deployment_id": self.store.deployment_id, **{key: row[key] for key in ("repository", "slot_id", "generation", "launch_key", "profile")}}
         if any(data[key] != value for key, value in expected.items()):
@@ -95,6 +99,7 @@ class Controller:
 
     def _launch(self, row: dict[str, Any], allowed: bool, cancel_unstarted: bool = False) -> bool:
         """Resolve a lost response first. The original key is never replaced."""
+        self.store.require_legacy()
         assert self.provider is not None
         key = row["launch_key"]
         try:
@@ -130,6 +135,7 @@ class Controller:
             return True
 
     def _mutate(self, row: dict[str, Any], operation: str) -> None:
+        self.store.require_legacy()
         assert self.provider is not None
         key = row["launch_key"]
         try:
@@ -141,10 +147,12 @@ class Controller:
             self.store.uncertainty(key, str(exc))
 
     def tick(self, max_actions: int = 16) -> dict[str, Any]:
+        self.store.require_legacy()
         with self.store.controller_lock():
             return self._tick(max_actions)
 
     def _tick(self, max_actions: int) -> dict[str, Any]:
+        self.store.require_legacy()
         if self.provider is None or self.max_workers is None:
             raise ConfigurationError("reconciliation requires a provider and an explicit deployment capacity ceiling")
         if type(max_actions) is not int or max_actions < 1:
@@ -232,6 +240,7 @@ class Controller:
         return self.plan()
 
     def run(self, interval: float = 5.0, max_actions: int = 16) -> None:
+        self.store.require_legacy()
         if interval < 0.1:
             raise ConfigurationError("recovery interval must be at least 0.1 seconds")
         with self.store.controller_lock():

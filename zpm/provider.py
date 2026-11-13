@@ -41,6 +41,13 @@ class OpenJulesProvider:
         self.config = ProviderConfig.parse(config.__dict__)
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None, query: dict[str, Any] | None = None) -> Any:
+        for value in (payload, query):
+            if value is not None and (
+                ("schema_version" in value and (type(value["schema_version"]) is not int or value["schema_version"] != 1))
+                or set(value) & {"destination_binding", "destination_id", "journal_incarnation",
+                                 "policy_binding_id", "policy_binding_version", "protocol_version"}
+            ):
+                raise ConfigurationError("legacy provider cannot send destination-bound requests")
         token = os.environ.get(self.config.token_ref[len("env:"):])
         if not token:
             raise ProviderError("provider credential reference is unresolved")
@@ -91,6 +98,8 @@ class OpenJulesProvider:
         return self._request("GET", "/capabilities", query={"deployment_id": deployment_id, "repository": repository, "profile": profile})
 
     def ensure(self, spec: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(spec, dict) or type(spec.get("schema_version")) is not int or spec["schema_version"] != 1:
+            raise ConfigurationError("legacy provider ensure requires schema_version 1")
         return self._request("POST", "/ensure", payload=spec)
 
     def discover(self, deployment_id: str, repository: str, launch_key: str | None = None) -> list[dict[str, Any]]:
