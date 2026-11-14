@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .models import Binding, ConfigurationError, count, identifier, released, repository
-from . import registry
+from . import approvals, registry
 
 
 def encode(value: Any) -> str:
@@ -114,6 +114,8 @@ class Store:
                 expected["metadata"] = ("key", "value_v2")
                 expected["workers"] += ("protocol_version", "destination_binding")
                 expected.update(registry.REGISTRY_COLUMNS)
+                if approvals.enabled(self.connection):
+                    expected.update(approvals.APPROVAL_COLUMNS)
             tables = {row[0] for row in self.connection.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             )}
@@ -132,6 +134,7 @@ class Store:
                 raise ConfigurationError("deployment state changed its original identity")
             if version == 2:
                 registry.validate_records(self.connection)
+                approvals.validate_records(self.connection, identity)
                 if self.connection.execute("""SELECT 1 FROM workers WHERE protocol_version != 1
                         OR destination_binding IS NOT NULL LIMIT 1""").fetchone():
                     raise ConfigurationError("destination execution history is not supported by this offline version")
@@ -189,7 +192,22 @@ class Store:
 
     def registry_status(self) -> dict[str, Any]:
         self.require_registry()
-        return registry.status(self.connection, self.deployment_id)
+        return approvals.annotate_status(self.connection, registry.status(self.connection, self.deployment_id))
+
+    def import_approval(self, path: str | Path) -> dict[str, Any]:
+        self.require_registry()
+        approval = approvals.read_private_file(path)
+        try:
+            with self.controller_lock(), self.transaction():
+                self.require_registry()
+                approvals.import_record(self.connection, approval, self.deployment_id)
+        except sqlite3.Error:
+            raise ConfigurationError("offline approval import could not commit its complete record") from None
+        return self.registry_status()
+
+    def inspect_approval(self, destination_id: str, policy_binding_id: str) -> dict[str, Any]:
+        self.require_registry()
+        return approvals.inspect_record(self.connection, destination_id, policy_binding_id)
 
     def import_registry(self, data: dict[str, Any]) -> dict[str, Any]:
         self.require_registry()
@@ -253,11 +271,10 @@ class Store:
         self.connection.execute("BEGIN IMMEDIATE")
         try:
             yield
+            self.connection.commit()
         except BaseException:
             self.connection.rollback()
             raise
-        else:
-            self.connection.commit()
 
     def close(self) -> None:
         self.connection.close()
