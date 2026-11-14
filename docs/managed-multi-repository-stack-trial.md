@@ -21,7 +21,7 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `247fe1d4647510d158eb564594a406ef33fcafc8` |
+| OpenJules | `394c1c22a740a80daf9dedd1b6a3e4712b2c5caf` |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
@@ -129,7 +129,7 @@ Polyphony `143d77c92ca8699ad7ccad4de98a540da6540a09`. Its
 passed sixteen jobs, and its [actual-main run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43138570851)
 passed all eight jobs with 222 tests on both Python versions and all six installed
 reports. Those results qualify that recorded set, not the later Polyphony pin.
-Every candidate in this set must pass the complete eight-job ZPM workflow before
+Every candidate in this set must pass the complete required ZPM workflow before
 promotion. [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3)
 retains the exact-head, relevant-base and actual-main evidence. Historical
 reports, including those for previous operative pins, remain bound to their

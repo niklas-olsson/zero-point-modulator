@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: 247fe1d4647510d158eb564594a406ef33fcafc8
+          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -67,7 +67,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged managed-public runtime, shared by every integration gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: 247fe1d4647510d158eb564594a406ef33fcafc8
+          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -127,9 +127,11 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Same qualified producer as the ordinary installed stack.
-          ref: 247fe1d4647510d158eb564594a406ef33fcafc8
+          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
           path: openjules
           persist-credentials: false
+          # The producer's approved helpers and recipe have separate Git pins.
+          fetch-depth: 0
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
@@ -147,8 +149,30 @@ jobs:
             --polyphony-checkout "$GITHUB_WORKSPACE/polyphony" \
             --openjules-checkout "$GITHUB_WORKSPACE/openjules" \
             --work-dir "$RUNNER_TEMP/sealed-python-inputs"
-      - name: Build the separately identified controlled task image
-        run: docker build --iidfile "$RUNNER_TEMP/sealed-trial-image.id" - < zpm/tests/contracts/Dockerfile.managed-trial
+      - name: Build and qualify the finite OpenJules managed image
+        working-directory: openjules
+        run: |
+          sudo env PATH="$PATH" "$(command -v python)" -B -m tools.managed_image build \
+            --approved-inputs docker/managed-image-inputs.json \
+            --approved-inputs-sha256 sha256:dc588f1eaff9b6e73fd94f90690cf67f5dd9ef23e39f722a98d09e5b373ec644 \
+            --approved-qualification docker/managed-image-qualification.json \
+            --approved-qualification-sha256 sha256:def63e03d458fc0a15991a98dbce67c0ddc7e83c2898f61d5bb3f78cc33b073d \
+            --output "$RUNNER_TEMP/sealed-managed-image"
+      - name: Verify the producer archive and import its exact image
+        working-directory: openjules
+        run: |
+          artifact_sha256=$(sudo sha256sum "$RUNNER_TEMP/sealed-managed-image/artifact.json" | cut -d ' ' -f 1)
+          sudo env PATH="$PATH" "$(command -v python)" -B -m tools.managed_image verify \
+            --archive "$RUNNER_TEMP/sealed-managed-image/managed-agent.docker.tar" \
+            --record "$RUNNER_TEMP/sealed-managed-image/artifact.json" \
+            --record-sha256 "sha256:$artifact_sha256" \
+            > "$RUNNER_TEMP/sealed-managed-image-verification.json"
+          sudo docker image load --input "$RUNNER_TEMP/sealed-managed-image/managed-agent.docker.tar"
+          python - "$RUNNER_TEMP/sealed-managed-image-verification.json" "$RUNNER_TEMP/sealed-trial-image.id" <<'PY'
+          import json, pathlib, sys
+          record = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          pathlib.Path(sys.argv[2]).write_text(record["image_id"] + "\n")
+          PY
       - name: Bootstrap without IP networking and run the canonical retained-work trial
         run: |
           python zpm/tests/contracts/check_stack.py \
@@ -158,6 +182,15 @@ jobs:
             --dependency-plan "$RUNNER_TEMP/sealed-python-inputs/reference.json" \
             --deny-bootstrap-network \
             --work-dir "$RUNNER_TEMP/sealed-managed-stack-trial"
+      - name: Stage the producer's named safe metadata
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/sealed-managed-image-evidence"
+          for name in inputs.json artifact.json archive-inventory.json acquisition-report.json resource-report.json apt-verification.txt context.json build.log native-tests.txt failed-command.txt; do
+            if sudo test -f "$RUNNER_TEMP/sealed-managed-image/$name"; then
+              sudo install -m 0644 "$RUNNER_TEMP/sealed-managed-image/$name" "$RUNNER_TEMP/sealed-managed-image-evidence/$name"
+            fi
+          done
       - name: Retain only credential-free acquisition and installed evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -166,6 +199,8 @@ jobs:
           path: |
             ${{ runner.temp }}/sealed-python-inputs/acquisition-report.json
             ${{ runner.temp }}/sealed-python-inputs/dependencies.json
+            ${{ runner.temp }}/sealed-managed-image-evidence/
+            ${{ runner.temp }}/sealed-managed-image-verification.json
             ${{ runner.temp }}/sealed-managed-stack-trial/report.json
             ${{ runner.temp }}/sealed-managed-stack-trial/diagnostics.json
             ${{ runner.temp }}/sealed-managed-stack-trial/*-network.json
@@ -187,7 +222,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Same merged managed-public runtime as every other integration gate.
           # Update this pin with docs/managed-isolation-stack-trial.md.
-          ref: 247fe1d4647510d158eb564594a406ef33fcafc8
+          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -236,7 +271,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Same merged managed-public runtime as every other integration gate.
           # Update with docs/managed-multi-repository-stack-trial.md.
-          ref: 247fe1d4647510d158eb564594a406ef33fcafc8
+          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -285,7 +320,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged managed-public runtime, shared by every integration gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: 247fe1d4647510d158eb564594a406ef33fcafc8
+          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -390,7 +425,7 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged managed-public runtime, shared by every integration gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: 247fe1d4647510d158eb564594a406ef33fcafc8
+          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
