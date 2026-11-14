@@ -431,6 +431,35 @@ class SyscallPreparationRecoveryTests(PreparationRecoveryTests):
         mask.start()
         self.addCleanup(mask.stop)
 
+    # Keep each case explicit for the pinned-source, non-executing test inventory
+    # used by the confined full-suite verifier. Reuse the base class assertions.
+    def test_killed_preparer_retries_without_touching_abandoned_stages(self):
+        super().test_killed_preparer_retries_without_touching_abandoned_stages()
+
+    def test_kill_after_publication_reuses_published_identity_and_removed_state(self):
+        super().test_kill_after_publication_reuses_published_identity_and_removed_state()
+
+    def test_complete_stage_uses_final_paths_but_generated_manager_cannot_start_it(self):
+        super().test_complete_stage_uses_final_paths_but_generated_manager_cannot_start_it()
+
+    def test_atomic_publication_never_replaces_a_foreign_destination_race(self):
+        super().test_atomic_publication_never_replaces_a_foreign_destination_race()
+
+    def test_concurrent_preparers_publish_once_then_reuse_the_same_bundle(self):
+        super().test_concurrent_preparers_publish_once_then_reuse_the_same_bundle()
+
+    def test_unlocked_publication_race_has_one_winner_and_retains_the_loser(self):
+        super().test_unlocked_publication_race_has_one_winner_and_retains_the_loser()
+
+    def test_stage_directory_fsync_failure_retains_unpublished_stage(self):
+        super().test_stage_directory_fsync_failure_retains_unpublished_stage()
+
+    def test_parent_fsync_failure_after_publication_reuses_the_published_identity(self):
+        super().test_parent_fsync_failure_after_publication_reuses_the_published_identity()
+
+    def test_unsupported_atomic_primitive_fails_closed_without_fallback(self):
+        super().test_unsupported_atomic_primitive_fails_closed_without_fallback()
+
 
 class AtomicRenameBindingTests(unittest.TestCase):
     def test_wrapper_is_preferred_without_inspecting_the_syscall_abi(self):
