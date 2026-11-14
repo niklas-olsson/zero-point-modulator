@@ -345,13 +345,16 @@ results passed. The [fifth attempt](docs/native-alpine-evidence/attempt-5/outcom
 passed artifact bytes, APK trust and base-image identity, then failed
 `CONTAINER_CAPABILITIES` in assembly. Its cleanup result is `FAIL` with
 `CONTAINER_MUTATION_OUTCOME_UNKNOWN`; zero final pending reservations do not
-turn that into confirmed cleanup. Candidate installation and interfaces remain
-unqualified. Attempts 3 and 4's exact paths and attempt 5's actual inspect
-payload remain unretained. The live-record and retained signature-input
-corrections stay in place. A distinct sixth plan corrects only the expected
-Docker inspect capability spelling, preserving the exact requested authority,
-strict observations, cleanup uncertainty and every cap. It requires independent
-review and fresh gates before any separate activation.
+turn that into confirmed cleanup. The [sixth attempt](docs/native-alpine-evidence/attempt-6/outcome.md)
+passed the same three checks, then failed `CONTAINER_STATS_MISSING` during
+assembly, with cleanup PASS. Candidate installation and interfaces remain
+unqualified. Attempts 3 and 4's exact paths, attempt 5's inspect payload and
+attempt 6's stats payload/state chronology remain unretained. The previous
+corrections stay in place. A distinct seventh plan admits Docker 28.0.4's
+documented one-shot stats representation through the existing full-ID ownership
+check, keeps every live counter mandatory and preserves identity/type/limit
+refusals. Requested authority, cleanup uncertainty and all caps remain unchanged.
+Independent review and fresh gates precede any separate activation.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private

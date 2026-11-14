@@ -1,6 +1,6 @@
 # Native Alpine active-harness contract
 
-**Status: corrected attempt-6 source candidate for independent review.**
+**Status: corrected attempt-7 source candidate for independent review.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -12,8 +12,12 @@ its exact failed path and cause remain unknown. The
 [fifth attempt](native-alpine-evidence/attempt-5/outcome.md) passed artifact bytes,
 APK trust and base-image identity, then failed assembly capability inspection.
 Its actual payload remains unknown and cleanup explicitly failed with an
-unconfirmed create outcome. Attempt 6 has not been admitted; it retains every
-original authority/resource cap and corrects only the expected inspect spelling.
+unconfirmed create outcome. The [sixth attempt](native-alpine-evidence/attempt-6/outcome.md)
+passed artifact bytes, APK trust and base-image identity, then failed stats
+observation during assembly with cleanup PASS. Its actual response/state
+chronology remains unknown. Attempt 7 is unactivated and corrects the pinned
+one-shot response representation and failure classification, retaining every
+original authority/resource cap.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
 It changes only the ZPM qualification fixture. The original
@@ -51,7 +55,7 @@ or architecture-gated feature is part of this design.
 | Existing `check_alpine_sealed_candidate.py` | Retain the inert CLI, exact metadata admission and data-only archive helpers. No active flag is added to its command. |
 | New `check_alpine_sealed_runtime.py` | Explicit active entry point, plan admission, host process/resource guardian, bounded acquisition, Docker custody, stages, safe result reduction and cleanup. |
 | New `alpine_sealed_guest.py` | Fixed assembly-inventory and nonroot qualification commands. Use the original production APIs, separate owner interpreters and finite probe IDs. |
-| `native-alpine/active-plan-6.json` | Bind the original plan/recipe, distinct sixth attempt, exact commands, source manifests and unchanged authority/resource limits. All five prior plans remain unchanged historical evidence. |
+| `native-alpine/active-plan-7.json` | Bind the original plan/recipe, distinct seventh attempt, exact commands, source manifests and unchanged authority/resource limits. All six prior plans remain unchanged historical evidence. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -275,13 +279,28 @@ CPU limits are Docker-enforced settings; summed host RSS is a sampled stop limit
 Bounded collection work also takes time. Record its actual maximum sample gap;
 do not describe the loop interval as a hard periodic or instantaneous observation.
 Use the supported Engine stats operation with `stream=false&one-shot=true`
-through the same fixed local socket, with bounded responses and deadlines. The
-[pinned Moby implementation](https://github.com/moby/moby/blob/06db1734267bf7770914b417bff6556d835bf8cc/daemon/stats.go)
-collects one immediate sample for this form; the
-[API definition](https://github.com/moby/moby/blob/06db1734267bf7770914b417bff6556d835bf8cc/api/swagger.yaml)
-documents the parameter. Refuse an unsupported observed API or missing live
-counter. Empty stats after exit require a separately confirmed exact container
-exit; they are not a zero-usage live sample.
+through the same fixed local socket, with one bounded response, no retry and
+the existing one-second/original-deadline limits. The versioned contract requires
+observed Docker server 28.0.4 and API 1.45 before candidate work. Its
+[pinned stats implementation](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/stats.go)
+collects one immediate sample, and its
+[HTTP route](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/api/server/router/container/container_routes.go)
+admits the parameter on that API. The successful path does not populate name/ID;
+the exact [JSON tags](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/api/types/container/stats.go)
+omit those empty strings. Complete owned inspection immediately precedes the
+full-ID request. Omitted response identity is allowed under this pinned path;
+any supplied ID/name must exactly match. No native response is rewritten.
+
+Require actual nonnegative integer memory usage, exact memory limit, PID count
+and CPU total; Boolean/type aliases and resource-limit violations refuse.
+Validate every present counter before classifying a missing one. Identity,
+type and limit refusals stay fatal and are not replaced by a later exit. Only
+missing counters may join a separate full owned/configuration inspection proving
+`Running=false` with `exited` or `dead` status. That observation yields no new
+sample, preserves prior counters and retains the original reservation. Empty
+stats are never a zero-usage live sample. The
+[sixth outcome](native-alpine-evidence/attempt-6/outcome.md) keeps the native
+payload uncertainty separate from this source proof.
 
 The unchanged 4-GiB storage stop is sampled logical accounting: owned regular
 files, source/Git copies, acquired bodies, generated archives, private work/logs,

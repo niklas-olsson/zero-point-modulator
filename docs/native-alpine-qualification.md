@@ -1,6 +1,6 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: five actual attempts failed; corrected attempt 6 is an unactivated
+**Status: six actual attempts failed; corrected attempt 7 is an unactivated
 source candidate pending review and fresh gates.**
 The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
 `SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
@@ -13,8 +13,11 @@ path and exact cause were not retained. All four owned cleanup results passed.
 The [fifth outcome](native-alpine-evidence/attempt-5/outcome.md) passed artifact
 bytes, APK trust and base-image identity, then failed `CONTAINER_CAPABILITIES`
 in assembly. Cleanup failed with `CONTAINER_MUTATION_OUTCOME_UNKNOWN`. Its
-actual inspect payload and precise failed call site were not retained; no
-candidate installation or interface qualification is established. This
+actual inspect payload and precise failed call site were not retained. The
+[sixth outcome](native-alpine-evidence/attempt-6/outcome.md) passed the same three
+checks, then failed `CONTAINER_STATS_MISSING` in assembly with cleanup PASS.
+Its actual stats payload and state chronology remain unknown. No candidate
+installation or interface qualification is established. This
 [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 fixture keeps the original inert compiler and adds a separate, explicitly gated
 native runner. It changes no installer, Python admission, operative integration
@@ -135,7 +138,8 @@ musl fixture keeps its original temporary lifecycle unless this explicit option
 is selected. The [fourth outcome](native-alpine-evidence/attempt-4/outcome.md)
 distinguishes the reproduced source race from the unidentified hosted failure.
 
-Attempt 6 has a distinct work directory, upload identity and code binding. The
+The unchanged [sixth plan](../tests/contracts/native-alpine/active-plan-6.json)
+belongs to its failed run at `897ad91299b8ffb6d3a9c37e6864688ff9495af4`. The
 same `CHOWN`, `DAC_OVERRIDE` and `FOWNER` CLI requests are compared with Docker
 28's exact canonical inspect names `CAP_CHOWN`, `CAP_DAC_OVERRIDE` and
 `CAP_FOWNER`. Drop `ALL` remains exact. Qualification still adds no capability;
@@ -146,6 +150,19 @@ No observed input is normalized into authority. The
 source proof, controlled reproduction and the unknown actual payload. Lost
 create acknowledgement still prevents a cleanup PASS even after matching owned
 object removal and observed absence. All prior plans and authority remain intact.
+
+The distinct seventh plan fixes the source-proven one-shot stats mismatch.
+Docker 28.0.4/API 1.45 can omit `id` and `name` on a successful response; the
+existing full owned inspection and fixed full-ID request bind that observation.
+Any supplied identity must match exactly. Every required live counter remains
+mandatory and all present type/limit errors remain fatal even if another field
+is missing or the container later exits. A different server version refuses
+before candidate work. Only missing counters may join a separately confirmed
+exact owned terminal state, yielding no sample. The
+[sixth outcome](native-alpine-evidence/attempt-6/outcome.md) records the exact
+primary-source proof, controlled regressions and unknown actual payload. New
+attempt/work/upload identity, unchanged caps and all six prior plans prevent a
+source correction from rewriting historical evidence.
 
 Check active-plan source consistency without acquisition, Docker or candidate
 execution using an externally recorded exact hash:

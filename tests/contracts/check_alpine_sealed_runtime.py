@@ -44,7 +44,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-6.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-7.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -101,6 +101,20 @@ FIXED_POLICY["container_capability_inspection"] = {
     "empty_addition": "explicit-null-or-empty-list-only",
     "comparison": "exact-canonical-observation-without-input-normalization",
     "authority_and_cli_arguments": "unchanged",
+}
+FIXED_POLICY["container_stats_observation"] = {
+    "schema": "zpm-native-alpine-container-stats/v1",
+    "docker_server": "28.0.4", "engine_api": API,
+    "request": "/containers/<full-owned-id>/stats?stream=false&one-shot=true",
+    "transport": "one bounded GET over the fixed local Unix socket",
+    "identity": "exact pre-request owned inspect plus full-id request; supplied payload id/name must match",
+    "omitted_payload_identity": "pinned-successful-one-shot-representation-only",
+    "required_counters": ["memory_stats.usage", "memory_stats.limit", "pids_stats.current",
+                          "cpu_stats.cpu_usage.total_usage"],
+    "missing_counter": "no zero inference; only separately confirmed exact owned exit permits no sample",
+    "identity_type_or_limit_refusal": "preserved without terminal-state suppression",
+    "stats_retries": 0, "response_bytes": 1048576, "request_seconds": 1,
+    "deadline": "original-work-or-cleanup-observation-deadline",
 }
 FIXED_POLICY["final_report_reservation_bytes"] = 4 * CAPS["report_bytes"]
 TRANSIENT_FILES = {name: CAPS["report_bytes"] for name in (
@@ -162,7 +176,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-6"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-7"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -805,20 +819,37 @@ def docker_json(path, *, absent=False, deadline=None):
         connection.close()
 
 
-def assert_stats(stats, identity, running):
-    require(type(stats) is dict and stats.get("id") == identity, "CONTAINER_STATS_IDENTITY")
+def assert_stats(stats, identity, running, *, name=None):
+    # Moby 28.0.4's successful OneShot path does not populate ID/Name. The
+    # caller binds the full immutable ID in the fixed-socket GET immediately
+    # after the complete owned-container inspection. Never synthesize an ID
+    # into the response, accept a conflicting supplied identity, or infer a
+    # missing live counter as zero.
+    require(type(identity) is str and candidate.HEX.fullmatch(identity), "CONTAINER_STATS_IDENTITY")
+    require(type(stats) is dict and ("id" not in stats or stats["id"] == identity)
+            and ("name" not in stats or type(name) is str and stats["name"] == "/" + name),
+            "CONTAINER_STATS_IDENTITY")
     if not running:
         return None
-    try:
-        memory = stats["memory_stats"]["usage"]
-        pids = stats["pids_stats"]["current"]
-        cpu = stats["cpu_stats"]["cpu_usage"]["total_usage"]
-        limit = stats["memory_stats"]["limit"]
-    except (KeyError, TypeError):
-        raise Refused("CONTAINER_STATS_MISSING") from None
-    require(all(type(x) is int and x >= 0 for x in (memory, pids, cpu, limit)), "CONTAINER_STATS_TYPE")
-    require(limit == CAPS["container_memory_bytes"] and memory <= limit and pids <= CAPS["container_pids"], "CONTAINER_RESOURCE_LIMIT")
-    return {"memory": memory, "pids": pids, "cpu": cpu}
+    counters = {}
+    for key, path in (("memory", ("memory_stats", "usage")), ("limit", ("memory_stats", "limit")),
+                      ("pids", ("pids_stats", "current")), ("cpu", ("cpu_stats", "cpu_usage", "total_usage"))):
+        value = stats
+        for member in path:
+            require(type(value) is dict, "CONTAINER_STATS_TYPE")
+            if member not in value:
+                break
+            value = value[member]
+        else:
+            require(type(value) is int and value >= 0, "CONTAINER_STATS_TYPE")
+            require((key != "limit" or value == CAPS["container_memory_bytes"])
+                    and (key != "memory" or value <= CAPS["container_memory_bytes"])
+                    and (key != "pids" or value <= CAPS["container_pids"]), "CONTAINER_RESOURCE_LIMIT")
+            counters[key] = value
+    # Validate every present counter before classifying an incomplete sample,
+    # so another missing field cannot hide a known type/limit violation at exit.
+    require(len(counters) == 4, "CONTAINER_STATS_MISSING")
+    return {key: counters[key] for key in ("memory", "pids", "cpu")}
 
 
 def environment_map(values):
@@ -917,7 +948,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-6",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-7",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,
@@ -1074,10 +1105,14 @@ class Trial:
                 self.observe_guest_phase(row, running=True)
                 stats = docker_json("/containers/" + identity + "/stats?stream=false&one-shot=true", deadline=self.observation_deadline())
                 try:
-                    counters = assert_stats(stats, identity, True)
-                except Refused:
+                    counters = assert_stats(stats, identity, True, name=row["name"])
+                except Refused as error:
+                    if str(error) != "CONTAINER_STATS_MISSING":
+                        raise
                     after = docker_json("/containers/" + identity + "/json", deadline=self.observation_deadline())
-                    require(after.get("Id") == identity and after.get("State", {}).get("Running") is False
+                    assert_container(after, identity, row["name"], row["image"], row["stage"], self.owner,
+                                     row["mounts"], os.getuid(), os.getgid(), expected_environment(self.documents))
+                    require(after.get("State", {}).get("Running") is False
                             and after["State"].get("Status") in ("exited", "dead"), "CONTAINER_STATS_MISSING")
                     counters = None
                 if counters:
@@ -1309,6 +1344,8 @@ class Trial:
         for name, row in (("docker_client", client), ("docker_server", server)):
             require(type(row["Version"]) is str and re.fullmatch(r"[0-9][A-Za-z0-9.+_-]{0,63}", row["Version"]), "DOCKER_VERSION")
             self.record["environment"][name] = row["Version"]
+        require(server["Version"] == FIXED_POLICY["container_stats_observation"]["docker_server"],
+                "CONTAINER_STATS_ENGINE_VERSION")
         daemon = docker_json("/info", deadline=self.work_deadline)
         require(daemon.get("OSType") == "linux" and daemon.get("Architecture") in ("x86_64", "amd64"), "DOCKER_PLATFORM")
         require(daemon.get("MemoryLimit") is True and daemon.get("SwapLimit") is True and daemon.get("PidsLimit") is True, "DOCKER_LIMIT_SUPPORT")

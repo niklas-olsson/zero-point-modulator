@@ -14,7 +14,10 @@ then refused `STORAGE_OBSERVATION`; its exact path and cause remain unknown and
 owned cleanup passed. The original checks below retain their source scope.
 The [fifth](native-alpine-evidence/attempt-5/outcome.md) passed artifact bytes,
 APK trust and base-image identity, then failed assembly capability inspection
-with an unknown create outcome and cleanup `FAIL`. The sixth plan requires
+with an unknown create outcome and cleanup `FAIL`. The
+[sixth](native-alpine-evidence/attempt-6/outcome.md) failed stats observation in
+assembly after the same three checks passed; cleanup passed, but its actual
+stats payload and state chronology remain unknown. The seventh plan requires
 fresh review and hosted gates. Earlier source-check sections remain historical.
 
 The original inert plan, 173-artifact recipe and native-member catalog retain
@@ -261,6 +264,51 @@ example validation pass. The 98,587-byte host wheel has SHA-256
 It is local packaging evidence, not an Alpine installation or release.
 Independent review and fresh hosted gates must precede a separate sixth-plan
 admission. This source freeze activates no further native work.
+
+## Pinned one-shot stats correction after attempt 6
+
+Agent-authored by ChatGPT `/root/assess_polyphony`. The original sixth
+[summary/custody](native-alpine-evidence/attempt-6/outcome.md) remains `FAILED`.
+Its stats payload, rejected field and container-state chronology remain unknown.
+Nine exact Docker Engine 28.0.4 source files and one supporting Go JSON source
+establish that successful one-shot stats omit ID/name. An inert extraction of
+the original methods reproduced the identity refusal for that shape, and the
+separate suppression of identity/limit failures after a controlled exit.
+
+The distinct `active-plan-7.json` is **9,262 bytes**, SHA-256
+`d87dba65bad619979dd704a4e1035acfb5c7383ec6fe0c795cd34d9fc55a3973`.
+Its eleven-path executing closure changes only the host runner and workflow.
+It binds the exact Docker-server prerequisite, original full-ID ownership path,
+mandatory live counters and narrower missing-counter exit handling. A new
+attempt/work/upload identity keeps all six historical plans unchanged. The
+candidate, guest commands, authority, resource limits, artifact catalog,
+production tuple and original deadlines are byte-identical.
+
+The workflow's four-module source lane passes **123 tests**, including twelve
+new controlled stats/order/refusal cases. They cover omitted identities,
+exact supplied identities, missing/type/Boolean/limit refusals, full inspection
+before the single fixed-ID stats request, failure preservation across exit,
+exact owned terminal-state confirmation without a zero sample, and refusal of
+other server versions before candidate work. They use controlled responses and
+perform no Docker operation or candidate execution. The 24,156-byte focused log
+has SHA-256 `3431358e8a2f9e18c39daf3a5a2df2cfe9fd1c6a5aecc2434f78763db52ed9b5`.
+The isolated `--check-plan` reports `SOURCE_PLAN_ADMITTED` and native execution
+`NOT_RUN`. Python syntax, workflow YAML, all five shell blocks and whitespace
+checks pass.
+
+The full local suite ran **777 tests in 140.431 seconds: 776 passed and the same
+existing `/proc/<pid>/task/<pid>/children` observation errored**. The helper and
+test remain byte-identical to actual parent `897ad912`; the earlier unchanged
+baseline reproduction remains applicable. The 153,165-byte full log has SHA-256
+`e6516f59f547d008f2d17c11cc16b4690685a7c4f691cf71e14a661cc0f2d257`.
+The required hosted full gate remains required.
+
+Offline wheel construction, fresh isolated installation, installed CLI help,
+example validation and installed module-path checks pass. The 98,587-byte host
+wheel has SHA-256 `3c31763e410514cf269644d30e1f5b8b2f0845efc3b3773b3d54653e60959813`.
+This is local packaging evidence, not an Alpine installation or release.
+Independent review, fresh hosted gates and separate exact admission must precede
+any seventh native trial. This source freeze activates no further native work.
 
 ## Original completed-source local checks
 

@@ -709,6 +709,199 @@ class CapabilityInspectionTests(Fixture):
         self.assertFalse(trial.record["native_execution_qualified"])
 
 
+class ContainerStatsTests(Fixture):
+    """Pinned one-shot response shapes and controlled full-ID request chronology."""
+
+    def stats(self):
+        return {"memory_stats": {"usage": 4096, "limit": candidate.CAPS["container_memory_bytes"]},
+                "pids_stats": {"current": 2}, "cpu_stats": {"cpu_usage": {"total_usage": 123456}}}
+
+    def running(self):
+        trial = self.trial()
+        row = {"stage": "assembly", "name": trial.owner + "-assembly", "image": "sha256:" + "c" * 64,
+               "mounts": [], "id": "d" * 64, "removed": False, "state": "present", "mutation_confirmed": True,
+               "reserved_bytes": runtime.MUTATION_RESERVATIONS["container_writable_bytes"]}
+        trial.journal["containers"].append(row)
+        trial.observe_guest_phase = Mock()
+        info = self.container(trial, row)
+        info["State"] = {"Running": True, "Status": "running"}
+        return trial, row, info
+
+    def test_successful_one_shot_omits_identity_without_synthesizing_it(self):
+        stats = self.stats()
+        original = copy.deepcopy(stats)
+        self.assertEqual(runtime.assert_stats(stats, "d" * 64, True),
+                         {"memory": 4096, "pids": 2, "cpu": 123456})
+        self.assertEqual(stats, original)
+        for addition in ({"id": "d" * 64}, {"name": "/owned"}, {"id": "d" * 64, "name": "/owned"}):
+            with self.subTest(addition=addition):
+                self.assertEqual(runtime.assert_stats({**stats, **addition}, "d" * 64, True, name="owned"),
+                                 {"memory": 4096, "pids": 2, "cpu": 123456})
+
+    def test_supplied_empty_null_wrong_or_unbound_identity_is_not_omission(self):
+        for key, values in (("id", ("", None, False, "d" * 63, "e" * 64)),
+                            ("name", ("", None, False, "owned", "/different"))):
+            for value in values:
+                with self.subTest(key=key, value=value), self.assertRaisesRegex(candidate.Refused, "CONTAINER_STATS_IDENTITY"):
+                    runtime.assert_stats({**self.stats(), key: value}, "d" * 64, True, name="owned")
+        with self.assertRaisesRegex(candidate.Refused, "CONTAINER_STATS_IDENTITY"):
+            runtime.assert_stats({**self.stats(), "name": "/owned"}, "d" * 64, True)
+
+    def test_every_required_counter_is_observed_without_zero_inference(self):
+        paths = (("memory_stats", "usage"), ("memory_stats", "limit"), ("pids_stats", "current"),
+                 ("cpu_stats", "cpu_usage", "total_usage"))
+        for path in paths:
+            stats = self.stats()
+            parent = stats
+            for key in path[:-1]:
+                parent = parent[key]
+            del parent[path[-1]]
+            with self.subTest(path=path), self.assertRaisesRegex(candidate.Refused, "CONTAINER_STATS_MISSING"):
+                runtime.assert_stats(stats, "d" * 64, True)
+        with self.assertRaisesRegex(candidate.Refused, "CONTAINER_STATS_MISSING"):
+            runtime.assert_stats({}, "d" * 64, True)
+
+    def test_counter_and_parent_types_refuse_boolean_null_and_negative_aliases(self):
+        for key, value in (("memory_stats", None), ("memory_stats", []), ("pids_stats", False),
+                           ("cpu_stats", {"cpu_usage": None})):
+            with self.subTest(key=key, value=value), self.assertRaisesRegex(candidate.Refused, "CONTAINER_STATS_TYPE"):
+                runtime.assert_stats({**self.stats(), key: value}, "d" * 64, True)
+        for value in (None, True, False, -1, 1.0, "1"):
+            stats = self.stats()
+            stats["cpu_stats"]["cpu_usage"]["total_usage"] = value
+            with self.subTest(value=value), self.assertRaisesRegex(candidate.Refused, "CONTAINER_STATS_TYPE"):
+                runtime.assert_stats(stats, "d" * 64, True)
+
+    def test_original_memory_limit_and_pid_caps_remain_enforced(self):
+        for group, key, value in (("memory_stats", "usage", candidate.CAPS["container_memory_bytes"] + 1),
+                                  ("memory_stats", "limit", candidate.CAPS["container_memory_bytes"] - 1),
+                                  ("memory_stats", "limit", candidate.CAPS["container_memory_bytes"] + 1),
+                                  ("pids_stats", "current", candidate.CAPS["container_pids"] + 1)):
+            stats = self.stats()
+            stats[group][key] = value
+            with self.subTest(key=key, value=value), self.assertRaisesRegex(candidate.Refused, "CONTAINER_RESOURCE_LIMIT"):
+                runtime.assert_stats(stats, "d" * 64, True)
+
+    def test_missing_counter_cannot_hide_a_present_invalid_or_over_limit_value(self):
+        for value, code in ((True, "CONTAINER_STATS_TYPE"),
+                            (candidate.CAPS["container_pids"] + 1, "CONTAINER_RESOURCE_LIMIT")):
+            stats = self.stats()
+            del stats["memory_stats"]["usage"]
+            stats["pids_stats"]["current"] = value
+            with self.subTest(value=value), self.assertRaisesRegex(candidate.Refused, code):
+                runtime.assert_stats(stats, "d" * 64, True)
+
+    def test_full_owned_inspection_precedes_one_fixed_id_request_and_updates_counters(self):
+        trial, row, before = self.running()
+        with patch.object(runtime, "docker_json", side_effect=[before, self.stats()]) as read:
+            self.assertEqual(trial.observe_mutations(), row["reserved_bytes"])
+        self.assertEqual([call.args[0] for call in read.call_args_list],
+                         ["/containers/" + row["id"] + "/json?size=true",
+                          "/containers/" + row["id"] + "/stats?stream=false&one-shot=true"])
+        self.assertTrue(all(call.kwargs["deadline"] == trial.work_deadline for call in read.call_args_list))
+        trial.observe_guest_phase.assert_called_once_with(row, running=True)
+        resource = trial.record["resources"]
+        self.assertEqual((resource["peak_container_memory_bytes"], resource["peak_container_pids"],
+                          resource["last_container_cpu_ns"]), (4096, 2, 123456))
+
+    def test_wrong_pre_inspect_owner_refuses_before_any_stats_request(self):
+        trial, row, before = self.running()
+        before["Config"]["Labels"][runtime.LABEL] = "foreign-owner"
+        with patch.object(runtime, "docker_json", return_value=before) as read, self.assertRaises(candidate.Refused):
+            trial.observe_mutations()
+        read.assert_called_once()
+        trial.observe_guest_phase.assert_not_called()
+
+    def test_identity_type_and_limit_refusals_are_not_replaced_or_suppressed_after_exit(self):
+        trial, row, before = self.running()
+        for kind, code in (("identity", "CONTAINER_STATS_IDENTITY"), ("type", "CONTAINER_STATS_TYPE"),
+                           ("limit", "CONTAINER_RESOURCE_LIMIT")):
+            stats = self.stats()
+            if kind == "identity":
+                stats["id"] = "e" * 64
+            elif kind == "type":
+                stats["pids_stats"]["current"] = True
+            else:
+                stats["memory_stats"]["usage"] = candidate.CAPS["container_memory_bytes"] + 1
+            # No third call is permitted: a later exit cannot erase this refusal.
+            with self.subTest(kind=kind), patch.object(runtime, "docker_json", side_effect=[before, stats]) as read, \
+                    self.assertRaisesRegex(candidate.Refused, code):
+                trial.observe_mutations()
+            self.assertEqual(read.call_count, 2)
+
+    def test_only_missing_counters_can_join_exact_owned_exit_without_a_zero_sample(self):
+        trial, row, before = self.running()
+        after = self.container(trial, row)
+        after["State"] = {"Running": False, "Status": "exited"}
+        resource = trial.record["resources"]
+        resource.update(peak_container_memory_bytes=9999, peak_container_pids=3, last_container_cpu_ns=999)
+        with patch.object(runtime, "docker_json", side_effect=[before, {"id": row["id"], "name": "/" + row["name"]}, after]) as read:
+            self.assertEqual(trial.observe_mutations(), row["reserved_bytes"])
+        self.assertEqual(read.call_args.args, ("/containers/" + row["id"] + "/json",))
+        self.assertEqual(read.call_args.kwargs, {"deadline": trial.work_deadline})
+        self.assertEqual((resource["peak_container_memory_bytes"], resource["peak_container_pids"],
+                          resource["last_container_cpu_ns"]), (9999, 3, 999))
+        self.assertFalse(row["removed"])
+
+    def test_missing_sample_still_refuses_live_wrong_or_unowned_after_inspection(self):
+        trial, row, before = self.running()
+        for kind in ("live", "created", "id", "name", "owner", "capability"):
+            after = self.container(trial, row)
+            after["State"] = {"Running": False, "Status": "exited"}
+            if kind == "live":
+                after["State"] = {"Running": True, "Status": "running"}
+            elif kind == "created":
+                after["State"]["Status"] = "created"
+            elif kind == "id":
+                after["Id"] = "e" * 64
+            elif kind == "name":
+                after["Name"] = "/foreign"
+            elif kind == "owner":
+                after["Config"]["Labels"][runtime.LABEL] = "foreign"
+            else:
+                after["HostConfig"]["CapAdd"].append("CAP_NET_ADMIN")
+            with self.subTest(kind=kind), patch.object(runtime, "docker_json", side_effect=[before, {}, after]), \
+                    self.assertRaises(candidate.Refused):
+                trial.observe_mutations()
+
+    def test_engine_version_is_checked_before_daemon_info_or_candidate_sources(self):
+        trial = self.trial()
+        def run(command, **kwargs):
+            if command[-1] == "HEAD":
+                return ("b" * 40 + "\n").encode()
+            if "status" in command or "ls-tree" in command:
+                return b""
+            if "version" in command and "--format" in command:
+                return json.dumps(versions).encode()
+            return b"controlled tool identity\n"
+        trial.run = run
+        trial.check_sources, trial.sample = Mock(return_value=0), Mock()
+        versions = {"Server": {"Version": "28.0.4", "MinAPIVersion": "1.24", "ApiVersion": "1.48"},
+                    "Client": {"Version": "28.0.4", "ApiVersion": "1.48"}}
+        daemon = {"OSType": "linux", "Architecture": "amd64", "MemoryLimit": True,
+                  "SwapLimit": True, "PidsLimit": True, "DefaultRuntime": "runc"}
+        with patch.object(runtime.platform, "system", return_value="Linux"), \
+                patch.object(runtime.platform, "machine", return_value="x86_64"), \
+                patch.object(runtime.sys, "version_info", (3, 12)), \
+                patch.object(runtime.os, "getuid", return_value=1001), patch.object(runtime.os, "getgid", return_value=1001), \
+                patch.object(runtime.os, "stat", return_value=SimpleNamespace(st_mode=stat.S_IFSOCK)), \
+                patch.object(runtime, "available_memory", return_value=candidate.CAPS["minimum_host_available_bytes"]), \
+                patch.object(runtime, "source_git_metadata"), patch.object(runtime, "source_tree_records", return_value=[]), \
+                patch.object(runtime, "verify_source_files", return_value=0), \
+                patch.object(runtime, "docker_json", return_value=daemon) as read:
+            trial.prerequisites("b" * 40)
+            read.assert_called_once_with("/info", deadline=trial.work_deadline)
+            trial.check_sources.assert_called_once()
+            read.reset_mock()
+            trial.check_sources.reset_mock()
+            for version in ("28.0.5", "29.0.0", "28.0.4+unreviewed"):
+                versions["Server"]["Version"] = version
+                with self.subTest(version=version), self.assertRaisesRegex(candidate.Refused, "CONTAINER_STATS_ENGINE_VERSION"):
+                    trial.prerequisites("b" * 40)
+            read.assert_not_called()
+            trial.check_sources.assert_not_called()
+
+
 class MutationTests(Fixture):
     def test_unknown_load_or_commit_keeps_full_intent_charge_when_no_image_is_visible(self):
         for kind, key in (("base", "base_image_bytes"), ("assembled", "assembled_image_bytes")):

@@ -10,9 +10,13 @@ failed at token framing before reading a body. The
 [fourth](native-alpine-evidence/attempt-4/outcome.md) also failed, with their exact
 failed paths unknown. The fifth attempt passed artifact bytes, APK trust and
 base-image identity, then failed `CONTAINER_CAPABILITIES` in assembly with
-cleanup `FAIL`. Its actual inspect payload remains unretained. The sixth source
-plan corrects the exact Docker inspect spelling and is not yet admitted; the
-[fifth outcome](native-alpine-evidence/attempt-5/outcome.md) retains its evidence.
+cleanup `FAIL`. Its actual inspect payload remains unretained. The sixth attempt
+passed the same three checks, then failed `CONTAINER_STATS_MISSING` in assembly
+with cleanup PASS; its exact stats payload/state chronology is unknown. The
+seventh source plan corrects the pinned one-shot response representation and
+failure classification and is not yet admitted. The
+[fifth](native-alpine-evidence/attempt-5/outcome.md) and
+[sixth](native-alpine-evidence/attempt-6/outcome.md) outcomes retain the evidence.
 Earlier NOT_RUN statements below describe their named source checkpoints,
 not the current investigation status.
 
