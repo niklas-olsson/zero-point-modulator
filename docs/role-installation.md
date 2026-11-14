@@ -243,7 +243,7 @@ failures are distinct from this deliberate admission refusal. A complete
 destination check consumes two I/O credits per destination; choose a budget that
 checks the whole intended set in this observation.
 
-### 4. Open host admission, then enable placement explicitly
+### 4. Start the controller, then open admission and raise capacity
 
 With target and reserved capacity both zero and both host admissions confirmed
 closed, import the same registry with chosen entries explicitly `enabled: true`:
