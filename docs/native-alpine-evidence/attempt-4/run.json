@@ -1,0 +1,70 @@
+{
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "coordinator": "ChatGPT /root/assess_polyphony",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Coordinator-derived custody metadata, not a native receipt. The original summary is unchanged; no corrected execution is implied.",
+  "source": {
+    "commit": "7a94c09eba16c2fb6095077f3ac254a115ba19bb",
+    "tree": "4fb5d6bcace3c4ace8fa1811fb9d1bfc6594925e",
+    "parents": [
+      "ba9d8137f5d4363f75d5aba6c55550fad0b85c40",
+      "e8cb65ea7c1717cc5b49c1a6199960a51ac99b9f"
+    ],
+    "plan_file": "tests/contracts/native-alpine/active-plan-4.json",
+    "plan_bytes": 6885,
+    "plan_sha256": "929ffd1c1b6b8bcd471673e0a8fdc1b78b3a6809aa96618411a1008399c074c0"
+  },
+  "workflow": {
+    "run_id": 43627350916,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/native-alpine/run/929ffd1c1b6b8bcd471673e0a8fdc1b78b3a6809aa96618411a1008399c074c0",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43627350916",
+    "source_job_id": 132546117242,
+    "source_job_conclusion": "success",
+    "native_job_id": 132546202937,
+    "native_job_conclusion": "failure",
+    "execution_exit_code": 1,
+    "summary_upload": "success"
+  },
+  "artifact": {
+    "id": 14126597521,
+    "name": "native-alpine-4-summary-43627350916-1",
+    "zip_bytes": 1318,
+    "zip_sha256": "88367f58a252767c2f226a322345fa521d6a852dab13da748771469039d8579f",
+    "github_digest": "sha256:88367f58a252767c2f226a322345fa521d6a852dab13da748771469039d8579f",
+    "expires_at": "2026-11-28T18:35:09Z",
+    "members": [
+      "summary.json"
+    ]
+  },
+  "summary": {
+    "bytes": 2138,
+    "sha256": "847856544ccdac33b7b35719b497df5af817a56837a1392b3852b18bfba12616"
+  },
+  "decoded_utf8_log": {
+    "bytes": 44616,
+    "sha256": "cd82035951ac3d64b30132a8b5a7d659796dabaa4c5316897462f30fd3ab4296"
+  },
+  "outcome": {
+    "status": "FAILED",
+    "first_failure": "STORAGE_OBSERVATION",
+    "failed_path": "not-retained",
+    "exact_cause": "not-established-by-native-receipt",
+    "native_execution_qualified": false
+  },
+  "fresh_verification": {
+    "live_run_job_artifact_metadata": true,
+    "github_artifact_digest_matches_retained_zip": true,
+    "sole_zip_member_matches_original_summary": true,
+    "independent_root_copy_matches_all_three_files": true
+  },
+  "reviewed_before_activation": {
+    "ordinary_push_run": 43625118827,
+    "ordinary_pull_request_run": 43625125545,
+    "both_ten_jobs_passed": true
+  },
+  "no_followup_activation": true
+}

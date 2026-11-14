@@ -8,8 +8,11 @@ passed source and host prerequisites, then refused token framing before body
 reading. Host Docker identity reads ran; no candidate container, interpreter,
 installation or native probe ran. The [third](native-alpine-evidence/attempt-3/outcome.md)
 completed 102 artifact acquisitions before `INPUT_CHANGED`; its exact failed
-path is unobserved and owned cleanup passed. The original checks below retain
-their source scope. The fourth plan requires fresh review and hosted gates.
+path is unobserved and owned cleanup passed. The
+[fourth](native-alpine-evidence/attempt-4/outcome.md) completed all 173 acquisitions
+then refused `STORAGE_OBSERVATION`; its exact path and cause remain unknown and
+owned cleanup passed. The original checks below retain their source scope.
+The fifth plan requires fresh review and hosted gates.
 
 The original inert plan, 173-artifact recipe and native-member catalog retain
 SHA-256 `c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76`,
@@ -166,6 +169,51 @@ it is host packaging evidence, not an Alpine installation or release.
 Fresh required hosted gates and independent review of the combined source and
 new plan remain required before a fourth native admission. No new native
 acquisition, container, guest execution or installed result is inferred here.
+
+## Retained verification inputs after attempt 4
+
+Agent-authored by ChatGPT `/root/assess_polyphony`. The actual fourth run and its
+unchanged [summary/custody](native-alpine-evidence/attempt-4/outcome.md) are retained
+separately from this source proposal. The exact failing path remains unknown.
+The new `active-plan-5.json` is **7,591 bytes**, SHA-256
+`017c6ffb7c0a15b8efbc3046da53e3978d45f9b3bb8bda1d264d579f638575cf`.
+It binds opt-in retained APK signature inputs, the host caller, distinct fifth
+workflow identity and complete unchanged eleven-path executing-source closure.
+All previous plans, original summaries, immutable input readers, guest source,
+candidate/production tuple, authority, commands and caps remain byte-identical.
+
+All **127 focused fixtures PASS**, including eleven new controlled checks and
+the existing shared musl signature/primitive fixtures. The new checks exercise
+the actual helper-completion versus parent-enumeration chronology, retained
+success and failure, original-error preservation, exclusive directory/file
+creation, link/nonordinary collisions, exact mode and owner/group checks,
+default temporary cleanup, the native caller's explicit opt-in, unchanged
+deadline propagation and expired-deadline refusal, finite catalog accounting,
+and explicit owner retirement after the final observation. The added fixtures
+use synthetic crypto results; the existing shared verifier fixtures separately
+exercise real signatures over locally generated fixture bytes. No candidate
+artifact acquisition, Docker or Alpine code ran locally.
+
+The focused log is 24,820 bytes, SHA-256
+`81ec931b2545dedb741d84f4e9c460fecebb69e670a0ce357430fa456dbab9f2`.
+The isolated `--check-plan` returns `SOURCE_PLAN_ADMITTED` with native execution
+`NOT_RUN`. Python syntax, workflow YAML and whitespace checks pass. Source-only
+branches and ordinary pull requests remain inert; no fifth run reference or
+manual admission has been created.
+
+The full local suite ran **760 tests in 107.257 seconds: 759 passed and the same
+existing `/proc/<pid>/task/<pid>/children` observation errored**. The measurement
+helper and test remain byte-identical to the actual parent `7a94c09`; the earlier
+unchanged-parent reproduction still applies. The raw full log is 149,683 bytes,
+SHA-256 `5d14e6685467d84e6d569464072c2bb045bdd07679b30d275a83a1cd8f1af4f2`.
+The required hosted full gate remains required.
+
+Offline wheel build, fresh isolated installation and installed CLI help/example
+validation pass under host CPython 3.12.14. The local wheel is 98,587 bytes,
+SHA-256 `6bd3360c8106f1835102c0060be6cf23d8ff0a83fbcd12fc82a1ff27fc2cb380`.
+This is host packaging evidence, not an Alpine installation or release.
+Independent review, fresh hosted gates and a separately admitted plan are still
+required before any fifth native run.
 
 ## Original completed-source local checks
 

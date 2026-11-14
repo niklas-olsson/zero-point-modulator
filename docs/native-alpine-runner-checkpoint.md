@@ -5,8 +5,11 @@ candidate is now described in the [canonical native guide](native-alpine-qualifi
 and [active-harness contract](native-alpine-active-harness.md). The
 [first admitted native attempt](native-alpine-evidence/attempt-1/outcome.md)
 later failed at source admission; the [second](native-alpine-evidence/attempt-2/outcome.md)
-failed at token framing before reading a body. The third source plan is not yet
-admitted. Earlier NOT_RUN statements below describe their named source checkpoints,
+failed at token framing before reading a body. The
+[third](native-alpine-evidence/attempt-3/outcome.md) and
+[fourth](native-alpine-evidence/attempt-4/outcome.md) also failed, with their exact
+failed paths unknown. The fifth source plan is not yet admitted.
+Earlier NOT_RUN statements below describe their named source checkpoints,
 not the current investigation status.
 
 ## Original draft at 7cb9306

@@ -1,13 +1,15 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: three actual attempts failed; corrected attempt 4 is an unactivated
+**Status: four actual attempts failed; corrected attempt 5 is an unactivated
 source candidate pending review and fresh gates.**
 The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
 `SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
 records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
 completed artifacts. The [third outcome](native-alpine-evidence/attempt-3/outcome.md)
 records `INPUT_CHANGED` after 102 completed artifact acquisitions, with the exact
-failed path unobserved. All three owned cleanup results passed. No candidate
+failed path unobserved. The [fourth outcome](native-alpine-evidence/attempt-4/outcome.md)
+records `STORAGE_OBSERVATION` after all 173 acquisitions completed; its failing
+path and exact cause were not retained. All four owned cleanup results passed. No candidate
 package, container or interpreter executed, and native installation remains
 unqualified. This [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 fixture keeps the original inert compiler and adds a separate, explicitly gated
@@ -86,7 +88,7 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [current active plan](../tests/contracts/native-alpine/active-plan-4.json) binds the
+The [current active plan](../tests/contracts/native-alpine/active-plan-5.json) binds the
 host/guest drivers, their local imports, the workflow, original plan/recipe,
 commands, authority and caps. The original `plan-v1.json` and inert checker retain
 their historical `active_trial_implemented: false` fields. They do not become
@@ -107,7 +109,8 @@ token endpoint. Header and framing bytes share the original metadata reservation
 artifact bodies still require exact Content-Length. The exact observed second-run
 Transfer-Encoding value remains unknown.
 
-Attempt 4 has a new work directory, upload name and code binding. It uses a closed
+The unchanged [fourth plan](../tests/contracts/native-alpine/active-plan-4.json)
+belongs to its failed run at `7a94c09eba16c2fb6095077f3ac254a115ba19bb`. It uses a closed
 snapshot reader for acquisition and both guest-phase records published by atomic
 replacement. One retained descriptor and one bounded read can return a complete
 old-or-current record even when the original inode is retired during reading.
@@ -115,6 +118,17 @@ The [active-harness contract](native-alpine-active-harness.md#live-record-observ
 defines the narrow link-count/ctime exception, owner/mode/identity checks and
 unchanged deadlines. Source, artifact and terminal-result readers remain strict;
 the existing monotone counters and phase validators remain authoritative.
+
+Attempt 5 has a new work directory, upload identity and code binding. The APK
+verifier retains its two fixed signature-verification inputs for each of the
+63 existing package digests, including after failure, so the strict parent
+storage scan cannot race the verifier's deletion of those files. Directories
+and files are new, private and owned; collisions and links refuse. The maximum
+additional retained bytes are 78,980,231, counted as ordinary linked files within
+the unchanged 4-GiB stop. This does not exempt any disappearing path. The shared
+musl fixture keeps its original temporary lifecycle unless this explicit option
+is selected. The [fourth outcome](native-alpine-evidence/attempt-4/outcome.md)
+distinguishes the reproduced source race from the unidentified hosted failure.
 
 Check active-plan source consistency without acquisition, Docker or candidate
 execution using an externally recorded exact hash:

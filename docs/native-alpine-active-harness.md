@@ -1,13 +1,15 @@
 # Native Alpine active-harness contract
 
-**Status: corrected attempt-4 source candidate for independent review.**
+**Status: corrected attempt-5 source candidate for independent review.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
 The [third attempt](native-alpine-evidence/attempt-3/outcome.md) completed 102
 artifact acquisitions before `INPUT_CHANGED`, with cleanup PASS. The exact failed
-read was not retained. No candidate package, container or interpreter has
-executed. Attempt 4 has not been admitted; it retains every original
+read was not retained. The [fourth attempt](native-alpine-evidence/attempt-4/outcome.md)
+completed all 173 acquisitions before `STORAGE_OBSERVATION`, with cleanup PASS;
+its exact failed path and cause remain unknown. No candidate package, container
+or interpreter has executed. Attempt 5 has not been admitted; it retains every original
 authority/resource cap.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
@@ -46,7 +48,7 @@ or architecture-gated feature is part of this design.
 | Existing `check_alpine_sealed_candidate.py` | Retain the inert CLI, exact metadata admission and data-only archive helpers. No active flag is added to its command. |
 | New `check_alpine_sealed_runtime.py` | Explicit active entry point, plan admission, host process/resource guardian, bounded acquisition, Docker custody, stages, safe result reduction and cleanup. |
 | New `alpine_sealed_guest.py` | Fixed assembly-inventory and nonroot qualification commands. Use the original production APIs, separate owner interpreters and finite probe IDs. |
-| `native-alpine/active-plan-4.json` | Bind the original plan/recipe, distinct fourth attempt, exact commands, source manifests and unchanged authority/resource limits. All three prior plans remain unchanged historical evidence. |
+| `native-alpine/active-plan-5.json` | Bind the original plan/recipe, distinct fifth attempt, exact commands, source manifests and unchanged authority/resource limits. All four prior plans remain unchanged historical evidence. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -121,6 +123,40 @@ terminal records are read after reaping. Successful guest-result reads follow
 confirmed container exit; the existing failure-only guest-result read may race
 remaining guest work and therefore remains strict, best-effort evidence that
 cannot erase the latched failure. The separate locked output counter is unchanged.
+
+## Retained APK verification inputs
+
+The active runner explicitly selects retained signature inputs in the existing
+APK verifier. The ordinary shared musl fixture keeps its original temporary
+directory behavior. No APK signature, checksum, control-identity, payload-hash
+or archive check is removed, and the fixed OpenSSL command remains unchanged.
+
+Each of the existing 63 package digests owns one exclusively created directory
+`signature-<apk-sha256>` with mode 0700 and invoking UID/GID. Its `signature` and
+`control.gz` files are exclusively created, no-follow ordinary files, mode 0600,
+single-link and owned by that identity. Existing directories/files or links are
+not reused or overwritten. Both inputs remain on successful verification and
+failure. The verifier does not unlink them or their directory while the parent
+is measuring storage.
+
+The original signature bound is 1,024 bytes per package. Each compressed control
+stream is part of its hash-verified APK and cannot exceed that APK's original
+byte size. The fixed APK total is 78,915,719 bytes, so 63 signatures and controls
+have a conservative combined ceiling of **78,980,231 bytes**, across at most
+63 directories and 126 files. The new plan records this finite retention policy.
+All these bytes remain ordinary linked files in the existing strict storage
+scan and the unchanged 4-GiB stop; they receive no disappearance exception or
+unmeasured storage allowance. Original stage, command, output and whole-attempt
+deadlines remain in force.
+
+The parent observes these files through final resource checks. The private
+attempt directory remains retained after process/container/image cleanup, as
+before; a reported owned-cleanup PASS does not mean retained evidence files were
+deleted. Only the closed summary is uploaded. The owner can retire the complete
+private directory after observations end. The local chronological regression
+uses real helper creation/completion and filesystem enumeration, with an
+explicit synthetic crypto result. It is not a native signature qualification or
+proof of the original hosted failure's exact path.
 
 ## Finite acquisition and image assembly
 

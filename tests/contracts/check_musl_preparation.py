@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import base64
 import concurrent.futures
+from contextlib import contextmanager
 import ctypes
 import hashlib
 import http.client
@@ -22,6 +23,7 @@ import re
 import secrets
 import select
 import signal
+import stat
 import subprocess
 import sys
 import tarfile
@@ -207,7 +209,45 @@ def verify_base(path, inputs, key_directory):
     return len(parts[0][1])
 
 
-def verify_package(path, row, keys, run):
+@contextmanager
+def signature_workspace(keys, row, *, retain):
+    """Keep the active Alpine observer's finite inputs linked until owner retirement.
+
+    The ordinary musl fixture keeps its original temporary-directory lifecycle.
+    Retained callers get one new digest-named directory and never reuse, replace
+    or clean it here, including after a verification failure.
+    """
+    require(type(retain) is bool, "invalid signature retention option")
+    if not retain:
+        with tempfile.TemporaryDirectory(prefix="signature-", dir=keys.parent) as directory:
+            yield Path(directory)
+        return
+    require(type(row.get("sha256")) is str and HEX.fullmatch(row["sha256"]),
+            "invalid retained signature identity")
+    directory = keys.parent / ("signature-" + row["sha256"])
+    directory.mkdir(mode=0o700)  # Exclusive, including existing links/directories.
+    info = directory.lstat()
+    require(stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o700
+            and info.st_uid == os.getuid() and info.st_gid == os.getgid(),
+            "invalid retained signature directory")
+    yield directory
+
+
+def write_signature_input(path, data, *, retain):
+    if not retain:
+        path.write_bytes(data)
+        return
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "wb") as stream:
+        info = os.fstat(stream.fileno())
+        require(stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o600
+                and info.st_nlink == 1 and info.st_uid == os.getuid() and info.st_gid == os.getgid(),
+                "invalid retained signature input")
+        stream.write(data)
+
+
+def verify_package(path, row, keys, run, *, retain_signature_inputs=False):
+    require(type(retain_signature_inputs) is bool, "invalid signature retention option")
     parts = gzip_streams(check_file(path, row), 3)
     signature_entries = tar_entries(parts[0][1], metadata_only=True)
     expected_name = ".SIGN.RSA." + row["signature_key"]
@@ -216,11 +256,11 @@ def verify_package(path, row, keys, run):
     require(128 <= len(signature) <= 1024, "invalid RSA signature size")
     control_checksum = "Q1" + base64.b64encode(hashlib.sha1(parts[1][0]).digest()).decode()
     require(control_checksum == row["control_checksum"], "signed index control checksum differs")
-    with tempfile.TemporaryDirectory(prefix="signature-", dir=keys.parent) as directory:
-        signature_path = Path(directory) / "signature"
-        control_path = Path(directory) / "control.gz"
-        signature_path.write_bytes(signature)
-        control_path.write_bytes(parts[1][0])
+    with signature_workspace(keys, row, retain=retain_signature_inputs) as directory:
+        signature_path = directory / "signature"
+        control_path = directory / "control.gz"
+        write_signature_input(signature_path, signature, retain=retain_signature_inputs)
+        write_signature_input(control_path, parts[1][0], retain=retain_signature_inputs)
         output = run(["openssl", "dgst", "-sha1", "-verify", str(keys / row["signature_key"]),
                       "-signature", str(signature_path), str(control_path)], timeout=10)
         require(output.strip() == "Verified OK", "APK control signature verification failed")

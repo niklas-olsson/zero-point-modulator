@@ -339,10 +339,15 @@ passed that boundary, then refused the anonymous token response's framing before
 reading a body or acquiring a candidate artifact. Both cleanup results passed;
 the [third attempt](docs/native-alpine-evidence/attempt-3/outcome.md) completed the
 token and four OCI redirects, then failed `INPUT_CHANGED` after 102 completed
-artifact acquisitions. Its cleanup also passed; candidate installation and
-interfaces remain unqualified. A separate fourth plan corrects a reproduced
-atomic live-record snapshot race and requires fresh review and gates before
-activation. The exact failed read in attempt 3 remains unidentified.
+artifact acquisitions. The [fourth attempt](docs/native-alpine-evidence/attempt-4/outcome.md)
+completed all 173 acquisitions, then refused `STORAGE_OBSERVATION`. Both cleanup
+results passed; candidate installation and interfaces remain unqualified. The
+exact failed paths in attempts 3 and 4 remain unidentified. The fourth plan's
+closed live-record snapshot correction remains in place. A separate fifth plan
+retains the existing APK signature-verification inputs through final storage
+observation, addressing a reproduced temporary-deletion race without relaxing
+the scanner or increasing any cap. It requires independent review and fresh
+gates before any activation.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private

@@ -19,6 +19,7 @@ on:
       - 'tests/test_alpine_sealed_candidate.py'
       - 'tests/test_alpine_runtime_checkpoint.py'
       - 'tests/test_alpine_sealed_runtime.py'
+      - 'tests/test_alpine_signature_retention.py'
       - 'zpm/dependencies.py'
       - 'zpm/installation_context.py'
       - 'zpm/models.py'
@@ -42,7 +43,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Check source admission and synthetic archive fixtures
-        run: python -B -m unittest tests.test_alpine_sealed_candidate tests.test_alpine_runtime_checkpoint tests.test_alpine_sealed_runtime -v
+        run: python -B -m unittest tests.test_alpine_sealed_candidate tests.test_alpine_runtime_checkpoint tests.test_alpine_sealed_runtime tests.test_alpine_signature_retention -v
       - name: Record an inert source preflight
         run: |
           python -B -m tests.contracts.check_alpine_sealed_candidate \
@@ -51,7 +52,7 @@ jobs:
             --report "$RUNNER_TEMP/zpm-native-alpine-pretrial.json"
       - name: Check the active plan as inert source data
         run: |
-          plan_sha=$(sha256sum tests/contracts/native-alpine/active-plan-4.json | cut -d ' ' -f 1)
+          plan_sha=$(sha256sum tests/contracts/native-alpine/active-plan-5.json | cut -d ' ' -f 1)
           python -I -B tests/contracts/check_alpine_sealed_runtime.py \
             --check-plan --reviewed-plan-sha256 "$plan_sha"
       - name: Check requested native admission before candidate checkouts
@@ -108,7 +109,7 @@ jobs:
           /usr/bin/python3.12 -I -B harness/tests/contracts/check_alpine_sealed_runtime.py \
             --run --reviewed-plan-sha256 "$REVIEWED_PLAN_SHA256" --run-ref "$GITHUB_REF" \
             --harness-source-revision "$GITHUB_SHA" \
-            --work "$RUNNER_TEMP/native-alpine-4" \
+            --work "$RUNNER_TEMP/native-alpine-5" \
             --zpm-source "$GITHUB_WORKSPACE/candidate-zpm" \
             --openjules-source "$GITHUB_WORKSPACE/candidate-openjules" \
             --polyphony-source "$GITHUB_WORKSPACE/candidate-polyphony"
@@ -116,7 +117,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: native-alpine-4-summary-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/native-alpine-4/summary.json
+          name: native-alpine-5-summary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-alpine-5/summary.json
           if-no-files-found: warn
           retention-days: 14

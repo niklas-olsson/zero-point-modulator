@@ -44,7 +44,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-4.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-5.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -112,6 +112,19 @@ FIXED_POLICY["live_record_snapshot"] = {
     "ctime_exception": "unchanged-inode-link-count-retirement-1-to-0-only",
     "deadline": "original-work-or-cleanup-observation-deadline",
 }
+FIXED_POLICY["apk_signature_inputs"] = {
+    "schema": "zpm-native-alpine-retained-signature-inputs/v1",
+    "directories": 63, "files": 126,
+    "directory": "signature-<existing-apk-sha256>",
+    "directory_mode": "0700", "file_mode": "0600",
+    "owner": "invoking-uid-and-gid", "exclusive_creation": True,
+    "maximum_signature_bytes_each": 1024,
+    "maximum_combined_bytes": 78980231,
+    "control_bound": "original-compressed-apk-byte-size",
+    "retention": "success-and-failure-until-attempt-directory-retirement",
+    "accounting": "ordinary-linked-files-within-unchanged-owned-storage-cap",
+    "deadline": "original-artifact-verification-and-work-deadline",
+}
 RUN_PREFIX = "refs/heads/qualification/native-alpine/run/"
 
 
@@ -139,7 +152,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-4"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-5"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -887,7 +900,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-4",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-5",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,
@@ -1531,7 +1544,8 @@ def verify_artifacts(trial, deadline):
     for row in recipe["apk_packages"]:
         require(time.monotonic() < deadline, "ARTIFACT_VERIFY_DEADLINE")
         musl.verify_package(trial.root / "inputs/apks" / row["filename"], row, trial.root / "keys",
-                            lambda command, timeout: bounded_openssl(command, timeout, deadline, trial.root / "logs", trial.output_budget))
+                            lambda command, timeout: bounded_openssl(command, timeout, deadline, trial.root / "logs", trial.output_budget),
+                            retain_signature_inputs=True)
     for row in recipe["wheels"]:
         require(time.monotonic() < deadline, "ARTIFACT_VERIFY_DEADLINE")
         raw = candidate.read_bounded(trial.root / "inputs/wheels" / row["filename"], row["size"], row["sha256"])
