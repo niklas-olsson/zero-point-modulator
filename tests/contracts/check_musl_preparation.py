@@ -440,6 +440,8 @@ class Trial:
                     self.measure_docker()
                     time.sleep(0.5)
                 require(process.wait() == 0, "container attached command failed")
+                require(time.monotonic() < self.deadline, "native operations deadline exceeded")
+                require(output_path.stat().st_size <= CAPS["command_output_bytes"], "container output cap exceeded")
             finally:
                 try:
                     os.killpg(process.pid, signal.SIGKILL)

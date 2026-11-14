@@ -328,7 +328,9 @@ python -I -B tests/contracts/check_musl_preparation.py \
 ```
 
 Acquisition is an explicit online phase with exact approved URLs, sizes and
-hashes, a 128 MiB transfer cap and a 300-second deadline. APK execution and the
+hashes, a 128 MiB transfer cap and a 300-second deadline. Unavailable pinned APKs
+fail closed; replacement inputs require an explicit reviewed manifest refresh,
+and CI never resolves packages against a mutable index. APK execution and the
 recovery tests then use Docker's `network=none`; local loopback remains available.
 Each filesystem image is 256 MiB; test containers have a 512 MiB memory limit and
 a PID limit of 128. Operations have a 15-minute deadline, including 90 seconds

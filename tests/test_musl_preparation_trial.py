@@ -13,7 +13,7 @@ import tarfile
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from tests.contracts import check_musl_preparation as trial
 
@@ -242,6 +242,21 @@ class MuslTrialBoundaryTests(unittest.TestCase):
         with patch.object(self.runner, "docker", return_value='[{"SizeRootFs": 1000}]'):
             with self.assertRaisesRegex(trial.Refused, "container measurement missing"):
                 self.runner.measure_docker()
+
+    def test_fast_exiting_container_cannot_escape_final_output_or_deadline_check(self):
+        for oversized in (True, False):
+            with self.subTest(oversized=oversized):
+                def launched(command, **kwargs):
+                    kwargs["stdout"].write(b"x" * (trial.CAPS["command_output_bytes"] + 1 if oversized else 1))
+                    kwargs["stdout"].flush()
+                    if not oversized:
+                        self.runner.deadline = time.monotonic() - 1
+                    return Mock(pid=987654, poll=Mock(return_value=0), wait=Mock(return_value=0))
+                with patch.object(trial.subprocess, "Popen", side_effect=launched), \
+                        patch.object(trial.os, "killpg"), patch.object(self.runner, "docker") as docker:
+                    with self.assertRaisesRegex(trial.Refused, "output cap|deadline"):
+                        self.runner.start("fast-container")
+                docker.assert_not_called()
 
     def test_missing_or_wrong_filesystem_report_cannot_reuse_an_earlier_result(self):
         path = self.root / "native-result.json"
