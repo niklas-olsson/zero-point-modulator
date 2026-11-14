@@ -30,6 +30,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from . import dependencies, installation_context
+from .installation_roles import services as installation_services
 from .models import Binding, ConfigurationError, ProviderConfig, identifier
 from .store import Store
 
@@ -178,8 +179,8 @@ def _decode_configuration_json(raw: str) -> Any:
 
     try:
         value = json.loads(raw, object_pairs_hook=pairs, parse_constant=constant, parse_float=floating)
-        if public and (duplicate or nonfinite):
-            raise ConfigurationError("public discussion configuration requires unambiguous finite JSON")
+        if (public or (type(value) is dict and value.get("schema_version") == 3)) and (duplicate or nonfinite):
+            raise ConfigurationError("explicit installation configuration requires unambiguous finite JSON")
         return value
     except ConfigurationError:
         raise
@@ -445,6 +446,9 @@ def _child_policy(value: Any, runtime: dict, root_seconds: float, root_capabilit
 
 
 def parse_configuration(value: Any) -> dict:
+    if isinstance(value, dict) and type(value.get("schema_version")) is int and value["schema_version"] == 3:
+        from .deployment_roles import parse_configuration as parse_role
+        return parse_role(value)
     if isinstance(value, dict) and type(value.get("schema_version")) is int and value["schema_version"] == 2:
         return _parse_multiple_configuration(value)
     # Keep schema-1 normalization and rejection behavior unchanged.
@@ -718,7 +722,7 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
     if root.is_symlink():
         raise ConfigurationError("deployment directory must not be a symlink")
     root = root.parent.resolve(strict=True) / root.name
-    for item in [*data["sources"].values(), *(entry["source"] for entry in _entries(data))]:
+    for item in [*data["sources"].values(), *(entry["source"] for entry in _entries(data) if "source" in entry)]:
         source = Path(item["checkout"])
         if root == source or source in root.parents or root in source.parents:
             raise ConfigurationError("deployment data must be outside all source checkouts")
@@ -766,6 +770,10 @@ def prepare(configuration: Any, directory: str | Path) -> dict:
 
 
 def _prepare_files(data: dict, root: Path, final: Path) -> None:
+    if data["schema_version"] == 3:
+        from .deployment_roles import prepare_files
+        prepare_files(data, root, final)
+        return
     if data["schema_version"] == 2:
         _prepare_multiple_files(data, root, final)
         return
@@ -939,8 +947,11 @@ ceiling with journalled capacity. Its ready flag does not prove target convergen
 
 def _finish_bundle(data: dict, root: Path, final: Path, readme: str) -> None:
     if "dependency_plan" in data:
-        dependencies.seal(data["dependency_plan"], data["sources"], root)
-        readme += "\nDependency mode: sealed-local-wheels-v1. Bootstrap uses only the admitted\n"
+        if data["schema_version"] == 3:
+            dependencies.seal(data["dependency_plan"], data["sources"], root, role=data["role"])
+        else:
+            dependencies.seal(data["dependency_plan"], data["sources"], root)
+        readme += "\nDependency mode: " + dependencies.mode(data) + ". Bootstrap uses only the admitted\n"
         readme += "private wheel copies, an explicit pip seed and sealed ZPM source. It disables\n"
         readme += "package acquisition; prepare/verify still do not execute package code.\n"
         readme += "Keep the original plan/artifacts and exact source/interpreter tuple for reuse.\n"
@@ -971,13 +982,34 @@ raise SystemExit(manage(root, sys.argv[1:]))
 
 
 def _prepared_report(root: Path, data: dict, *, reused: bool) -> dict:
+    next_steps = ["python3 manage.py bootstrap", "python3 manage.py start", "python3 manage.py doctor"]
     scope = ({"repositories": [{"repository": entry["binding"]["repository"], "binding_file": _binding_file(entry)}
                                for entry in data["repositories"]]}
              if data["schema_version"] == 2 else {"repository": data["binding"]["repository"]})
+    if data["schema_version"] == 3:
+        from . import role_manager
+        scope.update(role=data["role"], services=list(installation_services(data)))
+        if data["role"] == "execution":
+            bound = (root / role_manager.BINDING_RECEIPT).exists()
+            approved = (root / role_manager.APPROVED_ENVELOPE).exists()
+            scope["destination_initialization"] = "original_receipt_retained" if bound else "not_confirmed"
+            next_steps = ["python3 manage.py bootstrap", "python3 manage.py inspect-destination" if bound else "python3 manage.py initialize-destination"]
+            if approved:
+                next_steps.extend(["python3 manage.py start", "python3 manage.py doctor"])
+                scope["next_note"] = "Reuse the original identity and approved contract; admission remains an explicit host operation."
+            else:
+                next_steps.append("python3 manage.py preview-execution-contract --output /absolute/private/new-approval.json")
+                scope["next_note"] = "Review and explicitly approve the exact document before start. Retry an unknown prior approval with its retained input; never reset original state."
+        elif (root / role_manager.AUTHORITY_RECEIPT).exists() and role_manager._current_catalog(root, data):
+            next_steps = ["python3 manage.py bootstrap", "python3 manage.py start", "python3 manage.py status"]
+            scope["next_note"] = "Reuse the original authority and active controller journal, preserving current targets and enrollment."
+        else:
+            next_steps = ["python3 manage.py bootstrap", "python3 manage.py start --authority-only"]
+            scope["next_note"] = "Initialize and approve execution roles, import disabled identities/approvals, activate the journal format offline, then check before enabling placement and targets."
     return {"prepared": True, "reused": reused, "directory": str(root), "deployment_id": data["deployment_id"],
             **scope, "services_started": False, "remote_access_checked": False,
-            "dependency_mode": "sealed-local-wheels-v1" if "dependency_plan" in data else "ranged-install",
-            "next": ["python3 manage.py bootstrap", "python3 manage.py start", "python3 manage.py doctor"]}
+            "dependency_mode": dependencies.mode(data) if "dependency_plan" in data else "ranged-install",
+            "next": next_steps}
 
 
 def verify(directory: str | Path) -> dict:
@@ -996,7 +1028,11 @@ def verify(directory: str | Path) -> dict:
     if manifest.get("schema_version") != 1 or manifest.get("directory") != str(root):
         raise ConfigurationError("unsupported or moved deployment bundle")
     data = parse_configuration(manifest.get("configuration"))
-    for name in ("config", "secrets", "state", "state/openjules", "state/polyphony", "environments"):
+    directory_names = ("config", "secrets", "state", "state/openjules", "state/polyphony", "environments")
+    if data["schema_version"] == 3:
+        from .deployment_roles import directories
+        directory_names = directories(data)
+    for name in directory_names:
         path = root / name
         if path.is_symlink() or not path.is_dir() or path.stat().st_mode & 0o077:
             raise ConfigurationError("deployment directories must remain private")
@@ -1020,7 +1056,16 @@ def verify(directory: str | Path) -> dict:
         if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             raise ConfigurationError("deployment configuration integrity mismatch")
     if "dependency_plan" in data:
-        dependencies.verify(data["dependency_plan"], data["sources"], root)
+        if data["schema_version"] == 3:
+            dependencies.verify(data["dependency_plan"], data["sources"], root, role=data["role"])
+        else:
+            dependencies.verify(data["dependency_plan"], data["sources"], root)
+    if data["schema_version"] == 3:
+        from .deployment_roles import verify_files
+        verify_files(root, data, manifest)
+        if data["role"] == "execution":
+            return {"valid": True, "deployment_id": data["deployment_id"], "directory": str(root), "role": data["role"],
+                    "remote_access_checked": False, "runtime_readiness": "not_checked", "destination_identity": "not_revalidated"}
     journal = root / "state/zpm.sqlite3"
     if journal.is_symlink() or not journal.is_file() or journal.stat().st_mode & 0o077:
         raise ConfigurationError("deployment journal must remain a private regular file; restore retained state before continuing")
@@ -1028,7 +1073,8 @@ def verify(directory: str | Path) -> dict:
         # Never use Store here: its constructor creates missing state. Read the
         # existing WAL-aware journal without initializing or re-enrolling it.
         with closing(sqlite3.connect(journal.as_uri() + "?mode=ro", uri=True, timeout=1)) as database:
-            identity = database.execute("SELECT value FROM metadata WHERE key='deployment_id'").fetchone()
+            column = "value_v2" if data["schema_version"] == 3 else "value"
+            identity = database.execute("SELECT " + column + " FROM metadata WHERE key='deployment_id'").fetchone()
             enrolled = all(database.execute("SELECT 1 FROM bindings WHERE repository=?",
                                             (entry["binding"]["repository"],)).fetchone() is not None
                            for entry in _entries(data))
@@ -1046,6 +1092,11 @@ def _environment(root: Path, service: str, data: dict) -> dict[str, str]:
         "PATH", "LANG", "LC_ALL", "LC_CTYPE", "SSL_CERT_FILE", "SSL_CERT_DIR",
     }}
     result.update(PYTHONUNBUFFERED="1", PYTHONNOUSERSITE="1")
+    if data["schema_version"] == 3:
+        from .deployment_roles import private_object
+        if (data["role"] == "controller-authority" and service == "zpm") or (data["role"] == "execution" and service == "openjules"):
+            result.update(private_object(root / "secrets/environment.json"))
+        return result
     if service in SECRET_ENV:
         name = SECRET_ENV[service]
         result[name] = json.loads((root / "secrets/environment.json").read_text())[name]
@@ -1074,6 +1125,9 @@ def _environment(root: Path, service: str, data: dict) -> dict[str, str]:
 
 
 def _zpm_command(root: Path, data: dict, operation: str) -> list[str]:
+    if data["schema_version"] == 3:
+        return [str(root / "environments/zpm/bin/python"), "-m", "zpm", "--state", str(root / "state/zpm.sqlite3"),
+                "--deployment-id", data["deployment_id"], operation, "--registry"]
     return [str(root / "environments/zpm/bin/python"), "-m", "zpm", "--state", str(root / "state/zpm.sqlite3"),
             "--deployment-id", data["deployment_id"], operation, "--provider", str(root / "config/provider.json")]
 
@@ -1083,7 +1137,7 @@ def _command(root: Path, service: str, data: dict) -> list[str]:
     if service == "polyphony":
         return [python, "-m", "src.liminal_bridge.coordinator_service", "--db", str(root / "state/polyphony/authority.sqlite3"),
                 "--credentials", str(root / "secrets/polyphony.json"), "--managed-config", str(root / "config/polyphony.json"),
-                "--port", str(data["ports"]["polyphony"])]
+                "--port", str(data["port"] if data["schema_version"] == 3 else data["ports"]["polyphony"])]
     if service == "openjules":
         return [python, "-m", "src.worker.managed_service", "--config", str(root / "config/openjules.json")]
     return _zpm_command(root, data, "reconcile") + ["--watch"]
@@ -1092,6 +1146,8 @@ def _command(root: Path, service: str, data: dict) -> list[str]:
 def _installation_context(root: Path, data: dict, *, require_complete: bool = True) -> None:
     if require_complete and "dependency_plan" in data:
         dependencies.check_completed(root, data, _environment(root, "bootstrap", data))
+    if "openjules" not in installation_services(data):
+        return
     installation_context.probe(
         root, Path(data["sources"]["openjules"]["checkout"]), _environment(root, "bootstrap", data),
         require_complete=require_complete, revision=data["sources"]["openjules"]["revision"],
@@ -1103,13 +1159,14 @@ def _bootstrap_locked(root: Path, data: dict, lock_fd: int | None = None) -> dic
         with dependencies.command_guard(lock_fd):
             return dependencies.bootstrap(root, data, _environment(root, "bootstrap", data))
     # Check retained OpenJules evidence before installing or rewriting anything.
-    openjules_complete = installation_context.completed(root, data["sources"]["openjules"]["revision"])
-    if openjules_complete:
-        _installation_context(root, data)
-    else:
-        installation_context.validate_selector(root, required=False)
+    if "openjules" in installation_services(data):
+        openjules_complete = installation_context.completed(root, data["sources"]["openjules"]["revision"])
+        if openjules_complete:
+            _installation_context(root, data)
+        else:
+            installation_context.validate_selector(root, required=False)
     # Explicit dependency installation, separate from offline preparation.
-    for service in SOURCE_FILES:
+    for service in installation_services(data):
         checkout = Path(data["sources"][service]["checkout"])
         env_root = root / "environments" / service
         marker = env_root / "bootstrap-complete.json"
@@ -1150,6 +1207,10 @@ def _bootstrap(root: Path, data: dict) -> dict:
 
 
 def _start(root: Path, data: dict) -> int:
+    return _start_services(root, data, ("polyphony", "openjules", "zpm"))
+
+
+def _start_services(root: Path, data: dict, service_names: tuple[str, ...], *, before_start=None, after_start=None) -> int:
     processes = []
     def stop_on_signal(signum, frame):
         raise KeyboardInterrupt
@@ -1158,9 +1219,14 @@ def _start(root: Path, data: dict) -> int:
         previous = signal.signal(signal.SIGTERM, stop_on_signal)
         try:
             _installation_context(root, data)
-            for service in ("polyphony", "openjules", "zpm"):
+            if before_start is not None:
+                before_start()
+            for service in service_names:
                 processes.append(subprocess.Popen(_command(root, service, data), cwd=data["sources"][service]["checkout"],
-                                                  env=_environment(root, service, data), start_new_session=True))
+                                                  env=_environment(root, service, data), start_new_session=True,
+                                                  **({"umask": 0o077} if data["schema_version"] == 3 else {})))
+            if after_start is not None:
+                after_start(dict(zip(service_names, processes)))
             while all(process.poll() is None for process in processes):
                 time.sleep(0.25)
             return 1
@@ -1201,6 +1267,13 @@ def _doctor(root: Path, data: dict) -> dict:
 
 
 def manage(directory: str | Path, argv: list[str] | None = None) -> int:
+    try:
+        initial = _decode_configuration_json((Path(directory) / "manifest.json").read_text())["configuration"]
+    except (OSError, ValueError, KeyError, TypeError):
+        initial = None
+    if type(initial) is dict and type(initial.get("schema_version")) is int and initial["schema_version"] == 3:
+        from .role_manager import manage as manage_role
+        return manage_role(directory, argv)
     parser = argparse.ArgumentParser(description="Manage a prepared single-host ZPM deployment")
     parser.add_argument("operation", choices=("verify", "bootstrap", "start", "doctor"))
     args = parser.parse_args(argv)
