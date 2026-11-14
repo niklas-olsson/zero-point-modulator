@@ -13,10 +13,12 @@ that the services are ready. `verify` is also an offline integrity check.
 ## Supported host and execution boundary
 
 - Linux with Python 3.11 or newer, Git and a local Docker Engine.
-- New preparation requires libc and the local filesystem to support Linux
-  `renameat2(RENAME_NOREPLACE)`, plus directory `fsync`. Unsupported atomic
-  publication fails closed. The destination's existing parent directory must
-  be trusted by the operator.
+- New preparation requires the Linux kernel and local filesystem to support
+  `renameat2(RENAME_NOREPLACE)`, plus directory `fsync`. ZPM prefers the libc
+  `renameat2` wrapper. If that symbol is absent, Linux x86-64 with 64-bit pointers
+  and C `long` uses the same kernel operation through libc `syscall`; other ABIs
+  require the wrapper. Unsupported atomic publication fails closed. The
+  destination's existing parent directory must be trusted by the operator.
 - The three application checkouts and every enrolled source checkout must be clean
   and fixed at the full Git revisions declared in configuration.
 - Keep all databases and lock files on local storage. A copied SQLite database
@@ -270,6 +272,14 @@ directory entries are flushed before
 The parent directory is then
 [flushed explicitly](https://man7.org/linux/man-pages/man2/fsync.2.html).
 
+The wrapper-absent path uses the
+[Linux x86-64 LP64 `renameat2` syscall number 316](https://github.com/torvalds/linux/blob/v6.12/arch/x86/entry/syscalls/syscall_64.tbl).
+It preserves the directory-relative arguments, no-replace flag and libc error
+number. A present wrapper is always used, including on other architectures.
+An operation rejected by the kernel or filesystem is reported without trying
+another rename operation. The fallback does not qualify x32, ARM, a browser
+kernel, a complete Linux distribution or an application package set.
+
 If preparation is interrupted, rerun the same command with the same configuration
 and destination. If the final directory is absent, the retry creates a fresh
 private stage. It never edits, resumes or deletes an abandoned stage. If the
@@ -285,8 +295,13 @@ repair an arbitrary destination. Legacy or foreign incomplete final directories
 still fail closed. The
 [recovery tests](../tests/test_preparation_recovery.py) use real `SIGKILL` at the
 credential-write and publication boundaries, concurrent preparers and foreign
-destination races. They verify process interruption, not hardware power-loss
-behavior or a version upgrade.
+destination races. On Linux x86-64 LP64, those cases also run through the real
+syscall with only the libc wrapper hidden. They cover publication contention
+without the cooperative lock and injected directory-fsync errors before and
+after publication. A post-publication fsync error reports failure and retains
+the visible bundle; retry verifies and reuses that identity. These cases verify
+process interruption and failure handling, not hardware power-loss behavior or
+a version upgrade.
 
 Do not publish, commit or copy the generated directory to a public location.
 The input configuration contains secret references only. Keep actual model
@@ -295,6 +310,42 @@ unrelated environment credentials or `PYTHONPATH` into the services. Existing
 command-only profiles retain their explicit `environment_refs` behavior.
 Model-backed profiles reject guest environment references and keep the provider
 credential exclusively in the trusted OpenJules process.
+
+### Native musl preparation trial
+
+The [native musl trial](../tests/contracts/check_musl_preparation.py) runs the
+preparation recovery cases with Alpine 3.22 CPython 3.12 on fresh ext2 and ext4
+filesystems. Its [committed inputs](../tests/contracts/musl-preparation-inputs.json)
+identify the exact minirootfs and main-repository APK set. It requires a Linux
+x86-64 host with Python 3.12, Git, OpenSSL, Docker, e2fsprogs, `mount`, `losetup`
+and `findmnt`. The invoking user needs Docker access and passwordless `sudo` for
+the fresh owned loop mounts, their ownership and cleanup.
+
+```sh
+python -I -B tests/contracts/check_musl_preparation.py \
+  --inputs tests/contracts/musl-preparation-inputs.json \
+  --work-dir /absolute/fresh-owned/musl-preparation-trial
+```
+
+Acquisition is an explicit online phase with exact approved URLs, sizes and
+hashes, a 128 MiB transfer cap and a 300-second deadline. APK execution and the
+recovery tests then use Docker's `network=none`; local loopback remains available.
+Each filesystem image is 256 MiB; test containers have a 512 MiB memory limit and
+a PID limit of 128. Operations have a 15-minute deadline, including 90 seconds
+reserved for cleanup, and bounded command output. A 3 GiB storage check counts
+the logical bytes of work-directory files plus named Docker image and container
+writable layer sizes. This sampled accounting can overshoot and can count shared
+image layers twice; it is not a quota or a measurement of the whole daemon's
+physical storage.
+
+The retained `report.json` records the source, interpreter, libc, host kernel,
+actual filesystems and outcomes, and binds the committed input manifest by its
+hash. CI publishes only this report. The fixture qualifies this installation
+primitive on the host kernel. It does not qualify Alpine's community Docker
+packages, a complete managed stack, a browser kernel or a browser distribution's
+storage and memory requirements. Exact candidate and resulting-main
+qualification records are retained in
+[ZPM #60](https://github.com/niklas-olsson/zero-point-modulator/issues/60).
 
 ## Managed interpreter context and bootstrap recovery
 
