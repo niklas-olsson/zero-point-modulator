@@ -1,0 +1,377 @@
+{
+  "members": [
+    {
+      "filename": "aiohttp-3.14.5-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "aiohttp._http_parser",
+      "member": "aiohttp/_http_parser.cpython-312-x86_64-linux-musl.so",
+      "sha256": "6929f668bead14698497fbce7e687688a529ec2b7f9aecd6da32750e974fe931",
+      "size": 2531048
+    },
+    {
+      "filename": "aiohttp-3.14.5-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "aiohttp._http_writer",
+      "member": "aiohttp/_http_writer.cpython-312-x86_64-linux-musl.so",
+      "sha256": "a370be2eb10ca3406bb7a0ee8da7a76ea775b39c305c8e4b4dfe34727de71b74",
+      "size": 347496
+    },
+    {
+      "filename": "aiohttp-3.14.5-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "aiohttp._websocket.mask",
+      "member": "aiohttp/_websocket/mask.cpython-312-x86_64-linux-musl.so",
+      "sha256": "e10e6914dd694395a735e329bd81349c11aec65a847a4882d1191944c049c9b2",
+      "size": 197696
+    },
+    {
+      "filename": "aiohttp-3.14.5-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "aiohttp._websocket.reader_c",
+      "member": "aiohttp/_websocket/reader_c.cpython-312-x86_64-linux-musl.so",
+      "sha256": "262b179f23e4e351d6380f59a857a16f2581598ea4ba7a035363bea56b20438f",
+      "size": 1398392
+    },
+    {
+      "filename": "cffi-2.1.1-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "_cffi_backend",
+      "member": "_cffi_backend.cpython-312-x86_64-linux-musl.so",
+      "sha256": "d6797f63e24bc4bba87dace48d83c2feb5748e50739fdee4d08d7db9f2c0deb1",
+      "size": 354424
+    },
+    {
+      "filename": "charset_normalizer-3.5.2-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "charset_normalizer.cd",
+      "member": "charset_normalizer/cd.cpython-312-x86_64-linux-musl.so",
+      "sha256": "1e32ab04161ad2ca4646f4725bfdc0998d43bbbfb2b946858e771de0809b7dad",
+      "size": 178352
+    },
+    {
+      "filename": "charset_normalizer-3.5.2-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "charset_normalizer.md",
+      "member": "charset_normalizer/md.cpython-312-x86_64-linux-musl.so",
+      "sha256": "c5a15ab6b287636dd5976aaf810f6f6635213107a03420cf561edfadbe607ac9",
+      "size": 344344
+    },
+    {
+      "filename": "cryptography-50.0.2-cp311-abi3-musllinux_1_2_x86_64.whl",
+      "import_module": "cryptography.hazmat.bindings._rust",
+      "member": "cryptography/hazmat/bindings/_rust.abi3.so",
+      "sha256": "923334bd755b6c3edaccffbf169be996c59f04a07145b2d2d234b39307568dcc",
+      "size": 14306169
+    },
+    {
+      "filename": "cryptography-50.0.2-cp311-abi3-musllinux_1_2_x86_64.whl",
+      "import_module": null,
+      "member": "cryptography.libs/libgcc_s-0cd532bd.so.1",
+      "sha256": "42b5f2c8ca13e5e173d837f5117a04b6c042437548112bde7879251ae8dcff8f",
+      "size": 183337
+    },
+    {
+      "filename": "dbus_fast-5.2.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "dbus_fast.message",
+      "member": "dbus_fast/message.cpython-312-x86_64-linux-musl.so",
+      "sha256": "98690e1e79af25f888a098e66a43f6d0620dcb5e55b8b6636b364a8ce95c10eb",
+      "size": 177224
+    },
+    {
+      "filename": "dbus_fast-5.2.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "dbus_fast.message_bus",
+      "member": "dbus_fast/message_bus.cpython-312-x86_64-linux-musl.so",
+      "sha256": "00756017b2278e1e1f9ef8288104b6e94a3c0c05c86c88aa3ac2031261736831",
+      "size": 458840
+    },
+    {
+      "filename": "dbus_fast-5.2.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "dbus_fast.service",
+      "member": "dbus_fast/service.cpython-312-x86_64-linux-musl.so",
+      "sha256": "0fb6fdb21feaf30ae4ea46f88f8bd47b531b9fb8e7f845a01460413f2912f720",
+      "size": 381408
+    },
+    {
+      "filename": "dbus_fast-5.2.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "dbus_fast.signature",
+      "member": "dbus_fast/signature.cpython-312-x86_64-linux-musl.so",
+      "sha256": "3ce2e1567cf8363947927a26de8037ee216ede1d46eae3ac41b11a585a18fd5d",
+      "size": 268432
+    },
+    {
+      "filename": "dbus_fast-5.2.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "dbus_fast.unpack",
+      "member": "dbus_fast/unpack.cpython-312-x86_64-linux-musl.so",
+      "sha256": "df3209cedd054163b68904fd3eb0e95ae79647928b55c050a81ecb500204f290",
+      "size": 63384
+    },
+    {
+      "filename": "dbus_fast-5.2.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "dbus_fast._private.address",
+      "member": "dbus_fast/_private/address.cpython-312-x86_64-linux-musl.so",
+      "sha256": "80fefc63f576975772467db292c1cd9dfc8b7fc4c840e0d7c8e1d082c3dbfe0a",
+      "size": 124032
+    },
+    {
+      "filename": "dbus_fast-5.2.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "dbus_fast._private.marshaller",
+      "member": "dbus_fast/_private/marshaller.cpython-312-x86_64-linux-musl.so",
+      "sha256": "2693002d6bc87800a2b44cef1b2cf4d4518cf7334be297f97002d9d84282ee4d",
+      "size": 185048
+    },
+    {
+      "filename": "dbus_fast-5.2.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "dbus_fast._private.unmarshaller",
+      "member": "dbus_fast/_private/unmarshaller.cpython-312-x86_64-linux-musl.so",
+      "sha256": "df69274918dbef0cc93d181da82bde2f7bf9a8dc75b0b503ed3ba419a84b57e8",
+      "size": 332352
+    },
+    {
+      "filename": "dbus_fast-5.2.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "dbus_fast.aio.message_reader",
+      "member": "dbus_fast/aio/message_reader.cpython-312-x86_64-linux-musl.so",
+      "sha256": "a4441a4f82f7a26c25d770ac493358301db11d750d693d9e419873fefc916cd2",
+      "size": 96680
+    },
+    {
+      "filename": "fastuuid-0.14.0-cp312-cp312-musllinux_1_1_x86_64.whl",
+      "import_module": null,
+      "member": "fastuuid.libs/libgcc_s-98a1ef30.so.1",
+      "sha256": "5ce551847ce7088a5b49d845a28ce195af8e7d1a81b577ed28f43871230a8ebb",
+      "size": 433441
+    },
+    {
+      "filename": "fastuuid-0.14.0-cp312-cp312-musllinux_1_1_x86_64.whl",
+      "import_module": "fastuuid.fastuuid",
+      "member": "fastuuid/fastuuid.cpython-312-x86_64-linux-musl.so",
+      "sha256": "3da5842e47ecfbef47d73073f6959b720ca3174cca873db472ae42203b645d26",
+      "size": 629609
+    },
+    {
+      "filename": "frozenlist-1.8.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "frozenlist._frozenlist",
+      "member": "frozenlist/_frozenlist.cpython-312-x86_64-linux-musl.so",
+      "sha256": "447c5d58ef8816bdf4c5279316b911229e11d1f5fc90adc1d43ccd66e249e514",
+      "size": 585104
+    },
+    {
+      "filename": "hf_xet-1.8.0-cp38-abi3-musllinux_1_2_x86_64.whl",
+      "import_module": "hf_xet.hf_xet",
+      "member": "hf_xet/hf_xet.abi3.so",
+      "sha256": "0e3e58aadf45f5453aba29eb941a724b60afa0628a89cb6e9ea928e8919fb492",
+      "size": 11427488
+    },
+    {
+      "filename": "hf_xet-1.8.0-cp38-abi3-musllinux_1_2_x86_64.whl",
+      "import_module": null,
+      "member": "hf_xet.libs/libgcc_s-f685abf1.so.1",
+      "sha256": "91a43de5877248a317d14faa35490ef474a1b33a83e235b52fb1eabf7108108e",
+      "size": 538513
+    },
+    {
+      "filename": "httptools-0.9.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "httptools.parser.parser",
+      "member": "httptools/parser/parser.cpython-312-x86_64-linux-musl.so",
+      "sha256": "67a9e393e6b907c9bdff311540467929eda2abfdffaa6d432d99a6c005fee167",
+      "size": 971704
+    },
+    {
+      "filename": "httptools-0.9.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "httptools.parser.url_parser",
+      "member": "httptools/parser/url_parser.cpython-312-x86_64-linux-musl.so",
+      "sha256": "e71a7c3b689a0936e7f3f87a609f669124d34ff1fb92d0c8e0328786a05a638e",
+      "size": 415776
+    },
+    {
+      "filename": "jiter-0.19.0-cp312-cp312-musllinux_1_1_x86_64.whl",
+      "import_module": "jiter.jiter",
+      "member": "jiter/jiter.cpython-312-x86_64-linux-musl.so",
+      "sha256": "fbaa64c89619441fbe4676831cf28457f15a331c855c55efc6c9a17cd402ec76",
+      "size": 721633
+    },
+    {
+      "filename": "jiter-0.19.0-cp312-cp312-musllinux_1_1_x86_64.whl",
+      "import_module": null,
+      "member": "jiter.libs/libgcc_s-f685abf1.so.1",
+      "sha256": "91a43de5877248a317d14faa35490ef474a1b33a83e235b52fb1eabf7108108e",
+      "size": 538513
+    },
+    {
+      "filename": "litellm-1.109.1-cp310-abi3-musllinux_1_2_x86_64.whl",
+      "import_module": "litellm.rust_bridge._native",
+      "member": "litellm/rust_bridge/_native.abi3.so",
+      "sha256": "6628b8ebd92e52f847dbe9d171d4d1557f8a1e673cc879fb4fdef44d9067003e",
+      "size": 38095705
+    },
+    {
+      "filename": "litellm-1.109.1-cp310-abi3-musllinux_1_2_x86_64.whl",
+      "import_module": null,
+      "member": "litellm.libs/libgcc_s-0cd532bd.so.1",
+      "sha256": "42b5f2c8ca13e5e173d837f5117a04b6c042437548112bde7879251ae8dcff8f",
+      "size": 183337
+    },
+    {
+      "filename": "markupsafe-3.0.4-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "markupsafe._speedups",
+      "member": "markupsafe/_speedups.cpython-312-x86_64-linux-musl.so",
+      "sha256": "e2b39e8ee4a81141984b0116296754110701c4143d4b2de1164998c20cd63c28",
+      "size": 38096
+    },
+    {
+      "filename": "multidict-7.2.1-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "multidict._multidict",
+      "member": "multidict/_multidict.cpython-312-x86_64-linux-musl.so",
+      "sha256": "344c8d4b3b5f52f69796fe91fda7f6b1cce399dc0aae492877d29056c8375bfa",
+      "size": 1115920
+    },
+    {
+      "filename": "multidict-7.2.1-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "multidict._testcapi",
+      "member": "multidict/_testcapi.cpython-312-x86_64-linux-musl.so",
+      "sha256": "9fac99321930b5c99a3af805565c585192d24301c2eb3113bd8534e6ff2488fc",
+      "size": 86712
+    },
+    {
+      "filename": "propcache-0.5.4-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "propcache._helpers_c",
+      "member": "propcache/_helpers_c.cpython-312-x86_64-linux-musl.so",
+      "sha256": "0d10b182fc541d6129e542962910bf18c7d097f1ea34acc199cae91028add5ff",
+      "size": 598664
+    },
+    {
+      "filename": "pydantic_core-2.50.4-cp312-cp312-musllinux_1_1_x86_64.whl",
+      "import_module": "pydantic_core._pydantic_core",
+      "member": "pydantic_core/_pydantic_core.cpython-312-x86_64-linux-musl.so",
+      "sha256": "f526a22d30f68abf8fc488ec7be61ff2ee8286abfe3cc3a3c2a72049b5f5a917",
+      "size": 5363657
+    },
+    {
+      "filename": "pydantic_core-2.50.4-cp312-cp312-musllinux_1_1_x86_64.whl",
+      "import_module": null,
+      "member": "pydantic_core.libs/libgcc_s-f685abf1.so.1",
+      "sha256": "91a43de5877248a317d14faa35490ef474a1b33a83e235b52fb1eabf7108108e",
+      "size": 538513
+    },
+    {
+      "filename": "pynacl-1.6.2-cp38-abi3-musllinux_1_2_x86_64.whl",
+      "import_module": "nacl._sodium",
+      "member": "nacl/_sodium.abi3.so",
+      "sha256": "c954110bd2b358931fcb5c555ba920605e229b40f9a895fc696e2768a285e39d",
+      "size": 3614192
+    },
+    {
+      "filename": "pytokens-0.4.1-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "fd7dcdb10166ebd4db98__mypyc",
+      "member": "fd7dcdb10166ebd4db98__mypyc.cpython-312-x86_64-linux-musl.so",
+      "sha256": "8463897f9bdd5c5457640fe5c804c46590a9f3b3ee1dc185acd4deed2bcc5733",
+      "size": 664128
+    },
+    {
+      "filename": "pytokens-0.4.1-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "pytokens",
+      "member": "pytokens/__init__.cpython-312-x86_64-linux-musl.so",
+      "sha256": "1f3553e12f259c541d3a08b7adf4d8cd2190ad40eea0d73eeb63641c737b51c9",
+      "size": 17728
+    },
+    {
+      "filename": "pytokens-0.4.1-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "pytokens._mypyc_dummy",
+      "member": "pytokens/_mypyc_dummy.cpython-312-x86_64-linux-musl.so",
+      "sha256": "9c6b5276af49ad6acdd83ec7f6d0275b2cf6d08a560fe9affad9f3b3d3ead6e9",
+      "size": 17768
+    },
+    {
+      "filename": "pyyaml-6.0.3-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "yaml._yaml",
+      "member": "yaml/_yaml.cpython-312-x86_64-linux-musl.so",
+      "sha256": "c642c62bdf5c16e5f4b8aa6f57bfad54cd1d0fa3d5eda2ff80e183a2d8813b1a",
+      "size": 1892088
+    },
+    {
+      "filename": "regex-2026.11.9-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "regex._regex",
+      "member": "regex/_regex.cpython-312-x86_64-linux-musl.so",
+      "sha256": "6b4e3b680b3ae04f69a4889943d6483e35bad5e3de8705da7f907d1b4b11dde0",
+      "size": 2044832
+    },
+    {
+      "filename": "rpds_py-2026.9.1-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "rpds.rpds",
+      "member": "rpds/rpds.cpython-312-x86_64-linux-musl.so",
+      "sha256": "2ca26d217855bbd89f528d5c1997e5034e58c5e6143cbfe84dc93c6cfbe1eaf3",
+      "size": 1012441
+    },
+    {
+      "filename": "rpds_py-2026.9.1-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": null,
+      "member": "rpds_py.libs/libgcc_s-f685abf1.so.1",
+      "sha256": "91a43de5877248a317d14faa35490ef474a1b33a83e235b52fb1eabf7108108e",
+      "size": 538513
+    },
+    {
+      "filename": "tiktoken-0.14.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "tiktoken._tiktoken",
+      "member": "tiktoken/_tiktoken.cpython-312-x86_64-linux-musl.so",
+      "sha256": "e07b31dc2e7ba50e5e1df9a7abb3082f81e463aed9bdef346ced1e8ac2335470",
+      "size": 3652361
+    },
+    {
+      "filename": "tiktoken-0.14.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": null,
+      "member": "tiktoken.libs/libgcc_s-0cd532bd.so.1",
+      "sha256": "c8f934f958f22b3b9c8e790fde6bc2d2f55ab9ae8b9f5eea65425b20271782d0",
+      "size": 181737
+    },
+    {
+      "filename": "tokenizers-0.23.3-cp310-abi3-musllinux_1_2_x86_64.whl",
+      "import_module": "tokenizers.tokenizers",
+      "member": "tokenizers/tokenizers.abi3.so",
+      "sha256": "8b493f509828fd5ed3aec048e03261561514a6db66fb708cda04a38ba7bc7ca2",
+      "size": 11052137
+    },
+    {
+      "filename": "tokenizers-0.23.3-cp310-abi3-musllinux_1_2_x86_64.whl",
+      "import_module": null,
+      "member": "tokenizers.libs/libgcc_s-f685abf1.so.1",
+      "sha256": "91a43de5877248a317d14faa35490ef474a1b33a83e235b52fb1eabf7108108e",
+      "size": 538513
+    },
+    {
+      "filename": "tokenizers-0.23.3-cp310-abi3-musllinux_1_2_x86_64.whl",
+      "import_module": null,
+      "member": "tokenizers.libs/libstdc++-1b2c0963.so.6",
+      "sha256": "9f81293f3d5587b7c5df8ff843f57987fbd5289bb26ce07a294bef66f6a1d43c",
+      "size": 18440601
+    },
+    {
+      "filename": "uvloop-0.23.0-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "uvloop.loop",
+      "member": "uvloop/loop.cpython-312-x86_64-linux-musl.so",
+      "sha256": "6cb370120ca67e812f9928dbe3f7cda3812193a5b5f5296dd81a3e234bbcd851",
+      "size": 11675496
+    },
+    {
+      "filename": "watchfiles-1.3.0-cp310-abi3-musllinux_1_1_x86_64.whl",
+      "import_module": "watchfiles._rust_notify",
+      "member": "watchfiles/_rust_notify.abi3.so",
+      "sha256": "fe2928c939abced593679b806cd38113c4a816b3fc9e99708203ed5885ba3f37",
+      "size": 1123425
+    },
+    {
+      "filename": "watchfiles-1.3.0-cp310-abi3-musllinux_1_1_x86_64.whl",
+      "import_module": null,
+      "member": "watchfiles.libs/libgcc_s-f685abf1.so.1",
+      "sha256": "91a43de5877248a317d14faa35490ef474a1b33a83e235b52fb1eabf7108108e",
+      "size": 538513
+    },
+    {
+      "filename": "websockets-17.4-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "websockets.speedups",
+      "member": "websockets/speedups.cpython-312-x86_64-linux-musl.so",
+      "sha256": "ea1351e130b4d99588d6249330a21c0aebbdd2777abc388dc816b3f62f42b5ea",
+      "size": 34216
+    },
+    {
+      "filename": "yarl-1.25.1-cp312-cp312-musllinux_1_2_x86_64.whl",
+      "import_module": "yarl._quoting_c",
+      "member": "yarl/_quoting_c.cpython-312-x86_64-linux-musl.so",
+      "sha256": "2be34368ec886435f4d5bb4066e8a8916ef60f54af4bdaacf0b2611b9c21c9f2",
+      "size": 123376
+    }
+  ],
+  "schema": "zpm-native-alpine-extension-inputs/v1",
+  "scope": "Static file identities and fixed native import targets; no import or install performed by source validation."
+}

@@ -1,0 +1,38 @@
+name: Check native Alpine candidate source
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/native-alpine-candidate.yml'
+      - 'tests/contracts/check_alpine_sealed_candidate.py'
+      - 'tests/contracts/check_musl_preparation.py'
+      - 'tests/contracts/native-alpine/**'
+      - 'tests/test_alpine_sealed_candidate.py'
+      - 'zpm/dependencies.py'
+      - 'docs/native-alpine-qualification.md'
+  push:
+    branches: ['qualification/native-alpine/**']
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check source admission and synthetic archive fixtures
+        run: python -B -m unittest tests.test_alpine_sealed_candidate -v
+      - name: Record an inert source preflight
+        run: |
+          python -B -m tests.contracts.check_alpine_sealed_candidate \
+            --plan-sha256 c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76 \
+            --harness-source-revision "$GITHUB_SHA" \
+            --report "$RUNNER_TEMP/zpm-native-alpine-pretrial.json"
