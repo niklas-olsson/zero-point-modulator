@@ -18,7 +18,9 @@ operator-enrolled identities, exact public execution approvals and released lega
 history. Separately, [explicit full destination mode](docs/destination-reconciliation.md)
 places capacity through approved v2 services while retaining every original
 operation and uncertain outcome. Approval import itself performs no remote checks
-and does not enable execution. Two-host installation remains a separate package.
+and does not enable execution. The [role-local installer](docs/role-installation.md)
+prepares separate controller/authority and execution bundles. Its one-host
+installed trial and actual two-host acceptance remain distinct evidence.
 
 ## Install and inspect
 
@@ -316,6 +318,16 @@ retains the same identity on retry. Without that opt-in, the existing ranged
 installation remains supported. Neither mode qualifies browser execution or a
 different interpreter/platform.
 
+The [schema-3 role installation guide](docs/role-installation.md) covers the
+separate [controller-authority](examples/deployment-controller.json) and
+[execution](examples/deployment-execution.json) configurations. Each contains
+only its two required sources/environments and scoped credentials. The host
+operator explicitly initializes and approves a destination, starts admission
+closed, and opens it separately from controller activation and capacity.
+Role-local sealed plans use version 2 with exactly that role's artifact set;
+legacy deployment plans retain version 1. Actual independent-host acceptance
+remains in [#51](https://github.com/niklas-olsson/zero-point-modulator/issues/51).
+
 The [Alpine sealed-bootstrap candidate](docs/native-alpine-qualification.md)
 freezes one Alpine 3.24.4 / official CPython 3.12.16 input set for native
 qualification. Its source-only checker and synthetic archive fixtures do not
@@ -363,6 +375,7 @@ The following guides own each separate integration procedure and its evidence:
 | [Children and managed public discussion](docs/managed-children-stack-trial.md) | Private child execution, outcomes, cold clarification, capture, scoped cleanup/restart and bounded public contributions. |
 | [Deployment isolation](docs/managed-isolation-stack-trial.md) | Two independent deployments on one Docker Engine; not a shared-service installation. |
 | [Shared-service installation](docs/managed-multi-repository-stack-trial.md) | Two repositories under one controller/service pair, scoped credentials, capacity and recovery. |
+| [Role-local installation](docs/role-installation.md#qualification-and-remaining-host-acceptance) | Three generated bundles on one host; separate role custody, explicit host approval/admission, installed command recovery and retained results. |
 
 The [retained shared-service qualification](docs/managed-multi-repository-stack-trial.md#retained-qualification)
 remains evidence for its recorded revisions. Current integrated acceptance and
@@ -385,6 +398,7 @@ The table is navigation, not another protocol specification.
 | Capacity, durable intent and recovery | [controller](zpm/controller.py), [store](zpm/store.py) | [Recovery and capacity rules](#recovery-and-capacity-rules) in this README |
 | Provider transport and lifecycle responses | [provider](zpm/provider.py), [HTTP transport](zpm/_http_transport.py), [response models](zpm/models.py) | [Wire contract](#openjules-wire-contract) in this README; [HTTP trial](docs/http-contract-trial.md) |
 | Installation, bootstrap and generated configuration | [deployment](zpm/deployment.py), [sealed dependencies](zpm/dependencies.py), [interpreter context](zpm/installation_context.py) | [Single-host installation](docs/single-host-installation.md) |
+| Role-local installation and original host identity | [role schema/rendering](zpm/deployment_roles.py), [service-set projection](zpm/installation_roles.py), [role commands](zpm/role_manager.py) | [Role-local installation](docs/role-installation.md) |
 | Offline installation receipt and contract examples | [pure admission data API](zpm/installation_admission.py), [attributed fixtures](tests/fixtures/installation-admission) | [Installation-admission contract fixtures](docs/single-host-installation.md#installation-admission-contract-fixtures); [#56](https://github.com/niklas-olsson/zero-point-modulator/issues/56) |
 | Installed trials and component pins | [trial harnesses](tests/contracts), [CI workflow](.github/workflows/ci.yml) | The corresponding trial guide above; [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3) for integrated acceptance |
 | Native Alpine sealed-bootstrap investigation | [source admission](tests/contracts/check_alpine_sealed_candidate.py), [frozen public inputs](tests/contracts/native-alpine) | [Native candidate, limits and pending execution](docs/native-alpine-qualification.md); [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63) |

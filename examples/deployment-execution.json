@@ -1,0 +1,44 @@
+{
+  "schema_version": 3,
+  "role": "execution",
+  "deployment_id": "my-role-deployment",
+  "sources": {
+    "zpm": {
+      "checkout": "/absolute/checkouts/zero-point-modulator",
+      "revision": "REPLACE_WITH_FULL_TESTED_GIT_COMMIT"
+    },
+    "openjules": {
+      "checkout": "/absolute/checkouts/OpenJules",
+      "revision": "7135d0988dff050df63acb89f75562dafccacf79"
+    }
+  },
+  "binding": {
+    "schema_version": 1,
+    "repository": "github:github.com/owner/project",
+    "profile": "approved-root-v1",
+    "desired_workers": 0,
+    "max_workers": 2
+  },
+  "source": {
+    "checkout": "/absolute/checkouts/enrolled-repository",
+    "revision": "REPLACE_WITH_FULL_APPROVED_BASE_COMMIT"
+  },
+  "image": "sha256:REPLACE_WITH_FULL_APPROVED_IMAGE_ID",
+  "command": ["python", "approved_offline_agent.py"],
+  "runtime": {
+    "uid": 65532,
+    "memory_bytes": 536870912,
+    "cpu_quota": 100000,
+    "pids_limit": 128,
+    "root_timeout_ms": 300000,
+    "max_archive_bytes": 16777216
+  },
+  "destination_id": "host-a",
+  "worker_ceiling": 1,
+  "authority_endpoint": "https://authority.example.invalid",
+  "runtime_principal": "runtime-a",
+  "runtime_token_ref": "env:ZPM_INSTALL_RUNTIME_A",
+  "lifecycle_token_ref": "env:ZPM_INSTALL_LIFECYCLE_A",
+  "port": 8000,
+  "timeout_seconds": 10
+}

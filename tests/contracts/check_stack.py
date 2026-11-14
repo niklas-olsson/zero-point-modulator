@@ -582,6 +582,9 @@ def run(args):
         from check_destination_stack import run_contract as run_destinations
         destinations = run_destinations(root, bundle, data, source_paths, revisions, image)
         checks.append("one controller qualifies two full destinations and preserves original recovery, native refusals and captured canonical work")
+        from check_role_stack import run_contract as run_roles
+        roles = run_roles(root, bundle, data, source_paths, revisions, image, deny_bootstrap_network=deny_network)
+        checks.append("three generated role installations retain scoped authority and execute two canonical tasks on one native host")
 
         report = {"passed": True, "schema_version": 1, "deployment_id": deployment, "image": image,
                   "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed",
@@ -590,6 +593,7 @@ def run(args):
                   "captured_artifacts": attempt["captured_artifacts"], "final_reserved": final_reserved,
                   "two_runtime_contention": contention,
                   "full_destination_contract": destinations,
+                  "role_installation": roles,
                   "sealed_dependencies": sealed_report(bundle, dependency_reference, root, deny_network=deny_network),
                   "proof": "real Docker, real HTTP, separate services, controlled code change",
                   "not_proven": ["live model inference", "child delegation", "independent semantic review", "forge publication", "merge authorization",
@@ -608,6 +612,11 @@ def run(args):
             (root / "diagnostics.json").write_text(json.dumps(diagnostic, indent=2, sort_keys=True))
         if hasattr(exc, "destination_diagnostic"):
             diagnostic["full_destination_contract"] = exc.destination_diagnostic
+            (root / "diagnostics.json").write_text(json.dumps(diagnostic, indent=2, sort_keys=True))
+        if hasattr(exc, "role_diagnostic"):
+            # Only a closed structured summary leaves the private role root.
+            # This parent redactor does not know the role's distinct tokens.
+            diagnostic["role_installation"] = exc.role_diagnostic
             (root / "diagnostics.json").write_text(json.dumps(diagnostic, indent=2, sort_keys=True))
         print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
         raise
