@@ -1,0 +1,42 @@
+{
+  "schema_version": 3,
+  "role": "controller-authority",
+  "deployment_id": "my-role-deployment",
+  "sources": {
+    "zpm": {
+      "checkout": "/absolute/checkouts/zero-point-modulator",
+      "revision": "REPLACE_WITH_FULL_TESTED_GIT_COMMIT"
+    },
+    "polyphony": {
+      "checkout": "/absolute/checkouts/keystone-polyphony",
+      "revision": "6480e36355bf0d5de4e25a560d40e665fd76038c"
+    }
+  },
+  "binding": {
+    "schema_version": 1,
+    "repository": "github:github.com/owner/project",
+    "profile": "approved-root-v1",
+    "desired_workers": 0,
+    "max_workers": 2
+  },
+  "base_commit": "REPLACE_WITH_FULL_APPROVED_BASE_COMMIT",
+  "policy": {
+    "checks": ["tests"],
+    "reviewers": ["operator"],
+    "max_attempts": 3,
+    "budget_seconds": 600,
+    "attempt_seconds": 120,
+    "capabilities": ["python"]
+  },
+  "max_workers": 2,
+  "runtime_principals": [
+    {"identity": "runtime-a", "token_ref": "env:ZPM_INSTALL_RUNTIME_A"},
+    {"identity": "runtime-b", "token_ref": "env:ZPM_INSTALL_RUNTIME_B"}
+  ],
+  "destinations": [
+    {"destination_id": "host-a", "token_ref": "env:ZPM_INSTALL_LIFECYCLE_A"},
+    {"destination_id": "host-b", "token_ref": "env:ZPM_INSTALL_LIFECYCLE_B"}
+  ],
+  "port": 8766,
+  "timeout_seconds": 10
+}

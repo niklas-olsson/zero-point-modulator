@@ -9,8 +9,9 @@ The ordinary single-provider v1 controller remains available for v1 state.
 This implements the consumer contract adopted in
 [ZPM #50](https://github.com/niklas-olsson/zero-point-modulator/issues/50#issuecomment-6848027743)
 and [OpenJules #47](https://github.com/niklas-olsson/OpenJules/issues/47#issuecomment-6848006932).
-The separately scoped role-aware installation and actual two-host acceptance
-remain [#51](https://github.com/niklas-olsson/zero-point-modulator/issues/51).
+The separately scoped [role-local installer](role-installation.md) owns generated
+bundles and their installed command trial. Actual two-host acceptance remains
+[#51](https://github.com/niklas-olsson/zero-point-modulator/issues/51).
 Two loopback services do not prove two independent hosts or a browser runtime.
 
 ## Explicit preparation and activation

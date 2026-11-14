@@ -61,6 +61,7 @@ CODE_PATHS = (
     "zpm/dependencies.py",
     "zpm/__init__.py",
     "zpm/installation_context.py",
+    "zpm/installation_roles.py",
     "zpm/models.py",
 )
 FIXED_POLICY = {

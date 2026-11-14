@@ -76,8 +76,8 @@ No real network, candidate package or container is used by these added fixtures.
 
 ## Snapshot correction after attempt 3
 
-Agent-authored by ChatGPT `/root/assess_polyphony`. The new `active-plan-4.json`
-is 6,740 bytes, SHA-256
+Agent-authored by ChatGPT `/root/assess_polyphony`. The first source snapshot of
+`active-plan-4.json`, before its unactivated main integration below, was 6,740 bytes, SHA-256
 `11d09421c5bd419cffe7be0624bd961bd0fadc3c76606dcf06f64f548ec51daf`.
 It binds the closed three-path live-record reader and the distinct fourth
 work/upload identity. The immutable candidate reader, guest publisher, original
@@ -121,6 +121,51 @@ passed. The local wheel is 83,051 bytes, SHA-256
 `1a8962f16190aabf30158729e646ff11bbdd5608f9322359ade67b2a6181a01a`.
 Those checks use host CPython 3.12.14 and do not qualify the frozen Alpine
 CPython 3.12.16 candidate or publish a release.
+
+## Main integration before attempt 4
+
+The fourth attempt had not been activated when main advanced to
+`e8cb65ea7c1717cc5b49c1a6199960a51ac99b9f` with the role-local installer.
+That actual main is merged into the reviewed fourth-attempt source
+`ba9d8137f5d4363f75d5aba6c55550fad0b85c40`, preserving both histories and every
+prior plan and outcome. The original three plans remain byte-identical.
+
+The host candidate compiler imports `wheel_identity` from `zpm.dependencies`.
+The merged dependency module now imports the pure `zpm.installation_roles`
+selector, which imports only the already-bound `zpm.models`. The executing-source
+closure therefore gains that one file, and rebinds the changed dependency and
+host runner bytes. The active plan is now **6,885 bytes**, SHA-256
+`929ffd1c1b6b8bcd471673e0a8fdc1b78b3a6809aa96618411a1008399c074c0`.
+Its eleven code identities include the workflow and ten Python source files.
+The production guest checkouts, immutable candidate/recipe/member identities,
+commands, capacities, authority and acquisition policy remain unchanged. This
+integration does not switch the frozen three-service guest to a role-local
+deployment or qualify the role installer on Alpine.
+
+All **98 focused fixtures pass** under host CPython 3.12.14. Two new regressions
+observe the actual cold host import closure with socket, subprocess and write
+effects denied, and refuse a changed imported role selector at exact source
+admission. Existing role dependency tests preserve the legacy three-source
+version-one plan while keeping each separate role's version-two selection
+closed. The isolated `--check-plan` command returns `SOURCE_PLAN_ADMITTED` and
+`native_execution: NOT_RUN` for the new hash. An initial local fixture invocation
+used system CPython 3.13.5; three role-dependency subcases correctly refused the
+unsupported interpreter tuple. Its separate failed log is retained, and no
+production check was weakened.
+
+The combined full local suite ran **749 tests in 115.893 seconds: 748 passed
+and the same one `/proc/<pid>/task/<pid>/children` read errored**. Both that
+measurement helper and its test are byte-identical to the reviewed parent;
+the earlier clean-parent reproduction remains applicable. The required hosted
+full suite is not waived. Offline wheel construction, fresh isolated
+installation, installed CLI help/example validation and installed dependency
+and role-selector imports all passed. The 98,587-byte local wheel has SHA-256
+`e6b0c8f7d0575d837748717c299bfaf1bd065ae2c6efa28bc02b96db9198bee3`;
+it is host packaging evidence, not an Alpine installation or release.
+
+Fresh required hosted gates and independent review of the combined source and
+new plan remain required before a fourth native admission. No new native
+acquisition, container, guest execution or installed result is inferred here.
 
 ## Original completed-source local checks
 

@@ -5,6 +5,12 @@ task requirements, attempts, budgets and artifact provenance. OpenJules owns
 the Docker execution boundary and runtime receipts. The installation does not
 introduce another task scheduler or use a browser VM as a production worker.
 
+This guide describes the existing schema-1 and schema-2 three-service bundles.
+For schema 3, use [separate controller/authority and execution roles](role-installation.md).
+That path has its own scoped credentials, explicit destination approval/admission
+sequence and role-only dependency plans. Its installed one-host evidence does
+not replace actual two-host acceptance.
+
 `zpm deployment prepare` creates a private installation directory from explicit
 operator choices. It performs local validation and writes configuration. It
 does not install packages, contact a provider, create Docker containers or prove

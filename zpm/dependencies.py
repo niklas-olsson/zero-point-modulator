@@ -29,6 +29,7 @@ import tomllib
 import zipfile
 
 from . import installation_context
+from .installation_roles import role_services, services as installation_services
 from .models import ConfigurationError
 
 SERVICES = ("zpm", "openjules", "polyphony")
@@ -241,7 +242,7 @@ def _roots(service, path, expected):
         _fail()
 
 
-def _load(reference, sources, *, artifacts=True):
+def _load(reference, sources, *, artifacts=True, role=None):
     _object(reference, {"manifest", "sha256", "artifacts"})
     for name in ("manifest", "artifacts"):
         if not isinstance(reference[name], str) or not Path(reference[name]).is_absolute():
@@ -249,7 +250,10 @@ def _load(reference, sources, *, artifacts=True):
     raw = _read(Path(reference["manifest"]), PLAN_LIMIT, expected=_hash(reference["sha256"]))
     plan = _json(raw)
     _object(plan, {"schema_version", "interpreter", "seed", "artifacts", "environments"})
-    if type(plan["schema_version"]) is not int or plan["schema_version"] != 1:
+    selected = SERVICES if role is None else role_services(role)
+    if set(sources) != set(selected):
+        _fail("sealed source set differs from the declared installer role")
+    if type(plan["schema_version"]) is not int or plan["schema_version"] != (1 if role is None else 2):
         _fail()
     identity = _object(plan["interpreter"], {"implementation", "version", "cache_tag", "abi", "platform"})
     if (any(not isinstance(x, str) or not x or len(x) > 128 for x in identity.values())
@@ -288,7 +292,7 @@ def _load(reference, sources, *, artifacts=True):
                 _fail()
     if total > TOTAL_LIMIT or seed["filename"] not in inventory or inventory[seed["filename"]]["name"] != "pip":
         _fail()
-    _object(plan["environments"], SERVICES)
+    _object(plan["environments"], selected)
     used = set()
     for service, environment in plan["environments"].items():
         _object(environment, {"source_revision", "dependency_files", "wheels"})
@@ -315,9 +319,13 @@ def _load(reference, sources, *, artifacts=True):
     return plan, raw, inventory
 
 
-def normalize_reference(value, sources):
-    _load(value, sources)
+def normalize_reference(value, sources, *, role=None):
+    _load(value, sources, role=role)
     return dict(value)
+
+
+def mode(data):
+    return "sealed-local-wheels-v2" if data.get("schema_version") == 3 else "sealed-local-wheels-v1"
 
 
 def _source_files(source):
@@ -347,8 +355,9 @@ def _source_files(source):
         yield path, content
 
 
-def seal(reference, sources, root):
-    plan, raw, inventory = _load(reference, sources, artifacts=False)
+def seal(reference, sources, root, *, role=None):
+    plan, raw, inventory = _load(reference, sources, artifacts=False, role=role)
+    selected = SERVICES if role is None else role_services(role)
     directory = root / "dependencies"
     directory.mkdir(mode=0o700)
     wheelhouse = directory / "wheels"
@@ -369,7 +378,7 @@ def seal(reference, sources, root):
         target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         _write(target, content, readonly=True)
         records["dependencies/source/" + path] = _digest(content)
-    for service in SERVICES:
+    for service in selected:
         filename = "pyproject.toml" if service == "zpm" else "requirements.txt"
         roots = _roots(service, Path(sources[service]["checkout"]) / filename,
                        plan["environments"][service]["dependency_files"][filename])
@@ -383,8 +392,9 @@ def seal(reference, sources, root):
     directory.chmod(0o500)
 
 
-def verify(reference, sources, root):
-    plan, raw, inventory = _load(reference, sources)
+def verify(reference, sources, root, *, role=None):
+    plan, raw, inventory = _load(reference, sources, role=role)
+    selected = SERVICES if role is None else role_services(role)
     directory = root / "dependencies"
     if _read(directory / "plan.json", PLAN_LIMIT, private=True) != raw:
         _fail()
@@ -392,7 +402,7 @@ def verify(reference, sources, root):
     if not isinstance(records, dict) or not records:
         _fail()
     expected = {"dependencies/plan.json", *("dependencies/wheels/" + x for x in inventory),
-                *("dependencies/" + x + "-roots.json" for x in SERVICES)}
+                *("dependencies/" + x + "-roots.json" for x in selected)}
     expected.update("dependencies/source/" + path for path, _ in _source_files(sources["zpm"]))
     if set(records) != expected:
         _fail()
@@ -407,7 +417,7 @@ def verify(reference, sources, root):
     return plan, inventory
 
 
-def _run(command, cwd, environment, seconds=300):
+def _run(command, cwd, environment, seconds=300, *, allowed_returncodes=(0,), failure_directory=None, label="sealed bootstrap"):
     """Bound time and output, kill/reap the owned process group on failure."""
     control, parent = os.pipe()
     lock = _MANAGER_FD.get()
@@ -430,17 +440,17 @@ def _run(command, cwd, environment, seconds=300):
             while selector.get_map():
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    _fail("sealed bootstrap command exceeded its time bound")
+                    _fail(label + " command exceeded its time bound")
                 for key, _ in selector.select(min(remaining, 0.25)):
                     chunk = os.read(key.fileobj.fileno(), 65536)
                     if not chunk:
                         selector.unregister(key.fileobj)
                     output.extend(chunk)
                     if len(output) > OUTPUT_LIMIT:
-                        _fail("sealed bootstrap command exceeded its output bound")
+                        _fail(label + " command exceeded its output bound")
             result = process.wait(timeout=max(0.01, deadline - time.monotonic()))
-        if result:
-            _fail(f"sealed bootstrap command failed with exit {result}; bounded output retained privately")
+        if result not in allowed_returncodes:
+            _fail(f"{label} command failed with exit {result}; bounded output retained privately")
         return bytes(output)
     finally:
         os.close(parent)  # EOF cancels the group even if the manager was killed.
@@ -448,10 +458,10 @@ def _run(command, cwd, environment, seconds=300):
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                _fail("sealed bootstrap cleanup is unconfirmed; the inherited manager lock remains held")
+                _fail(label + " cleanup is unconfirmed; the inherited manager lock remains held")
         process.stdout.close()
         if sys.exc_info()[0] is not None:
-            _write(Path(cwd) / (".sealed-command-" + os.urandom(12).hex() + ".log"), bytes(output[:OUTPUT_LIMIT]))
+            _write(Path(cwd if failure_directory is None else failure_directory) / (".sealed-command-" + os.urandom(12).hex() + ".log"), bytes(output[:OUTPUT_LIMIT]))
 
 
 _INSTALLED = r'''
@@ -628,27 +638,30 @@ def _expected_set(installed, service, root, plan, inventory):
 
 
 def check_completed(root, data, environment):
-    plan, inventory = verify(data["dependency_plan"], data["sources"], root)
+    plan, inventory = verify(data["dependency_plan"], data["sources"], root,
+                             role=data["role"] if data["schema_version"] == 3 else None)
     if interpreter_identity() != plan["interpreter"]:
         _fail("sealed bootstrap interpreter does not match the admitted tuple")
-    for service in SERVICES:
+    for service in installation_services(data):
         _completion(root, data, service, plan, inventory, environment, require=True)
 
 
 def bootstrap(root, data, environment):
-    plan, inventory = verify(data["dependency_plan"], data["sources"], root)
+    plan, inventory = verify(data["dependency_plan"], data["sources"], root,
+                             role=data["role"] if data["schema_version"] == 3 else None)
     if interpreter_identity() != plan["interpreter"]:
         _fail("sealed bootstrap interpreter does not match the admitted tuple")
     identity = {"schema_version": 1, "plan_sha256": data["dependency_plan"]["sha256"],
                 "interpreter": plan["interpreter"],
                 "sources": {key: value["revision"] for key, value in data["sources"].items()}}
     _publish(root / "environments/sealed-intent.json", identity)
-    if installation_context.completed(root, data["sources"]["openjules"]["revision"]):
-        installation_context.probe(root, Path(data["sources"]["openjules"]["checkout"]), environment,
-                                   require_complete=True, revision=data["sources"]["openjules"]["revision"])
-    else:
-        installation_context.validate_selector(root, required=False)
-    for service in SERVICES:
+    if "openjules" in installation_services(data):
+        if installation_context.completed(root, data["sources"]["openjules"]["revision"]):
+            installation_context.probe(root, Path(data["sources"]["openjules"]["checkout"]), environment,
+                                       require_complete=True, revision=data["sources"]["openjules"]["revision"])
+        else:
+            installation_context.validate_selector(root, required=False)
+    for service in installation_services(data):
         directory = root / "environments" / service
         intent = root / "environments" / (service + "-sealed-intent.json")
         if directory.exists() and not intent.exists():
@@ -724,5 +737,5 @@ def bootstrap(root, data, environment):
                  "build_record_sha256": _built(root, data, plan, inventory)[2] if service == "zpm" else None})
         _publish(directory / "bootstrap-complete.json", {"revision": data["sources"][service]["revision"], "python": sys.version})
         _discard_scratch(scratch, scratch_identity)
-    return {"installed": True, "dependency_mode": "sealed-local-wheels-v1", "plan_sha256": data["dependency_plan"]["sha256"],
+    return {"installed": True, "dependency_mode": mode(data), "plan_sha256": data["dependency_plan"]["sha256"],
             "services_started": False, "remote_access_checked": False}

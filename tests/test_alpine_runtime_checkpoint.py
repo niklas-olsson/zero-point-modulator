@@ -5,6 +5,8 @@ import json
 import hashlib
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -15,6 +17,53 @@ from tests.contracts import alpine_sealed_guest as guest
 
 
 class RuntimeCheckpointTests(unittest.TestCase):
+    def test_cold_host_import_closure_is_bound_without_effects(self):
+        script = r'''
+import json, os, sys
+from pathlib import Path
+root = Path(sys.argv[1]).resolve()
+def no_effects(event, args):
+    if event in {"socket.__new__", "socket.connect", "socket.bind", "subprocess.Popen",
+                 "os.system", "os.posix_spawn", "os.fork", "os.mkdir"}:
+        raise AssertionError("effect during cold host import: " + event)
+    if event == "open" and len(args) > 2 and isinstance(args[2], int):
+        if args[2] & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND):
+            raise AssertionError("write during cold host import")
+sys.addaudithook(no_effects)
+sys.path.insert(0, str(root))
+from tests.contracts import check_alpine_sealed_runtime
+paths = set()
+for value in tuple(sys.modules.values()):
+    name = getattr(value, "__file__", None)
+    if name:
+        path = Path(name).resolve()
+        if path.is_relative_to(root):
+            paths.add(path.relative_to(root).as_posix())
+print(json.dumps(sorted(paths)))
+'''
+        result = subprocess.run([sys.executable, "-I", "-B", "-c", script, str(runtime.REPO)],
+                                capture_output=True, text=True, timeout=10, check=True)
+        observed = set(json.loads(result.stdout))
+        self.assertIn("zpm/installation_roles.py", observed)
+        self.assertLessEqual(observed, set(runtime.CODE_PATHS))
+        plan = json.loads(runtime.ACTIVE_PLAN.read_bytes())
+        self.assertLessEqual(observed, set(plan["code"]))
+
+    def test_changed_imported_role_selector_refuses_exact_source_admission(self):
+        reviewed = hashlib.sha256(runtime.ACTIVE_PLAN.read_bytes()).hexdigest()
+        path = runtime.REPO / "zpm/installation_roles.py"
+        original = path.read_bytes()
+        altered = original[:-1] + (b" " if original[-1:] != b" " else b"\n")
+        real = runtime.source_blob
+        def changed(source, **kwargs):
+            return altered if source == path else real(source, **kwargs)
+        with patch.object(runtime, "source_blob", side_effect=changed), \
+                patch.object(runtime.subprocess, "Popen", side_effect=AssertionError("child")), \
+                patch.object(runtime.socket, "socket", side_effect=AssertionError("socket")), \
+                patch.object(Path, "mkdir", side_effect=AssertionError("write")), \
+                self.assertRaisesRegex(candidate.Refused, "ACTIVE_CODE_IDENTITY"):
+            runtime.admit_plan(runtime.ACTIVE_PLAN, reviewed)
+
     def test_published_active_plan_is_only_data_without_an_explicit_run(self):
         reviewed = hashlib.sha256(runtime.ACTIVE_PLAN.read_bytes()).hexdigest()
         with patch.object(runtime.subprocess, "Popen", side_effect=AssertionError("child")), \

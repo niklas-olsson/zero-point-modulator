@@ -88,8 +88,8 @@
       "sha256": "34d3df253950a88a31a51727d92acd9672d7bb7b0f16eea4b1452f0bb755f287"
     },
     "tests/contracts/check_alpine_sealed_runtime.py": {
-      "bytes": 104514,
-      "sha256": "e349994b6a8de7191856cbfc6a7951bca0a69678a3bdfe9b1adb23eec0b468d2"
+      "bytes": 104547,
+      "sha256": "de523be1530145a4bb9bd939a89bbae06b91f28a40c0da9bc40985e4d3ee0221"
     },
     "tests/contracts/check_musl_preparation.py": {
       "bytes": 42268,
@@ -100,12 +100,16 @@
       "sha256": "2e779846209841e4b86941f08d7984ab3fe2b79aff1ad4e63dbc5e88f5153a6a"
     },
     "zpm/dependencies.py": {
-      "bytes": 35740,
-      "sha256": "629a7485e250998408591b4a7cbb9031b3cdbd67b796441b9534173b74423340"
+      "bytes": 36758,
+      "sha256": "9f1938672b2f9d82ef777a13a3d6df095cfd879f4c1ecdbe68031225584d07af"
     },
     "zpm/installation_context.py": {
       "bytes": 11549,
       "sha256": "1cac80c123f6071306bcb78a767428cfd42bb3ec0636d55dc63d254ca73e0846"
+    },
+    "zpm/installation_roles.py": {
+      "bytes": 704,
+      "sha256": "ed4cba351dfd35a1b0c557587f5c775283d078a353856ca91ea8336db6dbb823"
     },
     "zpm/models.py": {
       "bytes": 11931,
