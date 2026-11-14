@@ -1,16 +1,29 @@
-name: Check native Alpine candidate source
+name: Check and explicitly qualify native Alpine candidate
 
 on:
   workflow_dispatch:
+    inputs:
+      reviewed_plan_sha256:
+        description: 'Exact independently reviewed active-plan SHA256; empty runs source checks only'
+        required: false
+        default: ''
+        type: string
   pull_request:
     paths:
       - '.github/workflows/native-alpine-candidate.yml'
       - 'tests/contracts/check_alpine_sealed_candidate.py'
+      - 'tests/contracts/check_alpine_sealed_runtime.py'
+      - 'tests/contracts/alpine_sealed_guest.py'
       - 'tests/contracts/check_musl_preparation.py'
       - 'tests/contracts/native-alpine/**'
       - 'tests/test_alpine_sealed_candidate.py'
+      - 'tests/test_alpine_runtime_checkpoint.py'
+      - 'tests/test_alpine_sealed_runtime.py'
       - 'zpm/dependencies.py'
+      - 'zpm/installation_context.py'
+      - 'zpm/models.py'
       - 'docs/native-alpine-qualification.md'
+      - 'docs/native-alpine-active-harness.md'
   push:
     branches: ['qualification/native-alpine/**']
 
@@ -29,10 +42,81 @@ jobs:
         with:
           python-version: '3.12'
       - name: Check source admission and synthetic archive fixtures
-        run: python -B -m unittest tests.test_alpine_sealed_candidate -v
+        run: python -B -m unittest tests.test_alpine_sealed_candidate tests.test_alpine_runtime_checkpoint tests.test_alpine_sealed_runtime -v
       - name: Record an inert source preflight
         run: |
           python -B -m tests.contracts.check_alpine_sealed_candidate \
             --plan-sha256 c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76 \
             --harness-source-revision "$GITHUB_SHA" \
             --report "$RUNNER_TEMP/zpm-native-alpine-pretrial.json"
+      - name: Check the active plan as inert source data
+        run: |
+          plan_sha=$(sha256sum tests/contracts/native-alpine/active-plan-1.json | cut -d ' ' -f 1)
+          python -I -B tests/contracts/check_alpine_sealed_runtime.py \
+            --check-plan --reviewed-plan-sha256 "$plan_sha"
+      - name: Check requested native admission before candidate checkouts
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.reviewed_plan_sha256 != '') ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/qualification/native-alpine/run/'))
+        env:
+          REVIEWED_PLAN_SHA256: ${{ inputs.reviewed_plan_sha256 || '' }}
+        run: |
+          python -I -B tests/contracts/check_alpine_sealed_runtime.py \
+            --check-plan --reviewed-plan-sha256 "$REVIEWED_PLAN_SHA256" --run-ref "$GITHUB_REF"
+
+  native:
+    name: One explicitly reviewed offline Alpine qualification
+    needs: source-only
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.reviewed_plan_sha256 != '') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/qualification/native-alpine/run/'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      # Workflow/action/checkout traffic is a declared setup prerequisite,
+      # separate from the measured 173-artifact acquisition envelope.
+      - uses: actions/checkout@v4
+        with:
+          path: harness
+          persist-credentials: false
+          submodules: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/zero-point-modulator
+          ref: c5fb355f35b73041925e99590d6a18e71038548a
+          path: candidate-zpm
+          persist-credentials: false
+          submodules: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/OpenJules
+          ref: 0dd5bf4e42b3677c3f2f564655bc87a97c4bf973
+          path: candidate-openjules
+          persist-credentials: false
+          submodules: false
+      - uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/keystone-polyphony
+          ref: 6480e36355bf0d5de4e25a560d40e665fd76038c
+          path: candidate-polyphony
+          persist-credentials: false
+          submodules: false
+      - name: Execute only the exact reviewed plan with the existing host tools
+        env:
+          REVIEWED_PLAN_SHA256: ${{ inputs.reviewed_plan_sha256 || '' }}
+        run: |
+          /usr/bin/python3.12 -I -B harness/tests/contracts/check_alpine_sealed_runtime.py \
+            --run --reviewed-plan-sha256 "$REVIEWED_PLAN_SHA256" --run-ref "$GITHUB_REF" \
+            --harness-source-revision "$GITHUB_SHA" \
+            --work "$RUNNER_TEMP/native-alpine-1" \
+            --zpm-source "$GITHUB_WORKSPACE/candidate-zpm" \
+            --openjules-source "$GITHUB_WORKSPACE/candidate-openjules" \
+            --polyphony-source "$GITHUB_WORKSPACE/candidate-polyphony"
+      - name: Retain only the closed credential-free native summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-alpine-1-summary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-alpine-1/summary.json
+          if-no-files-found: warn
+          retention-days: 14
