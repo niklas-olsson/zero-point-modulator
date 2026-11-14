@@ -12,7 +12,10 @@ path is unobserved and owned cleanup passed. The
 [fourth](native-alpine-evidence/attempt-4/outcome.md) completed all 173 acquisitions
 then refused `STORAGE_OBSERVATION`; its exact path and cause remain unknown and
 owned cleanup passed. The original checks below retain their source scope.
-The fifth plan requires fresh review and hosted gates.
+The [fifth](native-alpine-evidence/attempt-5/outcome.md) passed artifact bytes,
+APK trust and base-image identity, then failed assembly capability inspection
+with an unknown create outcome and cleanup `FAIL`. The sixth plan requires
+fresh review and hosted gates. Earlier source-check sections remain historical.
 
 The original inert plan, 173-artifact recipe and native-member catalog retain
 SHA-256 `c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76`,
@@ -214,6 +217,50 @@ SHA-256 `6bd3360c8106f1835102c0060be6cf23d8ff0a83fbcd12fc82a1ff27fc2cb380`.
 This is host packaging evidence, not an Alpine installation or release.
 Independent review, fresh hosted gates and a separately admitted plan are still
 required before any fifth native run.
+
+## Exact inspect representation after attempt 5
+
+Agent-authored by ChatGPT `/root/assess_polyphony`. The original fifth
+[summary/custody](native-alpine-evidence/attempt-5/outcome.md) remains `FAILED`;
+its actual capability payload and precise failed call site remain unknown. Ten
+pinned Docker CLI/Engine 28.0.4 primary files and a controlled exact-source
+reproduction establish the inspect-spelling defect independently of that
+unretained payload.
+
+The distinct `active-plan-6.json` is **8,235 bytes**, SHA-256
+`11907aa13d2300c092d69ff02cf7e1ce8c17aa38c414ec71bdd9b6ca284c55d6`.
+Its eleven-path executing closure changes only the host runner and workflow.
+The original authority, requested CLI capabilities, guest code, commands, caps,
+all five prior plans, artifact catalog and uncertainty/cleanup behavior remain
+unchanged. Only the explicit canonical capability-inspection policy and sixth
+attempt/work/upload identity are new.
+
+The workflow's four-module source lane passes **111 tests**, including five new
+controlled capability/custody cases. They use literal Docker canonical response
+data rather than copying the authority's CLI spelling. They exercise exact
+positive assembly and empty qualification forms; missing, falsey, noncanonical,
+extra, duplicate and reordered refusals; the real owner create path's observation
+before CLI acknowledgement; and confirmed matching removal that still retains
+an unknown original create result and cleanup `FAIL`. No Docker daemon,
+candidate artifact or native guest is used. The 21,750-byte focused log has
+SHA-256 `ee09244a430fec0e86a69ccc5ad43ee67e747dfe858c4c34289ddad9bc6f004b`.
+The isolated `--check-plan` reports `SOURCE_PLAN_ADMITTED` with native execution
+`NOT_RUN`. Python syntax, workflow YAML, all five shell blocks and whitespace
+checks pass.
+
+The full local suite ran **765 tests in 111.383 seconds: 764 passed and the same
+existing `/proc/<pid>/task/<pid>/children` observation errored**. The measurement
+helper and test are byte-identical to actual parent `a4565d9`; the earlier
+unchanged-parent reproduction remains applicable. The raw 150,759-byte full log
+has SHA-256 `aa318ed80691223c010d294e8fb34ee3787ec70a0f6103c99e86db2ae155db19`.
+This is not a waiver of the required hosted full gate.
+
+Offline wheel construction, fresh isolated installation, installed CLI help and
+example validation pass. The 98,587-byte host wheel has SHA-256
+`c122a2f27fefc51c5fc1b6a59619ee31a3c3389fd4199931049617136ac3f857`.
+It is local packaging evidence, not an Alpine installation or release.
+Independent review and fresh hosted gates must precede a separate sixth-plan
+admission. This source freeze activates no further native work.
 
 ## Original completed-source local checks
 

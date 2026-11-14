@@ -59,7 +59,8 @@ class Fixture(unittest.TestCase):
                 "HostConfig": {"NetworkMode": "none", "ReadonlyRootfs": stage == "qualification", "Privileged": False,
                                "Memory": candidate.CAPS["container_memory_bytes"], "MemorySwap": candidate.CAPS["container_memory_and_swap_bytes"],
                                "PidsLimit": 128, "NanoCpus": 2_000_000_000, "CapDrop": ["ALL"],
-                               "CapAdd": candidate.AUTHORITY[stage]["cap_add"], "SecurityOpt": ["no-new-privileges"],
+                               "CapAdd": ["CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FOWNER"] if stage == "assembly" else None,
+                               "SecurityOpt": ["no-new-privileges"],
                                "LogConfig": {"Type": "none", "Config": {}}, "IpcMode": "private", "Runtime": "runc",
                                "AutoRemove": False, "PublishAllPorts": False,
                                "RestartPolicy": {"Name": "no", "MaximumRetryCount": 0}},
@@ -587,6 +588,125 @@ class SourceAndConfigurationTests(Fixture):
             mutate(changed)
             with self.subTest(mutate=mutate), self.assertRaises(candidate.Refused):
                 runtime.assert_assembled(changed, identity, trial)
+
+
+class CapabilityInspectionTests(Fixture):
+    """Controlled Docker 28 API data, never a native capability qualification."""
+
+    def check(self, trial, row, info):
+        runtime.assert_container(info, "d" * 64, row["name"], row["image"], row["stage"], trial.owner,
+                                 row["mounts"], os.getuid(), os.getgid(), runtime.expected_environment(self.documents))
+
+    def row(self, trial, stage="assembly"):
+        return {"stage": stage, "name": trial.owner + "-" + stage, "image": "sha256:" + "c" * 64, "mounts": []}
+
+    def test_canonical_inspect_names_preserve_the_exact_original_cli_authority(self):
+        trial = self.trial()
+        row = self.row(trial)
+        info = self.container(trial, row)
+        self.check(trial, row, info)
+        self.assertEqual(candidate.AUTHORITY["assembly"]["cap_add"], ["CHOWN", "DAC_OVERRIDE", "FOWNER"])
+        self.assertEqual(info["HostConfig"]["CapAdd"], ["CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FOWNER"])
+        for value in (None, []):
+            row = self.row(trial, "qualification")
+            info = self.container(trial, row)
+            info["HostConfig"]["CapAdd"] = value
+            self.check(trial, row, info)
+
+    def test_added_missing_duplicate_alias_or_reordered_capabilities_refuse(self):
+        trial = self.trial()
+        row = self.row(trial)
+        expected = ["CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FOWNER"]
+        for value in (None, [], False, 0, "", {}, (), candidate.AUTHORITY["assembly"]["cap_add"],
+                      expected[:-1], expected + ["CAP_NET_ADMIN"], expected + [expected[0]],
+                      list(reversed(expected)), ["cap_chown", *expected[1:]],
+                      ["CAP_CHOWN ", *expected[1:]], [True, *expected[1:]]):
+            info = self.container(trial, row)
+            info["HostConfig"]["CapAdd"] = value
+            with self.subTest(value=value), self.assertRaisesRegex(candidate.Refused, "CONTAINER_CAPABILITIES"):
+                self.check(trial, row, info)
+        for value in (None, [], ["all"], ["CAP_ALL"], ["ALL", "ALL"], ["ALL", "CAP_NET_ADMIN"], False):
+            info = self.container(trial, row)
+            info["HostConfig"]["CapDrop"] = value
+            with self.subTest(drop=value), self.assertRaisesRegex(candidate.Refused, "CONTAINER_CAPABILITIES"):
+                self.check(trial, row, info)
+
+    def test_empty_qualification_does_not_accept_falsey_aliases_or_missing_field(self):
+        trial = self.trial()
+        row = self.row(trial, "qualification")
+        for value in (False, 0, "", {}, (), ["CAP_CHOWN"]):
+            info = self.container(trial, row)
+            info["HostConfig"]["CapAdd"] = value
+            with self.subTest(value=value), self.assertRaisesRegex(candidate.Refused, "CONTAINER_CAPABILITIES"):
+                self.check(trial, row, info)
+        for stage in ("assembly", "qualification"):
+            row = self.row(trial, stage)
+            info = self.container(trial, row)
+            del info["HostConfig"]["CapAdd"]
+            with self.subTest(stage=stage), self.assertRaisesRegex(candidate.Refused, "CONTAINER_CAPABILITIES"):
+                self.check(trial, row, info)
+
+    def test_created_canonical_container_is_observed_before_cli_reply_without_early_confirmation(self):
+        trial = self.trial()
+        state, commands = {}, []
+        def observed(path, **kwargs):
+            return copy.deepcopy(state.get("container"))
+        def create(command, **kwargs):
+            commands.append(command)
+            row = trial.journal["containers"][-1]
+            state["container"] = self.container(trial, row)
+            self.assertEqual(trial.observe_mutations(), row["reserved_bytes"])
+            self.assertEqual(row["id"], "d" * 64)
+            self.assertFalse(row["mutation_confirmed"])
+            self.assertEqual(row["state"], "creating")
+            return ("d" * 64 + "\n").encode()
+        trial.run = create
+        trial.sample = Mock(side_effect=trial.observe_mutations)
+        with patch.object(runtime, "docker_json", side_effect=observed):
+            self.assertEqual(trial.create("sha256:" + "c" * 64, "assembly"), "d" * 64)
+        self.assertEqual(len(commands), 1)
+        command = commands[0]
+        self.assertEqual([command[i+1] for i, item in enumerate(command) if item == "--cap-add"],
+                         ["CHOWN", "DAC_OVERRIDE", "FOWNER"])
+        self.assertEqual(command[command.index("--cap-drop")+1], "ALL")
+        self.assertNotIn("start", command)
+        self.assertTrue(trial.journal["containers"][0]["mutation_confirmed"])
+
+    def test_lost_create_reply_retains_unknown_outcome_after_owned_absence(self):
+        trial = self.trial()
+        state = {"container": None}
+        def observed(path, **kwargs):
+            return copy.deepcopy(state["container"])
+        def lost_reply(command, **kwargs):
+            row = trial.journal["containers"][-1]
+            state["container"] = self.container(trial, row)
+            self.assertEqual(trial.observe_mutations(), row["reserved_bytes"])
+            raise candidate.Refused("CONTROLLED_LOST_CLI_REPLY")
+        trial.run = lost_reply
+        trial.sample = Mock(side_effect=trial.observe_mutations)
+        with patch.object(runtime, "docker_json", side_effect=observed), \
+                self.assertRaisesRegex(candidate.Refused, "CONTROLLED_LOST_CLI_REPLY"):
+            trial.create("sha256:" + "c" * 64, "assembly")
+        trial.fail("CONTROLLED_LOST_CLI_REPLY")
+        row = trial.journal["containers"][0]
+        self.assertFalse(row["mutation_confirmed"])
+        def remove(command, **kwargs):
+            self.assertEqual(command[-3:], ["rm", "--force", row["id"]])
+            self.assertFalse(row["removed"])
+            self.assertEqual(trial.observe_mutations(), row["reserved_bytes"])
+            state["container"] = None
+            return b"owned removal acknowledgement"
+        trial.run = remove
+        trial.cleanup_processes = Mock()
+        with patch.object(runtime, "docker_json", side_effect=observed):
+            trial.cleanup()
+            self.assertEqual(trial.observe_mutations(), 0)
+        self.assertTrue(row["removed"])
+        self.assertFalse(row["mutation_confirmed"])
+        self.assertEqual(trial.record["first_failure"], "CONTROLLED_LOST_CLI_REPLY")
+        self.assertIn("CONTAINER_MUTATION_OUTCOME_UNKNOWN", trial.record["cleanup_failures"])
+        self.assertEqual(trial.record["native_checks"]["owned_cleanup"], "FAIL")
+        self.assertFalse(trial.record["native_execution_qualified"])
 
 
 class MutationTests(Fixture):

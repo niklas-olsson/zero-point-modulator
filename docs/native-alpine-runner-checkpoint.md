@@ -8,7 +8,11 @@ later failed at source admission; the [second](native-alpine-evidence/attempt-2/
 failed at token framing before reading a body. The
 [third](native-alpine-evidence/attempt-3/outcome.md) and
 [fourth](native-alpine-evidence/attempt-4/outcome.md) also failed, with their exact
-failed paths unknown. The fifth source plan is not yet admitted.
+failed paths unknown. The fifth attempt passed artifact bytes, APK trust and
+base-image identity, then failed `CONTAINER_CAPABILITIES` in assembly with
+cleanup `FAIL`. Its actual inspect payload remains unretained. The sixth source
+plan corrects the exact Docker inspect spelling and is not yet admitted; the
+[fifth outcome](native-alpine-evidence/attempt-5/outcome.md) retains its evidence.
 Earlier NOT_RUN statements below describe their named source checkpoints,
 not the current investigation status.
 

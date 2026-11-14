@@ -1,6 +1,6 @@
 # Native Alpine active-harness contract
 
-**Status: corrected attempt-5 source candidate for independent review.**
+**Status: corrected attempt-6 source candidate for independent review.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -8,9 +8,12 @@ The [third attempt](native-alpine-evidence/attempt-3/outcome.md) completed 102
 artifact acquisitions before `INPUT_CHANGED`, with cleanup PASS. The exact failed
 read was not retained. The [fourth attempt](native-alpine-evidence/attempt-4/outcome.md)
 completed all 173 acquisitions before `STORAGE_OBSERVATION`, with cleanup PASS;
-its exact failed path and cause remain unknown. No candidate package, container
-or interpreter has executed. Attempt 5 has not been admitted; it retains every original
-authority/resource cap.
+its exact failed path and cause remain unknown. The
+[fifth attempt](native-alpine-evidence/attempt-5/outcome.md) passed artifact bytes,
+APK trust and base-image identity, then failed assembly capability inspection.
+Its actual payload remains unknown and cleanup explicitly failed with an
+unconfirmed create outcome. Attempt 6 has not been admitted; it retains every
+original authority/resource cap and corrects only the expected inspect spelling.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
 It changes only the ZPM qualification fixture. The original
@@ -48,7 +51,7 @@ or architecture-gated feature is part of this design.
 | Existing `check_alpine_sealed_candidate.py` | Retain the inert CLI, exact metadata admission and data-only archive helpers. No active flag is added to its command. |
 | New `check_alpine_sealed_runtime.py` | Explicit active entry point, plan admission, host process/resource guardian, bounded acquisition, Docker custody, stages, safe result reduction and cleanup. |
 | New `alpine_sealed_guest.py` | Fixed assembly-inventory and nonroot qualification commands. Use the original production APIs, separate owner interpreters and finite probe IDs. |
-| `native-alpine/active-plan-5.json` | Bind the original plan/recipe, distinct fifth attempt, exact commands, source manifests and unchanged authority/resource limits. All four prior plans remain unchanged historical evidence. |
+| `native-alpine/active-plan-6.json` | Bind the original plan/recipe, distinct sixth attempt, exact commands, source manifests and unchanged authority/resource limits. All five prior plans remain unchanged historical evidence. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -391,6 +394,20 @@ bind mounts. It verifies the committed root assembly image before creating the
 nonroot read-only qualification container. Host secrets, proxy controls and
 arbitrary guest variables are absent. Only the documented base environment and
 fixed private-home/Git/Python overrides are admitted.
+
+The fixed CLI requests remain drop `ALL` and assembly additions `CHOWN`,
+`DAC_OVERRIDE`, `FOWNER`. Docker CLI 28.0.4 canonicalizes those additions before
+the create request to `CAP_CHOWN`, `CAP_DAC_OVERRIDE`, `CAP_FOWNER`; Engine API
+1.45 returns that stored HostConfig. The inspect check requires this exact list
+and exact `ALL`, without normalizing observed names or deduplicating a response.
+For qualification, only an explicit null or empty list represents no additions;
+a missing field or falsey scalar refuses. These are observation spellings, not
+new capabilities. The [pinned source proof and failed fifth outcome](native-alpine-evidence/attempt-5/outcome.md)
+remain separate from native qualification. The corrected fixture also observes
+the created container while its CLI response is still pending. Full reservation
+and `mutation_confirmed=false` survive that window. If the reply is lost, exact
+owned removal and absence do not erase the original uncertainty or permit a
+cleanup PASS.
 
 Each directly owned host child is registered by PID/start and pidfd before a
 general process scan. A forked acquisition/parser worker waits behind a parent

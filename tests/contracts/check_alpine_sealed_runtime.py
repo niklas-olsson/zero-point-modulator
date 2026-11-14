@@ -44,7 +44,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-5.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-6.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -92,6 +92,16 @@ MUTATION_RESERVATIONS = {"base_image_bytes": 51195904,
                          "assembled_image_bytes": 51195904 + 512 * 1024**2}
 FIXED_POLICY["mutation_storage_reservations"] = MUTATION_RESERVATIONS
 FIXED_POLICY["container_environment_overrides"] = CONTAINER_ENV
+FIXED_POLICY["container_capability_inspection"] = {
+    "schema": "zpm-native-alpine-capability-inspection/v1",
+    "expected": {
+        "assembly": {"CapDrop": ["ALL"], "CapAdd": ["CAP_CHOWN", "CAP_DAC_OVERRIDE", "CAP_FOWNER"]},
+        "qualification": {"CapDrop": ["ALL"], "CapAdd": []},
+    },
+    "empty_addition": "explicit-null-or-empty-list-only",
+    "comparison": "exact-canonical-observation-without-input-normalization",
+    "authority_and_cli_arguments": "unchanged",
+}
 FIXED_POLICY["final_report_reservation_bytes"] = 4 * CAPS["report_bytes"]
 TRANSIENT_FILES = {name: CAPS["report_bytes"] for name in (
     "private-report.json.new", "ownership.json.new", "summary.json.new",
@@ -152,7 +162,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-5"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-6"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -851,8 +861,15 @@ def assert_container(info, identity, name, image, stage, owner, mounts, uid, gid
                        "MemorySwap": CAPS["container_memory_and_swap_bytes"], "PidsLimit": CAPS["container_pids"],
                        "NanoCpus": CAPS["container_cpus"] * 1000000000}.items():
         exact(host.get(key), value, "CONTAINER_LIMIT_OR_AUTHORITY")
-    exact(host.get("CapDrop"), ["ALL"], "CONTAINER_CAPABILITIES")
-    exact(host.get("CapAdd") or [], authority["cap_add"], "CONTAINER_CAPABILITIES")
+    # Docker CLI's ContainerCreate canonicalizes these names before the API
+    # request. Compare that exact inspect representation, not the CLI spelling.
+    # Never normalize an observed extra, duplicate, missing or malformed grant.
+    expected_caps = FIXED_POLICY["container_capability_inspection"]["expected"][stage]
+    exact(host.get("CapDrop"), expected_caps["CapDrop"], "CONTAINER_CAPABILITIES")
+    require("CapAdd" in host, "CONTAINER_CAPABILITIES")
+    additions = [] if host["CapAdd"] is None else host["CapAdd"]
+    require(type(additions) is list, "CONTAINER_CAPABILITIES")
+    exact(additions, expected_caps["CapAdd"], "CONTAINER_CAPABILITIES")
     require(host.get("SecurityOpt") in (["no-new-privileges"], ["no-new-privileges=true"]), "CONTAINER_SECURITY")
     require(host.get("LogConfig") == {"Type": "none", "Config": {}}, "CONTAINER_LOG_DRIVER")
     for key in ("Devices", "DeviceRequests", "DeviceCgroupRules", "VolumesFrom", "ExtraHosts", "Links",
@@ -900,7 +917,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-5",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-6",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,

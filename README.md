@@ -341,13 +341,17 @@ the [third attempt](docs/native-alpine-evidence/attempt-3/outcome.md) completed 
 token and four OCI redirects, then failed `INPUT_CHANGED` after 102 completed
 artifact acquisitions. The [fourth attempt](docs/native-alpine-evidence/attempt-4/outcome.md)
 completed all 173 acquisitions, then refused `STORAGE_OBSERVATION`. Both cleanup
-results passed; candidate installation and interfaces remain unqualified. The
-exact failed paths in attempts 3 and 4 remain unidentified. The fourth plan's
-closed live-record snapshot correction remains in place. A separate fifth plan
-retains the existing APK signature-verification inputs through final storage
-observation, addressing a reproduced temporary-deletion race without relaxing
-the scanner or increasing any cap. It requires independent review and fresh
-gates before any activation.
+results passed. The [fifth attempt](docs/native-alpine-evidence/attempt-5/outcome.md)
+passed artifact bytes, APK trust and base-image identity, then failed
+`CONTAINER_CAPABILITIES` in assembly. Its cleanup result is `FAIL` with
+`CONTAINER_MUTATION_OUTCOME_UNKNOWN`; zero final pending reservations do not
+turn that into confirmed cleanup. Candidate installation and interfaces remain
+unqualified. Attempts 3 and 4's exact paths and attempt 5's actual inspect
+payload remain unretained. The live-record and retained signature-input
+corrections stay in place. A distinct sixth plan corrects only the expected
+Docker inspect capability spelling, preserving the exact requested authority,
+strict observations, cleanup uncertainty and every cap. It requires independent
+review and fresh gates before any separate activation.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private
