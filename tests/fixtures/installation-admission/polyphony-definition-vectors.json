@@ -1,0 +1,82 @@
+{
+  "fixture_notice": "Synthetic examples of the definition adopted in keystone-polyphony #139 comment 6869132293. No native command or delivered static artifact exists for this fixture. Contract and profile digests are deliberately synthetic. The listed source revision in consumer tests is context, not attestation.",
+  "definition_url": "https://github.com/niklas-olsson/keystone-polyphony/issues/139#issuecomment-6869132293",
+  "root": {
+    "schema_version": 1,
+    "service": "keystone-polyphony",
+    "validation_contract": "managed-installation-v1",
+    "contract_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+    "valid": true,
+    "managed_enabled": true,
+    "descriptor": {
+      "protocol": "managed-runtime-v1",
+      "deployment_id": "fixture-installation",
+      "profiles": [
+        {
+          "repository": "github:github.com/example/project",
+          "profile": "fixture",
+          "base": "2222222222222222222222222222222222222222",
+          "profile_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "attempt_seconds": 300,
+          "capabilities": [
+            "repository-read",
+            "repository-write"
+          ],
+          "managed_dispatch": true,
+          "external_root": true,
+          "children": false,
+          "child_grants": false,
+          "child_initial_outcome": 1,
+          "child_policy": null,
+          "profile_supported": true,
+          "max_attempts": 3,
+          "budget_seconds": 900
+        }
+      ]
+    },
+    "errors": []
+  },
+  "child": {
+    "schema_version": 1,
+    "service": "keystone-polyphony",
+    "validation_contract": "managed-installation-v1",
+    "contract_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+    "valid": true,
+    "managed_enabled": true,
+    "descriptor": {
+      "protocol": "managed-runtime-v1",
+      "deployment_id": "fixture-installation",
+      "profiles": [
+        {
+          "repository": "github:github.com/example/project",
+          "profile": "fixture",
+          "base": "2222222222222222222222222222222222222222",
+          "profile_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+          "attempt_seconds": 300,
+          "capabilities": [
+            "repository-read",
+            "repository-write"
+          ],
+          "managed_dispatch": true,
+          "external_root": true,
+          "children": false,
+          "child_grants": true,
+          "child_initial_outcome": 1,
+          "child_policy": {
+            "max_children": 2,
+            "max_child_seconds": 120,
+            "max_child_turns": 8,
+            "child_capabilities": [
+              "repository-read",
+              "repository-write"
+            ]
+          },
+          "profile_supported": true,
+          "max_attempts": 3,
+          "budget_seconds": 900
+        }
+      ]
+    },
+    "errors": []
+  }
+}
