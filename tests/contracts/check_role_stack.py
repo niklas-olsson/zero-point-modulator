@@ -38,6 +38,10 @@ JSON_LIMIT = 131072
 PIPE_LIMIT = 1_048_576
 HTTP_LIMIT = 1_048_576
 REPORT_LIMIT = 65536
+ORDINARY_HTTP_SECONDS = 3
+RACE_CLOSE_SECONDS = 15
+RACE_REQUEST_SECONDS = 20
+RACE_CASE_SECONDS = 45
 REQUIREMENTS = "Set the controlled answer to42 once after the role barrier."
 TASK_PROGRAM = """from pathlib import Path
 import os, sys, time
@@ -447,6 +451,7 @@ class LifecycleTLS:
         self.ensure_bodies = []
         self.thread = None
         self.thread_start_unknown = False
+        self.close_callback_elapsed_seconds = None
         owner = self
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(certificate)
@@ -507,7 +512,8 @@ class LifecycleTLS:
             def forward(self):
                 connection = None
                 try:
-                    end = time.monotonic() + owner.trial.limit(3)
+                    request_started = time.monotonic()
+                    end = request_started + owner.trial.limit(ORDINARY_HTTP_SECONDS)
                     require(self.path.startswith("/api/v2/workers") and len(self.path) <= 8192,
                             "role forwarder received a foreign path")
                     require(not self.headers.get("Transfer-Encoding"), "role forwarder requires a bounded body")
@@ -516,7 +522,6 @@ class LifecycleTLS:
                     body = self.rfile.read(length)
                     require(len(body) == length, "role forwarded body is incomplete")
                     ensure = self.command == "POST" and urlsplit(self.path).path == "/api/v2/workers/ensure"
-                    before, drop = None, False
                     if ensure:
                         with owner.trial.ensure_lock:
                             require(owner.trial.ensure_calls < 8, "role trial exhausted its native ensure budget")
@@ -524,14 +529,23 @@ class LifecycleTLS:
                         with owner.lock:
                             owner.ensure_payloads.append(json.loads(body))
                             owner.ensure_bodies.append(bytes(body))
-                            before, owner.before_ensure = owner.before_ensure, None
-                            drop, owner.drop_next_ensure = owner.drop_next_ensure, False
-                        if before is not None:
-                            before()
-                            owner.admission_races += 1
+                    before, drop, request_seconds = owner.request_controls(ensure)
+                    if before is not None:
+                        # Only the single armed fixture ensure may wait for an
+                        # installed, fully verified sealed admin command. All
+                        # other lifecycle requests retain their three seconds.
+                        end = min(request_started + request_seconds,
+                                  time.monotonic() + owner.trial.limit(request_seconds))
+                        close_started = time.monotonic()
+                        before()
+                        close_elapsed = time.monotonic() - close_started
+                        require(close_elapsed <= RACE_CLOSE_SECONDS, "generated close callback exceeded its declared allowance")
+                        owner.close_callback_elapsed_seconds = round(close_elapsed, 6)
+                        owner.admission_races += 1
                     remaining = end - time.monotonic()
                     require(remaining > 0, "role forwarder exhausted its request deadline")
-                    connection = http.client.HTTPConnection("127.0.0.1", owner.upstream_port, timeout=remaining)
+                    connection = http.client.HTTPConnection("127.0.0.1", owner.upstream_port,
+                                                            timeout=min(ORDINARY_HTTP_SECONDS, remaining))
                     connection.request(self.command, self.path, body=body if self.command == "POST" else None,
                         headers={"Authorization": self.headers.get("Authorization", ""),
                                  "Content-Type": "application/json", "Connection": "close"})
@@ -541,7 +555,7 @@ class LifecycleTLS:
                         remaining = end - time.monotonic()
                         require(remaining > 0, "role forwarder response exceeded its deadline")
                         if connection.sock is not None:
-                            connection.sock.settimeout(remaining)
+                            connection.sock.settimeout(min(ORDINARY_HTTP_SECONDS, remaining))
                         raw = response.read1(min(65536, HTTP_LIMIT - len(payload) + 1))
                         if not raw:
                             break
@@ -605,6 +619,14 @@ class LifecycleTLS:
                 except OSError:
                     pass
 
+    def request_controls(self, ensure):
+        if not ensure:
+            return None, False, ORDINARY_HTTP_SECONDS
+        with self.lock:
+            before, self.before_ensure = self.before_ensure, None
+            drop, self.drop_next_ensure = self.drop_next_ensure, False
+        return before, drop, RACE_REQUEST_SECONDS if before is not None else ORDINARY_HTTP_SECONDS
+
     def finish_stop(self, deadline):
         if self.thread is not None and self.thread.ident is not None:
             self.thread.join(timeout=max(0, deadline - time.monotonic()))
@@ -632,9 +654,42 @@ def role_dependency_plan(root, original, services):
     return {"manifest": str(path), "sha256": digest(read_private(path)), "artifacts": original["artifacts"]}
 
 
+def verify_role_environments(bundle, data):
+    """Distinguish service directories from the sealed bootstrap's own intent files."""
+    from zpm import dependencies
+    from zpm.installation_roles import services
+
+    selected = set(services(data))
+    directory = bundle / "environments"
+    expected = set(selected)
+    intents = {}
+    if "dependency_plan" in data:
+        reference = data["dependency_plan"]
+        # Reuse the publisher's bounded private read and exact canonical bytes,
+        # including the newline. This does not ignore arbitrary extra files.
+        plan = dependencies._json(dependencies._read(bundle / "dependencies/plan.json", dependencies.PLAN_LIMIT,
+                                  expected=reference["sha256"], private=True))
+        require(type(plan["schema_version"]) is int and plan["schema_version"] == 2
+                and set(plan["environments"]) == selected, "role sealed plan has a foreign environment shape")
+        identity = {"schema_version": 1, "plan_sha256": reference["sha256"], "interpreter": plan["interpreter"],
+                    "sources": {name: value["revision"] for name, value in data["sources"].items()}}
+        intents["sealed-intent.json"] = identity
+        intents.update({name + "-sealed-intent.json": identity | {"service": name} for name in selected})
+        expected.update(intents)
+    require({path.name for path in directory.iterdir()} == expected,
+            "role bootstrap contains a foreign service environment or unknown retained entry")
+    for name in selected:
+        info = (directory / name).lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid(),
+                "role service environment is not an owned directory")
+    for name, identity in intents.items():
+        require(dependencies._read(directory / name, dependencies.PLAN_LIMIT, private=True) == dependencies._encoded(identity),
+                "role sealed intent changed its original plan, interpreter, source revisions or service")
+
+
 def rows(path, table, maximum=8):
     """Small read-only native-journal oracle, never a state writer."""
-    require(table in {"workers", "deliveries", "managed_workers", "worker_operations", "worker_executions", "attempts", "calls"},
+    require(table in {"workers", "deliveries", "managed_workers", "worker_operations", "worker_executions", "attempts", "calls", "registry_revisions"},
             "undeclared role journal table")
     require(path.is_file() and not path.is_symlink(), "role journal oracle requires an existing regular file")
     with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=0.1)) as database:
@@ -642,6 +697,12 @@ def rows(path, table, maximum=8):
         result = database.execute('SELECT * FROM "' + table + '" ORDER BY rowid LIMIT ?', (maximum + 1,)).fetchall()
     require(len(result) <= maximum, "role journal history exceeded its declared cardinality")
     return [dict(row) for row in result]
+
+
+def check_registry_timeout(path, expected):
+    revisions = rows(path, "registry_revisions", maximum=16)
+    require(revisions and json.loads(revisions[-1]["policy"])["timeout_seconds"] == expected,
+            "retained registry did not confirm its declared current request allowance")
 
 
 def operation(row):
@@ -657,6 +718,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
     phase, checks, failure, report = "declared role inputs", [], None, None
     bundles, inputs, manifests, sealed, approvals = {}, {}, {}, {}, {}
     authority = None
+    placement_intended = False
     cleanup = {"outcome": "unknown"}
     fixture = Path(source_paths["zpm"]) / "tests/fixtures/provider-tls"
     ca, certificate = fixture / "ca.pem", fixture / "server.pem"
@@ -712,8 +774,8 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
                     and not (set(values.values()) & (sensitive - set(expected.values()))),
                     "actual role service environment crossed its declared scoped credential boundary")
 
-    def registry(enabled):
-        result = {"schema_version": 2, "max_workers": 2, "timeout_seconds": 3, "destinations": [], "profiles": []}
+    def registry(enabled, *, timeout_seconds=ORDINARY_HTTP_SECONDS):
+        result = {"schema_version": 2, "max_workers": 2, "timeout_seconds": timeout_seconds, "destinations": [], "profiles": []}
         for label in ("a", "b"):
             binding = approvals[label]["destination_binding"]
             result["destinations"].append({"destination_id": binding["destination_id"],
@@ -725,7 +787,9 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         path = root / ("registry-" + digest(canonical(result).encode()) + ".json")
         if not path.exists():
             private_json(path, result)
-        return cli("control", "registry-import", path)
+        report = cli("control", "registry-import", path)
+        check_registry_timeout(bundles["control"] / "state/zpm.sqlite3", timeout_seconds)
+        return report
 
     def lifecycle(label, path, *, query=None, token=None, expected=200):
         return exchange(endpoints[label], "GET", path, token=token or supplied["ZPM_INSTALL_LIFECYCLE_" + label.upper()],
@@ -805,8 +869,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
                         contexts[label] = context
                     else:
                         require(contexts[label] == context, "repeated role bootstrap replaced native installation context")
-            require({path.name for path in (bundles[label] / "environments").iterdir()} == set(selected[label]),
-                    "role bootstrap installed a foreign service environment")
+            verify_role_environments(bundles[label], manifests[label]["configuration"])
             require(sealed[label] == {name: read_private(bundles[label] / name) for name in sealed[label]},
                     "repeated role preparation/bootstrap changed scoped credentials or configuration")
             cli(label, "verify")
@@ -887,6 +950,9 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         cli("a", "open-admission")
         cli("b", "open-admission")
         registry({"a"})
+        # Retain this before the positive target command: even a lost or failed
+        # reply can have invited placement and still needs cleanup intent.
+        placement_intended = True
         cli("control", "target", "1")
         frontends["a"].drop_next_ensure = True
         first = cli("control", "reconcile", "--max-actions", "3")
@@ -918,14 +984,14 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         cli("control", "target", "0")
         trial.wait(lambda: settle(0), "initial role workers drain and capture", 30)
         cli("a", "open-admission")
-        registry({"a"})
+        registry({"a"}, timeout_seconds=RACE_REQUEST_SECONDS)
         cli("control", "target", "1")
-        frontends["a"].before_ensure = lambda: cli("a", "close-admission", seconds=2)
+        frontends["a"].before_ensure = lambda: cli("a", "close-admission", seconds=RACE_CLOSE_SECONDS)
         def refused():
             tick()
             matching = [row for row in histories() if json.loads(row["snapshot"]).get("disposition") is not None]
             return matching[0] if len(matching) == 1 else None
-        refusal = trial.wait(refused, "actual stale-admission refusal", 30)
+        refusal = trial.wait(refused, "actual stale-admission refusal", RACE_CASE_SECONDS)
         refusal_snapshot = json.loads(refusal["snapshot"])
         require(frontends["a"].admission_races == 1 and refusal_snapshot["disposition"]["reason"] == "stale_admission_revision"
                 and refusal_snapshot["disposition"]["kind"] == "never_admitted"
@@ -962,6 +1028,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         # Enable the declared destinations at target zero with hosts closed,
         # before starting that one ordinary writer.
         registry({"a", "b"})
+        check_registry_timeout(bundles["control"] / "state/zpm.sqlite3", ORDINARY_HTTP_SECONDS)
         require(status()["reserved"] == 0 and status()["repositories"][0]["desired_workers"] == 0,
                 "enabled registry import silently placed role work")
         trial.stop("control")
@@ -975,7 +1042,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
             value = status()
             return value if value["reserved"] == value["repositories"][0]["healthy"] == 2 else None
         trial.wait(watch_settled, "ordinary generated reconciler places two qualified workers", 30)
-        checks.append("enabled registry import occurs with target0/reserved0 and both hosts closed before ordinary watch starts; explicit host opening and target2 follow startup")
+        checks.append("enabled registry import restores a 3-second request allowance at target0/reserved0 with both hosts closed before ordinary watch starts; explicit host opening and target2 follow startup")
         tasks = []
         for index in (1, 2):
             task = exchange(authority_endpoint, "POST", "/managed/enroll", token=operators["ingress"], budget=trial,
@@ -1152,6 +1219,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
             "execution_manifest_sha256": approvals["a"]["execution_manifest_sha256"],
             "original_unknown_operation": frozen, "normal_service_restart": shutdown,
             "never_admitted": {"launch_key": refusal["launch_key"], "disposition": refusal_snapshot["disposition"]},
+            "admission_close_elapsed_seconds": frontends["a"].close_callback_elapsed_seconds,
             "canonical_results": [{"task": row["task"], "attempt": row["id"],
                 "candidate": retained_candidates[row["task"]]["id"], "approved_base": base,
                 "runtime_principal": row["runtime_binding"]["runtime_principal"],
@@ -1160,6 +1228,9 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
             "bounds": {"total_seconds": TOTAL_SECONDS, "cleanup_reserve_seconds": CLEANUP_SECONDS,
                 "native_ensure_calls": trial.ensure_calls, "maximum_native_ensure_calls": 8,
                 "maximum_concurrent_roots": 2, "root_timeout_ms": 60000, "container_memory_bytes": 536870912,
+                "ordinary_lifecycle_request_seconds": ORDINARY_HTTP_SECONDS,
+                "one_gated_ensure_request_seconds": RACE_REQUEST_SECONDS,
+                "admission_close_command_seconds": RACE_CLOSE_SECONDS, "admission_race_case_seconds": RACE_CASE_SECONDS,
                 "container_uid": 65532, "container_cpu_quota": 100000, "container_pids_limit": 64},
             "harness_only": ["bounded lifecycle HTTPS pass-through with one actual-reply loss and one generated close-admission race",
                 "one exact captured-body permanent-refusal ensure replay after reopening",
@@ -1173,7 +1244,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         # A failed scene never asserts task cancellation or destroys retained
         # native resources. Set project intent to zero if the installed control
         # path is available, then signal all owned managers on a common clock.
-        if failure is not None and "control" in bundles and (bundles["control"] / "environments/zpm/bin/python").is_file():
+        if failure is not None and placement_intended and "control" in bundles and (bundles["control"] / "environments/zpm/bin/python").is_file():
             try:
                 cli("control", "target", "0", seconds=3, cleanup=True)
             except BaseException:

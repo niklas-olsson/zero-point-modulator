@@ -6,6 +6,7 @@ from pathlib import Path
 import sqlite3
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import Mock, patch
 
@@ -269,6 +270,109 @@ class HarnessChecks(unittest.TestCase):
         self.assertEqual(result['outcome'], 'unknown')
         self.assertFalse(result['frontends_stopped'])
         thread.join.assert_not_called()
+
+    def role_environment_fixture(self, *, sealed):
+        from zpm import dependencies
+        bundle = self.root / 'bundle'
+        bundle.mkdir(mode=0o700)
+        (bundle / 'environments').mkdir(mode=0o700)
+        for name in ('zpm', 'polyphony'):
+            (bundle / 'environments' / name).mkdir(mode=0o700)
+        data = {'schema_version': 3, 'role': 'controller-authority',
+                'sources': {'zpm': {'revision': 'a' * 40}, 'polyphony': {'revision': 'b' * 40}}}
+        if sealed:
+            (bundle / 'dependencies').mkdir(mode=0o700)
+            plan = {'schema_version': 2, 'interpreter': {'version': 'fixture'},
+                    'environments': {'zpm': {}, 'polyphony': {}}}
+            raw = dependencies._encoded(plan)
+            dependencies._write(bundle / 'dependencies/plan.json', raw, readonly=True)
+            data['dependency_plan'] = {'sha256': subject.digest(raw)}
+            identity = {'schema_version': 1, 'plan_sha256': subject.digest(raw), 'interpreter': plan['interpreter'],
+                        'sources': {name: row['revision'] for name, row in data['sources'].items()}}
+            dependencies._publish(bundle / 'environments/sealed-intent.json', identity)
+            for name in ('zpm', 'polyphony'):
+                dependencies._publish(bundle / 'environments' / (name + '-sealed-intent.json'), identity | {'service': name})
+        return bundle, data
+
+    def test_ordinary_role_layout_contains_only_its_service_directories(self):
+        bundle, data = self.role_environment_fixture(sealed=False)
+        subject.verify_role_environments(bundle, data)
+
+    def test_sealed_role_layout_accepts_exact_private_native_intents(self):
+        bundle, data = self.role_environment_fixture(sealed=True)
+        subject.verify_role_environments(bundle, data)
+
+    def test_foreign_service_directory_is_still_refused(self):
+        bundle, data = self.role_environment_fixture(sealed=True)
+        (bundle / 'environments/openjules').mkdir(mode=0o700)
+        with self.assertRaises(subject.RoleCheck):
+            subject.verify_role_environments(bundle, data)
+
+    def test_unknown_regular_file_is_not_skipped(self):
+        bundle, data = self.role_environment_fixture(sealed=True)
+        (bundle / 'environments/foreign.json').write_text('{}')
+        with self.assertRaises(subject.RoleCheck):
+            subject.verify_role_environments(bundle, data)
+
+    def test_ordinary_layout_cannot_silently_adopt_sealed_intent_files(self):
+        bundle, data = self.role_environment_fixture(sealed=False)
+        (bundle / 'environments/sealed-intent.json').write_text('{}')
+        with self.assertRaises(subject.RoleCheck):
+            subject.verify_role_environments(bundle, data)
+
+    def test_sealed_intent_requires_the_exact_original_source_revision(self):
+        from zpm import dependencies
+        bundle, data = self.role_environment_fixture(sealed=True)
+        path = bundle / 'environments/zpm-sealed-intent.json'
+        value = json.loads(path.read_bytes())
+        value['sources']['zpm'] = 'c' * 40
+        path.write_bytes(dependencies._encoded(value))
+        with self.assertRaises(subject.RoleCheck):
+            subject.verify_role_environments(bundle, data)
+
+    def test_sealed_intent_bool_schema_cannot_alias_integer_schema(self):
+        from zpm import dependencies
+        bundle, data = self.role_environment_fixture(sealed=True)
+        path = bundle / 'environments/zpm-sealed-intent.json'
+        value = json.loads(path.read_bytes())
+        value['schema_version'] = True
+        path.write_bytes(dependencies._encoded(value))
+        with self.assertRaises(subject.RoleCheck):
+            subject.verify_role_environments(bundle, data)
+
+    def test_service_symlink_is_not_a_role_environment(self):
+        bundle, data = self.role_environment_fixture(sealed=False)
+        (bundle / 'environments/zpm').rmdir()
+        (bundle / 'environments/zpm').symlink_to(bundle / 'environments/polyphony', target_is_directory=True)
+        with self.assertRaises(subject.RoleCheck):
+            subject.verify_role_environments(bundle, data)
+
+    def test_only_the_single_armed_ensure_gets_the_admin_allowance(self):
+        frontend = object.__new__(subject.LifecycleTLS)
+        frontend.lock = threading.Lock()
+        callback = Mock()
+        frontend.before_ensure = callback
+        frontend.drop_next_ensure = False
+        self.assertEqual(frontend.request_controls(False), (None, False, 3))
+        self.assertIs(frontend.before_ensure, callback)
+        self.assertEqual(frontend.request_controls(True), (callback, False, 20))
+        self.assertEqual(frontend.request_controls(True), (None, False, 3))
+        self.assertEqual(frontend.request_controls(False), (None, False, 3))
+        callback.assert_not_called()
+
+    def test_registry_restoration_requires_a_retained_three_second_policy(self):
+        path = self.root / 'registry.sqlite3'
+        with sqlite3.connect(path) as database:
+            database.execute('CREATE TABLE registry_revisions (revision INTEGER, policy TEXT)')
+            database.execute('INSERT INTO registry_revisions VALUES (1, ?)', (json.dumps({'timeout_seconds': 20}),))
+        subject.check_registry_timeout(path, 20)
+        with self.assertRaises(subject.RoleCheck):
+            subject.check_registry_timeout(path, 3)
+        with sqlite3.connect(path) as database:
+            database.execute('INSERT INTO registry_revisions VALUES (2, ?)', (json.dumps({'timeout_seconds': 3}),))
+        before = path.read_bytes()
+        subject.check_registry_timeout(path, 3)
+        self.assertEqual(path.read_bytes(), before)
 
 
 if __name__ == '__main__':
