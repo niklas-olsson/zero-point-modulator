@@ -113,6 +113,32 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  native-musl-preparation:
+    name: Qualify native musl atomic preparation on ext2 and ext4
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify closed Alpine inputs and native preparation recovery
+        run: |
+          python -I -B tests/contracts/check_musl_preparation.py \
+            --inputs tests/contracts/musl-preparation-inputs.json \
+            --work-dir "$RUNNER_TEMP/native-musl-preparation"
+      - name: Retain only the safe native primitive report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-musl-preparation-evidence
+          path: ${{ runner.temp }}/native-musl-preparation/report.json
+          if-no-files-found: warn
+          retention-days: 14
+
   sealed-managed-stack:
     name: Bootstrap sealed Python artifacts with package networking denied
     needs: test

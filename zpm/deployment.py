@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import re
 import secrets
 import signal
@@ -642,9 +643,30 @@ def _atomic_rename():
     if sys.platform != "linux":
         raise ConfigurationError("atomic deployment preparation requires Linux renameat2")
     try:
-        function = ctypes.CDLL(None, use_errno=True).renameat2
-    except (AttributeError, OSError):
-        raise ConfigurationError("Linux libc must provide renameat2 for atomic preparation") from None
+        library = ctypes.CDLL(None, use_errno=True)
+    except OSError:
+        raise ConfigurationError("Linux libc is unavailable for atomic preparation") from None
+    try:
+        function = library.renameat2
+    except AttributeError:
+        # Linux x86-64 LP64 assigns syscall 316 to this same operation. The
+        # width checks exclude x32 even when uname reports x86_64. Do not
+        # infer other architectures' syscall numbers or substitute rename().
+        if (platform.machine() != "x86_64" or ctypes.sizeof(ctypes.c_void_p) != 8
+                or ctypes.sizeof(ctypes.c_long) != 8):
+            raise ConfigurationError("atomic preparation without a libc renameat2 wrapper requires Linux x86_64 LP64")
+        try:
+            syscall = library.syscall
+        except AttributeError:
+            raise ConfigurationError("Linux libc must provide syscall for atomic preparation") from None
+        syscall.argtypes = (ctypes.c_long, ctypes.c_long, ctypes.c_char_p,
+                            ctypes.c_long, ctypes.c_char_p, ctypes.c_ulong)
+        syscall.restype = ctypes.c_long
+
+        def renameat2(old_directory, old_path, new_directory, new_path, flags):
+            return syscall(316, old_directory, old_path, new_directory, new_path, flags)
+
+        return renameat2
     function.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
     function.restype = ctypes.c_int
     return function
