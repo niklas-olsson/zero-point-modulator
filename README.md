@@ -314,6 +314,11 @@ retains the same identity on retry. Without that opt-in, the existing ranged
 installation remains supported. Neither mode qualifies browser execution or a
 different interpreter/platform.
 
+The [Alpine sealed-bootstrap candidate](docs/native-alpine-qualification.md)
+freezes one Alpine 3.24.4 / official CPython 3.12.16 input set for native
+qualification. Its source-only checker and synthetic archive fixtures do not
+acquire packages or run the candidate; native qualification remains NOT RUN.
+
 `zpm deployment prepare` and `verify` are offline. Preparation does not establish
 managed-runtime readiness or run an agent; the generated `doctor` checks actual
 scoped capabilities. The bundle requires supported managed service entry points
@@ -373,6 +378,7 @@ The table is navigation, not another protocol specification.
 | Provider transport and lifecycle responses | [provider](zpm/provider.py), [HTTP transport](zpm/_http_transport.py), [response models](zpm/models.py) | [Wire contract](#openjules-wire-contract) in this README; [HTTP trial](docs/http-contract-trial.md) |
 | Installation, bootstrap and generated configuration | [deployment](zpm/deployment.py), [sealed dependencies](zpm/dependencies.py), [interpreter context](zpm/installation_context.py) | [Single-host installation](docs/single-host-installation.md) |
 | Installed trials and component pins | [trial harnesses](tests/contracts), [CI workflow](.github/workflows/ci.yml) | The corresponding trial guide above; [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3) for integrated acceptance |
+| Native Alpine sealed-bootstrap investigation | [source admission](tests/contracts/check_alpine_sealed_candidate.py), [frozen public inputs](tests/contracts/native-alpine) | [Native candidate, limits and pending execution](docs/native-alpine-qualification.md); [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63) |
 | Cold-session and idle observations | [operational measurements](tests/contracts/operational_measurement.py), [cold trial](tests/contracts/check_cold_children_stack.py) | [Cold-session measurements](docs/cold-session-measurements.md) |
 | Installed publication procedure and trial | [publication trial](tests/contracts/check_publication_stack.py), [execution-only workflow](.github/workflows/managed-publication-execution.yml), [full publication workflow](.github/workflows/managed-publication.yml) | [Publish a final child composition](docs/single-host-installation.md#publish-a-final-child-composition); OpenJules owns the publisher |
 

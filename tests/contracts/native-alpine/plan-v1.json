@@ -1,0 +1,189 @@
+{
+  "active_trial_implemented": false,
+  "authority": {
+    "assembly": {
+      "cap_add": [
+        "CHOWN",
+        "DAC_OVERRIDE",
+        "FOWNER"
+      ],
+      "cap_drop": [
+        "ALL"
+      ],
+      "network": "none",
+      "no_new_privileges": true,
+      "read_only_root": false,
+      "uid": 0
+    },
+    "host_control_socket_mounted": false,
+    "host_devices_added": false,
+    "host_namespace_shared": false,
+    "loopback_remains_available": true,
+    "managed_task_started": false,
+    "model_or_provider_calls": false,
+    "mounts": {
+      "harness": "read-only",
+      "inputs": "read-only",
+      "owned_work": "read-write",
+      "sources": "read-only"
+    },
+    "qualification": {
+      "cap_add": [],
+      "cap_drop": [
+        "ALL"
+      ],
+      "gid": "invoking-nonzero-gid",
+      "network": "none",
+      "no_new_privileges": true,
+      "read_only_root": true,
+      "uid": "invoking-nonzero-uid"
+    },
+    "services_started": false
+  },
+  "candidate": "alpine3.24.4-official-cpython3.12.16-linux-amd64",
+  "caps": {
+    "acquisition_bytes": 536870912,
+    "acquisition_concurrency": 4,
+    "acquisition_requests": 180,
+    "acquisition_seconds": 600,
+    "aggregate_log_bytes": 16777216,
+    "all_probes_seconds": 120,
+    "apk_transaction_seconds": 300,
+    "artifact_archive_members": 100000,
+    "cleanup_reserve_seconds": 90,
+    "command_output_bytes": 1048576,
+    "container_cpus": 2,
+    "container_memory_and_swap_bytes": 2147483648,
+    "container_memory_bytes": 2147483648,
+    "container_pids": 128,
+    "host_rss_bytes": 1073741824,
+    "initial_bootstrap_seconds": 900,
+    "metadata_response_bytes": 1048576,
+    "minimum_host_available_bytes": 4294967296,
+    "owned_storage_bytes": 4294967296,
+    "probe_seconds": 15,
+    "repeat_bootstrap_seconds": 60,
+    "report_bytes": 262144,
+    "request_metadata_reserved_bytes": 65536,
+    "running_containers": 1,
+    "sample_interval_ms": 250,
+    "single_archive_decoded_bytes": 536870912,
+    "source_tracked_bytes": 134217728,
+    "wall_seconds": 1800
+  },
+  "expected_native_checks": [
+    "artifact_bytes",
+    "apk_trust",
+    "base_image_identity",
+    "apk_transaction",
+    "installed_apk_inventory",
+    "interpreter_identity",
+    "production_prepare_verify",
+    "sealed_bootstrap",
+    "native_imports_and_interfaces",
+    "repeat_bytes",
+    "owned_cleanup"
+  ],
+  "external_prerequisites": [
+    "independent-source-and-input-review",
+    "reviewed-active-runner-and-workflow",
+    "exact-plan-hash-admission",
+    "supported-native-docker-runner"
+  ],
+  "metadata": {
+    "inputs-v1.json": {
+      "sha256": "e6b5c507ddc2f5b7bb3fe82db24f82d43f75c07b981477a5eb6690024b47878f",
+      "size": 245074
+    },
+    "native-extensions-v1.json": {
+      "sha256": "6e8d0bc3e1257625b803a55c6f12282b5275d1beb96ee6d7667ada18779baef0",
+      "size": 16221
+    },
+    "oci-config.json": {
+      "sha256": "4076016aea5420e5c87eb52280edfc527ace1ce31dc1c9288b1cc4ef9a0e8905",
+      "size": 5432
+    },
+    "oci-index.json": {
+      "sha256": "c5ba3deef00c7758561a0f03c26f44f10589263d40e732b8748e0d1f38f6dd89",
+      "size": 10301
+    },
+    "oci-manifest.json": {
+      "sha256": "a61cbd76a882645de7f91423329fe43a67eed60d7da24f9e5331414bb3618b20",
+      "size": 1735
+    }
+  },
+  "mode": "source-only",
+  "native_file_pins": [
+    {
+      "path": "lib/ld-musl-x86_64.so.1",
+      "sha256": "095b047c631447e4fa50401fa7ffce01f678587040d65ba18c574981dc630de5",
+      "size": 670312
+    },
+    {
+      "path": "usr/local/bin/python3.12",
+      "sha256": "8a225e021fcee4c6d493a243da73e8604feb2df88576e3910254c248ea38bc95",
+      "size": 14000
+    },
+    {
+      "path": "usr/local/lib/libpython3.12.so.1.0",
+      "sha256": "0774989aecaf2f13b075e9785185b05c74bb69e258488c3fff5d721b7e9f31ee",
+      "size": 7236608
+    }
+  ],
+  "probe_ids": [
+    "zpm-native-imports",
+    "openjules-native-imports",
+    "polyphony-native-imports",
+    "zpm-cli-help",
+    "openjules-managed-service-help",
+    "polyphony-coordinator-help",
+    "zpm-binding-validation",
+    "openjules-managed-context"
+  ],
+  "production_sources": {
+    "openjules": {
+      "entries": 239,
+      "repository": "niklas-olsson/OpenJules",
+      "revision": "0dd5bf4e42b3677c3f2f564655bc87a97c4bf973",
+      "tracked_bytes": 2827826,
+      "tree": "e92f616a633766341fab8ef896b5848d7e0fa22d"
+    },
+    "polyphony": {
+      "entries": 288,
+      "repository": "niklas-olsson/keystone-polyphony",
+      "revision": "6480e36355bf0d5de4e25a560d40e665fd76038c",
+      "tracked_bytes": 2533994,
+      "tree": "3e8841f995df388b5d9c108ead1b677355c8ca07"
+    },
+    "zpm": {
+      "entries": 99,
+      "repository": "niklas-olsson/zero-point-modulator",
+      "revision": "c5fb355f35b73041925e99590d6a18e71038548a",
+      "tracked_bytes": 2583291,
+      "tree": "7326b297579ef0d58e88c688c81234da0ba2ab9e"
+    }
+  },
+  "schema": "zpm-native-alpine-pretrial/v1",
+  "source_exceptions": {
+    "symlinks": [
+      {
+        "blob": "cf280f1b00866e53feb5ffe364079418ec87bf2a",
+        "path": "kp",
+        "service": "polyphony",
+        "target": "polyphony"
+      }
+    ],
+    "uninitialized_gitlinks": [
+      {
+        "path": "third_party/emsdk",
+        "revision": "bafd64c26bdaf10bd829163d1575b50b759a72d8",
+        "service": "polyphony"
+      },
+      {
+        "path": "third_party/llama-cpp-wasm",
+        "revision": "c1fa952e9d6be14bbc3dfe2668aaa72ac83531ba",
+        "service": "polyphony"
+      }
+    ]
+  }
+}
