@@ -1,10 +1,16 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: source-only pretrial preparation. Native execution is NOT RUN.**
-This is the first implementation slice of [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63).
-It makes one finite native installation candidate reviewable without changing the
-installer, its Python admission or operative integration pins. It does not add a
-Docker runner, download command, package resolver or active workflow.
+**Status: attempts 1 and 2 failed before candidate acquisition; corrected
+attempt 3 is an unactivated source candidate pending review and fresh gates.**
+The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
+`SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
+records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
+completed artifacts. Both owned cleanup results passed. No candidate package,
+container or interpreter executed, and native installation remains unqualified. This [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
+fixture keeps the original inert compiler and adds a separate, explicitly gated
+native runner. It changes no installer, Python admission, operative integration
+pin or production execution authority. The original 173 inputs and limits remain
+unchanged. Source fixtures cannot qualify their native installation.
 
 ## Frozen subject and evidence
 
@@ -71,14 +77,77 @@ newline. Existing files and symlinks are not overwritten. A bounded failure
 fallback preserves identities, the first safe failure code and explicit unexecuted
 verdict. It cannot serialize an oversized success.
 
-The source workflow runs this command and synthetic fixtures. Its report remains
-job-local; no private report or binary is uploaded. Ordinary required unit,
-package, CLI and integration gates remain unchanged.
+The source workflow runs this command and synthetic fixtures. This inert report
+remains job-local; no private installation or binary is uploaded. Ordinary
+required unit, package, CLI and integration gates remain unchanged.
 
-## Proposed native sequence, pending active-runner review
+## Separate explicit native entry point
+
+The [current active plan](../tests/contracts/native-alpine/active-plan-3.json) binds the
+host/guest drivers, their local imports, the workflow, original plan/recipe,
+commands, authority and caps. The original `plan-v1.json` and inert checker retain
+their historical `active_trial_implemented: false` fields. They do not become
+native evidence merely because the separate runner exists.
+
+The unchanged [first active plan](../tests/contracts/native-alpine/active-plan-1.json)
+belongs to its failed run at `11fe6e8312ce2f5cdb3e6f6f659be35e27ed70b6`.
+It is not reinterpreted against later source. The unchanged
+[second plan](../tests/contracts/native-alpine/active-plan-2.json) belongs to the
+failed token-framing run at `6629415673d59a969cef4f3920d5982327bc135a`.
+It narrowed checkout admission to the exact inactive three-false sparse file left
+by the supported checkout action; active extensions, includes, other values,
+links and nonordinary metadata still refuse. No Git configuration is rewritten.
+Attempt 3 has its own work directory, upload name and code binding. Its only new
+transport mode is bounded bare HTTP/1.1 chunked framing for the fixed anonymous
+token endpoint. Header and framing bytes share the original metadata reservation;
+artifact bodies still require exact Content-Length. The exact observed second-run
+Transfer-Encoding value remains unknown.
+
+Check active-plan source consistency without acquisition, Docker or candidate
+execution using an externally recorded exact hash:
+
+```sh
+python -I -B tests/contracts/check_alpine_sealed_runtime.py \
+  --check-plan --reviewed-plan-sha256 "$reviewed_plan_sha256"
+```
+
+For an admitted native attempt, the existing workflow accepts either an explicit
+manual `reviewed_plan_sha256` or one immutable branch
+`qualification/native-alpine/run/<exact-plan-sha256>`. Ordinary qualification
+branches, pull requests and an empty manual request run source checks only. The
+source job checks any requested admission before the native job's production
+checkouts. The runner repeats admission before work allocation, subprocesses,
+artifact requests or Docker contact. An explicit hash and run-ref hash must
+agree. A GitHub rerun attempt greater than one refuses; a failed native attempt
+requires a newly reviewed plan and source, preserving its original evidence.
+
+The active lane uses Ubuntu 24.04 amd64, existing system CPython 3.12, Git, OpenSSL
+and an existing Docker Engine supporting API 1.45, `runc`, memory/swap and PID
+limits. It records actual tool/runner versions and refuses missing prerequisites.
+It installs no host package and requests no host sudo, device or added privilege.
+Four clean sibling checkouts separate the current harness from all three frozen
+production revisions. Checkout/action traffic is a declared workflow setup
+prerequisite outside the 173-artifact envelope.
+
+Only the closed `summary.json` projection is exported. It contains fixed public
+identities, check/cleanup verdicts, actual tool facts and aggregate observations.
+Private logs, installation/configuration/secret bytes, selector digests and raw
+guest receipts stay job-local. A summary alone cannot establish success: the
+exact native job must succeed and the record must report every required native
+check as `PASS`, without a first failure or unconfirmed cleanup.
+
+The [source-validation record](native-alpine-runner-validation.md) distinguishes
+the focused checks, local packaging result and reproduced environment limitation
+from the pending hosted and native gates.
+The [active-harness contract](native-alpine-active-harness.md) explains mutation
+custody, stage deadlines, exact configurations and failure handling. Its source
+and fault fixtures include controlled idle children and fake protocol/daemon
+records. They do not run Docker, acquire the candidate or execute its packages.
+
+## Native sequence and per-attempt admission
 
 1. **Admission.** Independently review the exact plan and active-runner head.
-   A future active entry point must require the reviewed plan hash before output
+   The separate active entry point requires the reviewed plan hash before output
    allocation, acquisition or Docker effects. Record host tool versions, invoking
    nonzero UID/GID and clean production/harness revisions.
 2. **Finite acquisition.** Fetch only the listed 173 artifacts. Use HTTPS, no
@@ -147,7 +216,7 @@ package, CLI and integration gates remain unchanged.
 | APK / initial bootstrap / repeat | 300 / 900 / 60 s, each shortened by remaining total budget |
 | Fixed probes | 15 s each, 120 s combined |
 | Output | 1 MiB per command, 16 MiB aggregate private logs, 256 KiB safe report |
-| Observation interval | 250 ms for admitted process, container and storage scopes |
+| Observation loop | At most 250 ms sleep between sample attempts; bounded collection latency and actual maximum gap are reported |
 
 Archive member/decoded limits are explicit in the machine plan. These are stop
 limits, not fit claims. Transfer, sampled RSS, Docker hard limits and conservative
@@ -155,14 +224,21 @@ storage accounting are distinct. The active runner must count interrupted bodies
 reconcile owned PID/start identities, sample container memory/CPU/PID evidence and
 include cleanup in its final verdict.
 
-## Remaining prerequisite
+## Remaining qualification
 
 No exact artifact identity is currently missing from this native closure. Actual
-interpreter identity, APK solving, installation, imports, resource use and cleanup
-remain unobserved. The next implementation is the bounded active runner and opt-in
-execution workflow. Its acquisition, archive composition, Docker commands,
-measurement, report reduction and cleanup require independent review before the
-first native attempt. Source-only success does not satisfy that gate.
+interpreter identity, APK solving, installation and imports remain unobserved.
+Attempt 1 provides early source-admission failure and cleanup evidence. Attempt 2
+adds successful source admission and a token-response framing refusal before body
+reading. The corrected source and its exact third plan require independent review
+and fresh hosted gates before a separately admitted attempt. Source-only success
+cannot qualify the native candidate; both actual failures remain retained.
+
+The [active-harness contract](native-alpine-active-harness.md) records separate
+plan admission, finite host acquisition and custody,
+offline assembly, the fixed nonroot production probes, sampled accounting and
+bounded cleanup. The code-bound plan is reviewable source data until one exact
+native attempt is explicitly admitted. It is not a native result.
 
 This can qualify native bootstrap/interfaces only. It cannot qualify three running
 services, a daemon inside a guest, protected tasks, models, capture/release,
