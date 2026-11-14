@@ -8,8 +8,10 @@ The existing version 1 installation and controller remain the execution path.
 
 The consumer work is tracked in [#50](https://github.com/niklas-olsson/zero-point-modulator/issues/50),
 following the [adopted OpenJules identity contract](https://github.com/niklas-olsson/OpenJules/issues/47#issuecomment-6846632568).
-Portable execution approval, durable local admission/refusal, v2 transport and
-bounded multi-destination reconciliation are later work. Actual two-host
+The [adopted portable public approval](https://github.com/niklas-olsson/OpenJules/issues/47#issuecomment-6848006932)
+can also be imported and retained offline. Producer policy agreement, durable
+local admission/refusal, v2 transport and bounded multi-destination reconciliation
+are later work. Actual two-host
 installation and acceptance belong to [#51](https://github.com/niklas-olsson/zero-point-modulator/issues/51).
 
 ## Explicit configuration
@@ -93,6 +95,114 @@ contact it, rotate a remote credential, release a reservation or retire a worker
 Remote validation, admission and operational retirement require the later
 consumer implementation.
 
+## Retain an exact public execution approval
+
+The independent [offline approval slice](https://github.com/niklas-olsson/zero-point-modulator/issues/50#issuecomment-6869126396)
+accepts an explicitly supplied, operator-approved public document for a currently
+enrolled destination/profile. It never obtains approval from a remote capability
+response. The envelope has exactly these fields:
+
+| Field | Required value |
+| --- | --- |
+| `approval_version` | Exact integer `1`. |
+| `deployment_id`, `repository`, `profile` | Exact existing scope. Repository must already be `github:github.com/owner/repository`; registry aliases and case normalization are not accepted here. |
+| `destination_binding` | The unchanged four-field binding: `destination_id`, `journal_incarnation`, `policy_binding_id`, exact integer `policy_binding_version: 1`. |
+| `manifest` | The complete closed public manifest from the adopted OpenJules contract. |
+| `execution_manifest_sha256` | `sha256:` plus 64 lowercase hexadecimal characters over the exact canonical manifest bytes. |
+
+The source repository inside the manifest must equal the envelope repository.
+Its task base commit is distinct from an installed component revision. Public
+argv, model and service-policy identifiers are retained as approved; private
+endpoints, host paths and credential-reference names have no extra envelope or
+manifest fields. ZPM does not derive this document from private configuration or
+inspect images. Obtain real documents through the producer's supported approval
+workflow when available. The checked-in vectors are synthetic encoding fixtures,
+not usable host approvals or evidence that full-mode producer support is ready.
+
+Keep the file owned by the importing effective user, regular, nonsymlink and
+exactly mode 0600. Its maximum size is **131,072 bytes**, including whitespace.
+Import checks the same opened file before and after a bounded read and refuses a
+changed file. The path and filename are not retained in provenance.
+
+```sh
+zpm --state .zpm/offline-registry.sqlite3 \
+  registry import-approval private-execution-approval.json
+zpm --state .zpm/offline-registry.sqlite3 registry status
+zpm --state .zpm/offline-registry.sqlite3 \
+  registry approval my-host 0123456789abcdef0123456789abcdef
+```
+
+Replace the final command's two identity placeholders with the exact enrolled
+destination and policy-binding IDs. `registry approval` returns one retained
+envelope plus provenance, without resolving credentials or making remote calls.
+`status` and `plan` label each current profile `approved-public-contract` or
+`enrolled-only`; they also list prior approvals and whether each matches current
+enrollment. Every report keeps `execution_enabled`, `ready`,
+`remote_access_checked` and `native_policy_checked` false. An approved public
+artifact is not an available worker, native policy verdict, installation receipt,
+host attestation or authority to dispatch. This does not implement the paired
+native-validation/installation contract tracked in [#56](https://github.com/niklas-olsson/zero-point-modulator/issues/56).
+
+### Canonical syntax and bounded retention
+
+The canonical manifest is at most **65,536 UTF-8 bytes**, with no BOM, final
+newline or digest prefix in the hashed bytes. The encoder implements the adopted
+restricted subset: fixed ASCII object keys sorted by key, compact JSON, Unicode
+scalar strings without normalization, booleans/null and exact nonnegative
+integers no greater than `2^53-1`. Unknown or duplicate fields, floating point,
+nonfinite values, lone surrogates and boolean/integer aliases are refused.
+Ordered argv arrays retain their order. Declared sets must **already** be sorted
+and unique in Unicode scalar order; import never sorts, normalizes or repairs an
+approved document to make a digest match. Candidate producers construct those
+sets before obtaining approval. This is not a general-purpose RFC 8785 encoder.
+
+The consumer checks the frozen public field sets, selected contract identifiers,
+protocol set, scalar types and explicit integer-millisecond constraints. Native
+resource ranges and executable, image, model, isolation and authority semantics
+remain producer-owned qualification. A syntactically valid manifest can still be
+unrunnable. This parser does not copy private native-policy validators or change
+their fingerprints and encoders.
+
+Each immutable approval retains the exact original envelope bytes, exact
+canonical manifest bytes, original input digest and byte length, import method,
+and registry/profile revisions at import. Import appends no registry revision and
+does not change any destination, worker, reservation, launch key or action key.
+An identical approval is read-only and preserves the first artifact/provenance,
+even if re-supplied with different JSON whitespace. A changed manifest or scope
+cannot replace an approval under the same destination/policy binding.
+
+Selecting a new policy binding through ordinary registry import retains the old
+approval as history. The new binding remains `enrolled-only` until separately
+approved. New approvals require the currently enrolled binding; historical exact
+reimports remain idempotent. No delete or replace command is provided.
+
+There are at most **256 approvals** and **16 MiB (16,777,216 bytes)** of combined
+retained raw-envelope plus canonical-manifest payload per journal. These are
+approval payload bounds, not a limit on the existing registry/history or SQLite
+file and WAL overhead. A record exceeding either bound is rejected atomically;
+an exact reimport consumes no additional capacity. The owned-file requirement
+and retained input hash record local import provenance. They do not prove a
+remote operator's identity or cryptographically attest a producer.
+
+### Journal compatibility and failure behavior
+
+Existing unextended v2 journals remain readable without any migration on open.
+The first successful explicit approval import creates a `destination_approvals`
+table, adds metadata `offline_approval_schema: "1"` and inserts the first record
+in the same locked SQLite transaction. It retains the original deployment
+identity and all registry/legacy history. Parse, binding, quota, insert,
+interruption or commit failures roll back the complete operation. Opening a
+journal never creates or repairs approval state. Missing/mismatched feature
+metadata, malformed rows and unsupported versions fail closed.
+
+This is a one-way v2 extension for this release. An older v2 reader's exact-table
+check refuses the extended journal, including an older v2 Store already open
+before the import. The original v1 metadata fence remains in place. Use a current
+reader after importing approvals; do not remove the feature table/marker or
+replace the journal with an older copy to make an old binary accept it. The
+separate already-open **v1** writer limitation described below still applies to
+the original offline v1-to-v2 migration.
+
 ## Migrate released legacy state offline
 
 Migration is one-way for this release. Keep using v1 while any worker or operation
@@ -148,5 +258,18 @@ imports and refusal before credentials/provider access. Its frozen
 ZPM `a2a9f9bad1e42c575b5c1bbae97fa4c94527e5f4`; the test verifies its SHA-256 before
 using it to prove fresh-reader refusal and the already-open-writer limitation.
 Worker history is generated by the existing deterministic provider fixture.
-These tests do not establish runtime execution, two-service interoperability,
+`tests/test_approvals.py` adds exact canonical-byte/digest vectors, current and
+historical binding checks, real maximum record/payload limits, exact private-file
+reads, corruption refusal and SQLite rollback at table, marker, insert and commit
+boundaries. Cold CLI fixtures refuse sockets, subprocesses, provider-file reads
+and credential-reference resolution, while exercising import, reopen, status,
+inspection and execution refusal. The frozen v2 reader
+`tests/fixtures/legacy_store_c5fb355.py` is the exact Store source at
+`c5fb355f35b73041925e99590d6a18e71038548a`; its SHA-256 is checked before the reader
+compatibility trial. [Independent canonical literals](../tests/fixtures/portable-manifest-v1.json)
+cover controls, quote/backslash, astral characters, distinct NFC/NFD values,
+safe-integer limits, argv order and Unicode scalar set order. They are authored
+independently of the consumer encoder and have fixed expected hashes.
+
+These local tests do not establish runtime execution, two-service interoperability,
 two-host installation, portable policy qualification or external publication.

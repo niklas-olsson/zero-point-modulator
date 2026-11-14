@@ -51,6 +51,17 @@ def _opaque_id(value: Any, label: str) -> str:
     return value
 
 
+def destination_binding(value: Any) -> dict[str, Any]:
+    """Validate the unchanged four-field public destination identity."""
+    item = _object(value, {"destination_id", "journal_incarnation", "policy_binding_id", "policy_binding_version"}, "destination binding")
+    _destination_id(item["destination_id"])
+    _opaque_id(item["journal_incarnation"], "journal_incarnation")
+    _opaque_id(item["policy_binding_id"], "policy_binding_id")
+    if type(item["policy_binding_version"]) is not int or item["policy_binding_version"] != 1:
+        raise ConfigurationError("policy_binding_version must be 1")
+    return item
+
+
 def _policy(value: Any) -> dict[str, Any]:
     value = _object(value, {"schema_version", "max_workers", "timeout_seconds"}, "registry policy")
     if type(value["schema_version"]) is not int or value["schema_version"] != 2:

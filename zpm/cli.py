@@ -56,6 +56,10 @@ def parser() -> argparse.ArgumentParser:
             sub.add_argument("--backup", required=True, help="new backup file in an existing local directory")
             sub.add_argument("--offline", action="store_true", help="assert all old controllers and configuration writers are stopped")
     registry_commands.add_parser("status")
+    registry_commands.add_parser("import-approval", help="retain an exact public approval while execution remains disabled").add_argument("approval")
+    inspect_approval = registry_commands.add_parser("approval", help="inspect one retained public approval without remote checks")
+    inspect_approval.add_argument("destination_id")
+    inspect_approval.add_argument("policy_binding_id")
     deployment = commands.add_parser("deployment", help="prepare or verify an explicit private single-host installation")
     deployment_commands = deployment.add_subparsers(dest="deployment_command", required=True)
     prepare = deployment_commands.add_parser("prepare", help="write configuration without installing or starting services")
@@ -97,6 +101,10 @@ def main(argv: list[str] | None = None) -> int:
                         output = store.import_registry(read_json(args.configuration, registry=True))
                     elif command == "migrate":
                         output = store.migrate_registry(read_json(args.configuration, registry=True), args.backup, offline=args.offline)
+                    elif command == "import-approval":
+                        output = store.import_approval(args.approval)
+                    elif command == "approval":
+                        output = store.inspect_approval(args.destination_id, args.policy_binding_id)
                     else:
                         output = store.registry_status()
         else:

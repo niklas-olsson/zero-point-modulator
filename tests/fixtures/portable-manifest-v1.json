@@ -1,0 +1,352 @@
+{
+  "contract": "OpenJules#47/6848006932",
+  "method": "Independently authored canonical UTF-8 literals; fixed key order and Unicode scalar set order; digests over literal bytes, no consumer encoder.",
+  "vectors": [
+    {
+      "name": "base",
+      "manifest": {
+        "children": null,
+        "confinement": {
+          "broker_mount": "absent",
+          "cap_drop": [
+            "ALL"
+          ],
+          "network_mode": "none",
+          "no_new_privileges": true,
+          "privileged": false,
+          "read_only_rootfs": true,
+          "restart_policy": "no",
+          "source_mount": "approved-snapshot-ro",
+          "tmpfs_contract": "openjules-tmpfs-v1",
+          "watchdog_contract": "root-reaping-v1",
+          "watchdog_uid": 65534,
+          "work_mount": "owned-volume-rw"
+        },
+        "execution": {
+          "contract_id": "openjules-managed-docker-v1",
+          "guest_environment_refs": "none",
+          "root_argv": [
+            "python3",
+            "-I",
+            "/opt/openjules/managed_runner.py"
+          ],
+          "root_uid": 1000
+        },
+        "image": {
+          "architecture": "amd64",
+          "config_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "os": "linux",
+          "variant": null
+        },
+        "manifest_version": 1,
+        "model": null,
+        "required_protocols": [
+          "destination-identity-v1",
+          "execution-contract-v1",
+          "local-admission-v1",
+          "never-admitted-v1",
+          "worker-lifecycle-v2"
+        ],
+        "resources": {
+          "cpu_period_us": 100000,
+          "cpu_quota_us": 100000,
+          "max_archive_bytes": 4000000,
+          "memory_bytes": 268435456,
+          "pids_limit": 128,
+          "root_timeout_ms": 60000,
+          "swap_limit_bytes": 268435456
+        },
+        "source": {
+          "base_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "repository": "github:github.com/owner/project"
+        }
+      },
+      "canonical_utf8": "{\"children\":null,\"confinement\":{\"broker_mount\":\"absent\",\"cap_drop\":[\"ALL\"],\"network_mode\":\"none\",\"no_new_privileges\":true,\"privileged\":false,\"read_only_rootfs\":true,\"restart_policy\":\"no\",\"source_mount\":\"approved-snapshot-ro\",\"tmpfs_contract\":\"openjules-tmpfs-v1\",\"watchdog_contract\":\"root-reaping-v1\",\"watchdog_uid\":65534,\"work_mount\":\"owned-volume-rw\"},\"execution\":{\"contract_id\":\"openjules-managed-docker-v1\",\"guest_environment_refs\":\"none\",\"root_argv\":[\"python3\",\"-I\",\"/opt/openjules/managed_runner.py\"],\"root_uid\":1000},\"image\":{\"architecture\":\"amd64\",\"config_digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"os\":\"linux\",\"variant\":null},\"manifest_version\":1,\"model\":null,\"required_protocols\":[\"destination-identity-v1\",\"execution-contract-v1\",\"local-admission-v1\",\"never-admitted-v1\",\"worker-lifecycle-v2\"],\"resources\":{\"cpu_period_us\":100000,\"cpu_quota_us\":100000,\"max_archive_bytes\":4000000,\"memory_bytes\":268435456,\"pids_limit\":128,\"root_timeout_ms\":60000,\"swap_limit_bytes\":268435456},\"source\":{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"repository\":\"github:github.com/owner/project\"}}",
+      "sha256": "sha256:d77c2072194d6bcf9cfe830fe157b633efb78c09035583e296c6818532121796"
+    },
+    {
+      "name": "unicode-integers-ordered-arrays-and-sets",
+      "manifest": {
+        "children": {
+          "capabilities": [
+            "a",
+            "é",
+            "",
+            "😀"
+          ],
+          "child_argv": [
+            "python3",
+            "-I",
+            "/opt/openjules/managed_runner.py"
+          ],
+          "max_child_ms": 12000,
+          "max_child_turns": 3,
+          "max_children": 2,
+          "max_result_bytes": 4096,
+          "outcome_protocol": "initial-v1",
+          "protocol": "bounded-children-v1",
+          "public_discussion": null,
+          "session_protocol": "cold-clarification-v1",
+          "uid_start": 60000,
+          "verify_argv": []
+        },
+        "confinement": {
+          "broker_mount": "owned-broker-ro",
+          "cap_drop": [
+            "ALL"
+          ],
+          "network_mode": "none",
+          "no_new_privileges": true,
+          "privileged": false,
+          "read_only_rootfs": true,
+          "restart_policy": "no",
+          "source_mount": "approved-snapshot-ro",
+          "tmpfs_contract": "openjules-tmpfs-v1",
+          "watchdog_contract": "children-reaping-v1",
+          "watchdog_uid": 65534,
+          "work_mount": "owned-volume-rw"
+        },
+        "execution": {
+          "contract_id": "openjules-managed-docker-v1",
+          "guest_environment_refs": "none",
+          "root_argv": [
+            "python3",
+            "-I",
+            "/opt/openjules/managed_runner.py"
+          ],
+          "root_uid": 1000
+        },
+        "image": {
+          "architecture": "amd64",
+          "config_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "os": "linux",
+          "variant": null
+        },
+        "manifest_version": 1,
+        "model": {
+          "max_calls": 4,
+          "max_output_tokens": 64,
+          "max_request_bytes": 4096,
+          "max_response_bytes": 8192,
+          "max_total_output_tokens": 256,
+          "model": "quote\" slash\\ tab\t line\n null\u0000 cr\r back\b form\f unit\u001f astral😀 nfcé nfdé",
+          "request_timeout_ms": 120000,
+          "service_policy_id": "operator.approved-model",
+          "token_parameter": "max_tokens",
+          "transport_contract": "host-broker-chat-completions-v1"
+        },
+        "required_protocols": [
+          "bounded-children-v1",
+          "cold-clarification-v1",
+          "destination-identity-v1",
+          "execution-contract-v1",
+          "initial-v1",
+          "local-admission-v1",
+          "never-admitted-v1",
+          "worker-lifecycle-v2"
+        ],
+        "resources": {
+          "cpu_period_us": 100000,
+          "cpu_quota_us": 100000,
+          "max_archive_bytes": 4000000,
+          "memory_bytes": 9007199254740991,
+          "pids_limit": 128,
+          "root_timeout_ms": 60000,
+          "swap_limit_bytes": 268435456
+        },
+        "source": {
+          "base_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "repository": "github:github.com/owner/project"
+        }
+      },
+      "canonical_utf8": "{\"children\":{\"capabilities\":[\"a\",\"é\",\"\",\"😀\"],\"child_argv\":[\"python3\",\"-I\",\"/opt/openjules/managed_runner.py\"],\"max_child_ms\":12000,\"max_child_turns\":3,\"max_children\":2,\"max_result_bytes\":4096,\"outcome_protocol\":\"initial-v1\",\"protocol\":\"bounded-children-v1\",\"public_discussion\":null,\"session_protocol\":\"cold-clarification-v1\",\"uid_start\":60000,\"verify_argv\":[]},\"confinement\":{\"broker_mount\":\"owned-broker-ro\",\"cap_drop\":[\"ALL\"],\"network_mode\":\"none\",\"no_new_privileges\":true,\"privileged\":false,\"read_only_rootfs\":true,\"restart_policy\":\"no\",\"source_mount\":\"approved-snapshot-ro\",\"tmpfs_contract\":\"openjules-tmpfs-v1\",\"watchdog_contract\":\"children-reaping-v1\",\"watchdog_uid\":65534,\"work_mount\":\"owned-volume-rw\"},\"execution\":{\"contract_id\":\"openjules-managed-docker-v1\",\"guest_environment_refs\":\"none\",\"root_argv\":[\"python3\",\"-I\",\"/opt/openjules/managed_runner.py\"],\"root_uid\":1000},\"image\":{\"architecture\":\"amd64\",\"config_digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"os\":\"linux\",\"variant\":null},\"manifest_version\":1,\"model\":{\"max_calls\":4,\"max_output_tokens\":64,\"max_request_bytes\":4096,\"max_response_bytes\":8192,\"max_total_output_tokens\":256,\"model\":\"quote\\\" slash\\\\ tab\\t line\\n null\\u0000 cr\\r back\\b form\\f unit\\u001f astral😀 nfcé nfdé\",\"request_timeout_ms\":120000,\"service_policy_id\":\"operator.approved-model\",\"token_parameter\":\"max_tokens\",\"transport_contract\":\"host-broker-chat-completions-v1\"},\"required_protocols\":[\"bounded-children-v1\",\"cold-clarification-v1\",\"destination-identity-v1\",\"execution-contract-v1\",\"initial-v1\",\"local-admission-v1\",\"never-admitted-v1\",\"worker-lifecycle-v2\"],\"resources\":{\"cpu_period_us\":100000,\"cpu_quota_us\":100000,\"max_archive_bytes\":4000000,\"memory_bytes\":9007199254740991,\"pids_limit\":128,\"root_timeout_ms\":60000,\"swap_limit_bytes\":268435456},\"source\":{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"repository\":\"github:github.com/owner/project\"}}",
+      "sha256": "sha256:3ec2506d7ccbad4e921d703e5acb9839ce178d2b6bfc6978c64d049f50385e2f"
+    },
+    {
+      "name": "ordered-argv-reversed",
+      "manifest": {
+        "children": null,
+        "confinement": {
+          "broker_mount": "absent",
+          "cap_drop": [
+            "ALL"
+          ],
+          "network_mode": "none",
+          "no_new_privileges": true,
+          "privileged": false,
+          "read_only_rootfs": true,
+          "restart_policy": "no",
+          "source_mount": "approved-snapshot-ro",
+          "tmpfs_contract": "openjules-tmpfs-v1",
+          "watchdog_contract": "root-reaping-v1",
+          "watchdog_uid": 65534,
+          "work_mount": "owned-volume-rw"
+        },
+        "execution": {
+          "contract_id": "openjules-managed-docker-v1",
+          "guest_environment_refs": "none",
+          "root_argv": [
+            "/opt/openjules/managed_runner.py",
+            "-I",
+            "python3"
+          ],
+          "root_uid": 1000
+        },
+        "image": {
+          "architecture": "amd64",
+          "config_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "os": "linux",
+          "variant": null
+        },
+        "manifest_version": 1,
+        "model": null,
+        "required_protocols": [
+          "destination-identity-v1",
+          "execution-contract-v1",
+          "local-admission-v1",
+          "never-admitted-v1",
+          "worker-lifecycle-v2"
+        ],
+        "resources": {
+          "cpu_period_us": 100000,
+          "cpu_quota_us": 100000,
+          "max_archive_bytes": 4000000,
+          "memory_bytes": 268435456,
+          "pids_limit": 128,
+          "root_timeout_ms": 60000,
+          "swap_limit_bytes": 268435456
+        },
+        "source": {
+          "base_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "repository": "github:github.com/owner/project"
+        }
+      },
+      "canonical_utf8": "{\"children\":null,\"confinement\":{\"broker_mount\":\"absent\",\"cap_drop\":[\"ALL\"],\"network_mode\":\"none\",\"no_new_privileges\":true,\"privileged\":false,\"read_only_rootfs\":true,\"restart_policy\":\"no\",\"source_mount\":\"approved-snapshot-ro\",\"tmpfs_contract\":\"openjules-tmpfs-v1\",\"watchdog_contract\":\"root-reaping-v1\",\"watchdog_uid\":65534,\"work_mount\":\"owned-volume-rw\"},\"execution\":{\"contract_id\":\"openjules-managed-docker-v1\",\"guest_environment_refs\":\"none\",\"root_argv\":[\"/opt/openjules/managed_runner.py\",\"-I\",\"python3\"],\"root_uid\":1000},\"image\":{\"architecture\":\"amd64\",\"config_digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"os\":\"linux\",\"variant\":null},\"manifest_version\":1,\"model\":null,\"required_protocols\":[\"destination-identity-v1\",\"execution-contract-v1\",\"local-admission-v1\",\"never-admitted-v1\",\"worker-lifecycle-v2\"],\"resources\":{\"cpu_period_us\":100000,\"cpu_quota_us\":100000,\"max_archive_bytes\":4000000,\"memory_bytes\":268435456,\"pids_limit\":128,\"root_timeout_ms\":60000,\"swap_limit_bytes\":268435456},\"source\":{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"repository\":\"github:github.com/owner/project\"}}",
+      "sha256": "sha256:9b36cb10c657fb160d0e324970a3cb674de6bdd463f21454f0ace80c56b601b0"
+    },
+    {
+      "name": "nfc",
+      "manifest": {
+        "children": null,
+        "confinement": {
+          "broker_mount": "absent",
+          "cap_drop": [
+            "ALL"
+          ],
+          "network_mode": "none",
+          "no_new_privileges": true,
+          "privileged": false,
+          "read_only_rootfs": true,
+          "restart_policy": "no",
+          "source_mount": "approved-snapshot-ro",
+          "tmpfs_contract": "openjules-tmpfs-v1",
+          "watchdog_contract": "root-reaping-v1",
+          "watchdog_uid": 65534,
+          "work_mount": "owned-volume-rw"
+        },
+        "execution": {
+          "contract_id": "openjules-managed-docker-v1",
+          "guest_environment_refs": "none",
+          "root_argv": [
+            "python3",
+            "-I",
+            "/opt/openjules/managed_runner.py"
+          ],
+          "root_uid": 1000
+        },
+        "image": {
+          "architecture": "amd64",
+          "config_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "os": "linux",
+          "variant": "é"
+        },
+        "manifest_version": 1,
+        "model": null,
+        "required_protocols": [
+          "destination-identity-v1",
+          "execution-contract-v1",
+          "local-admission-v1",
+          "never-admitted-v1",
+          "worker-lifecycle-v2"
+        ],
+        "resources": {
+          "cpu_period_us": 100000,
+          "cpu_quota_us": 100000,
+          "max_archive_bytes": 4000000,
+          "memory_bytes": 268435456,
+          "pids_limit": 128,
+          "root_timeout_ms": 60000,
+          "swap_limit_bytes": 268435456
+        },
+        "source": {
+          "base_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "repository": "github:github.com/owner/project"
+        }
+      },
+      "canonical_utf8": "{\"children\":null,\"confinement\":{\"broker_mount\":\"absent\",\"cap_drop\":[\"ALL\"],\"network_mode\":\"none\",\"no_new_privileges\":true,\"privileged\":false,\"read_only_rootfs\":true,\"restart_policy\":\"no\",\"source_mount\":\"approved-snapshot-ro\",\"tmpfs_contract\":\"openjules-tmpfs-v1\",\"watchdog_contract\":\"root-reaping-v1\",\"watchdog_uid\":65534,\"work_mount\":\"owned-volume-rw\"},\"execution\":{\"contract_id\":\"openjules-managed-docker-v1\",\"guest_environment_refs\":\"none\",\"root_argv\":[\"python3\",\"-I\",\"/opt/openjules/managed_runner.py\"],\"root_uid\":1000},\"image\":{\"architecture\":\"amd64\",\"config_digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"os\":\"linux\",\"variant\":\"é\"},\"manifest_version\":1,\"model\":null,\"required_protocols\":[\"destination-identity-v1\",\"execution-contract-v1\",\"local-admission-v1\",\"never-admitted-v1\",\"worker-lifecycle-v2\"],\"resources\":{\"cpu_period_us\":100000,\"cpu_quota_us\":100000,\"max_archive_bytes\":4000000,\"memory_bytes\":268435456,\"pids_limit\":128,\"root_timeout_ms\":60000,\"swap_limit_bytes\":268435456},\"source\":{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"repository\":\"github:github.com/owner/project\"}}",
+      "sha256": "sha256:caed501e124feb5ac4e1b96a324314fabc26d395d4dacadd93e7568fa7242608"
+    },
+    {
+      "name": "nfd",
+      "manifest": {
+        "children": null,
+        "confinement": {
+          "broker_mount": "absent",
+          "cap_drop": [
+            "ALL"
+          ],
+          "network_mode": "none",
+          "no_new_privileges": true,
+          "privileged": false,
+          "read_only_rootfs": true,
+          "restart_policy": "no",
+          "source_mount": "approved-snapshot-ro",
+          "tmpfs_contract": "openjules-tmpfs-v1",
+          "watchdog_contract": "root-reaping-v1",
+          "watchdog_uid": 65534,
+          "work_mount": "owned-volume-rw"
+        },
+        "execution": {
+          "contract_id": "openjules-managed-docker-v1",
+          "guest_environment_refs": "none",
+          "root_argv": [
+            "python3",
+            "-I",
+            "/opt/openjules/managed_runner.py"
+          ],
+          "root_uid": 1000
+        },
+        "image": {
+          "architecture": "amd64",
+          "config_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "os": "linux",
+          "variant": "é"
+        },
+        "manifest_version": 1,
+        "model": null,
+        "required_protocols": [
+          "destination-identity-v1",
+          "execution-contract-v1",
+          "local-admission-v1",
+          "never-admitted-v1",
+          "worker-lifecycle-v2"
+        ],
+        "resources": {
+          "cpu_period_us": 100000,
+          "cpu_quota_us": 100000,
+          "max_archive_bytes": 4000000,
+          "memory_bytes": 268435456,
+          "pids_limit": 128,
+          "root_timeout_ms": 60000,
+          "swap_limit_bytes": 268435456
+        },
+        "source": {
+          "base_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "repository": "github:github.com/owner/project"
+        }
+      },
+      "canonical_utf8": "{\"children\":null,\"confinement\":{\"broker_mount\":\"absent\",\"cap_drop\":[\"ALL\"],\"network_mode\":\"none\",\"no_new_privileges\":true,\"privileged\":false,\"read_only_rootfs\":true,\"restart_policy\":\"no\",\"source_mount\":\"approved-snapshot-ro\",\"tmpfs_contract\":\"openjules-tmpfs-v1\",\"watchdog_contract\":\"root-reaping-v1\",\"watchdog_uid\":65534,\"work_mount\":\"owned-volume-rw\"},\"execution\":{\"contract_id\":\"openjules-managed-docker-v1\",\"guest_environment_refs\":\"none\",\"root_argv\":[\"python3\",\"-I\",\"/opt/openjules/managed_runner.py\"],\"root_uid\":1000},\"image\":{\"architecture\":\"amd64\",\"config_digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"os\":\"linux\",\"variant\":\"é\"},\"manifest_version\":1,\"model\":null,\"required_protocols\":[\"destination-identity-v1\",\"execution-contract-v1\",\"local-admission-v1\",\"never-admitted-v1\",\"worker-lifecycle-v2\"],\"resources\":{\"cpu_period_us\":100000,\"cpu_quota_us\":100000,\"max_archive_bytes\":4000000,\"memory_bytes\":268435456,\"pids_limit\":128,\"root_timeout_ms\":60000,\"swap_limit_bytes\":268435456},\"source\":{\"base_commit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"repository\":\"github:github.com/owner/project\"}}",
+      "sha256": "sha256:b3ad4249db8c17ee4a721534eaee75b9cdb47fd73de7c64b67a5b66273f8b3c4"
+    }
+  ]
+}
