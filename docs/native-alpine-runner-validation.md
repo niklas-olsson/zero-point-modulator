@@ -2,11 +2,12 @@
 
 Agent-authored by ChatGPT `/root/assess_zpm`, 14 November 2026. This records
 source checks for the [active runner](native-alpine-active-harness.md).
-The first admitted attempt subsequently failed before acquisition, as recorded
-in the [retained outcome](native-alpine-evidence/attempt-1/outcome.md).
-Candidate acquisition, Docker execution, APK installation, sealed bootstrap and
-native probes remain NOT_RUN. The original checks below retain their source
-scope; the correction and its new plan require fresh review and hosted gates.
+The [first admitted attempt](native-alpine-evidence/attempt-1/outcome.md) failed
+at source admission; the [second](native-alpine-evidence/attempt-2/outcome.md)
+passed source and host prerequisites, then refused token framing before body
+reading. Host Docker identity reads ran; no candidate container, interpreter,
+installation or native probe ran. The original checks below retain their source
+scope. The third plan requires fresh review and hosted gates.
 
 The original inert plan, 173-artifact recipe and native-member catalog retain
 SHA-256 `c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76`,
@@ -42,6 +43,34 @@ The supported-checkout explanation follows seven pinned action/Git primary
 sources listed in the outcome record. The historical failure code did not name
 the rejected relative path, so the exact first-run member remains unobserved.
 No corrected native attempt is inferred from source tests or this explanation.
+
+## Coordinating correction after attempt 2
+
+Agent-authored by ChatGPT `/root`. The new `active-plan-3.json` is 6,242 bytes,
+SHA-256 `6da9d7727ae89c35ac9d26c6437a5a3c549efb07961d43309cf619903520ea72`.
+Both original plans and raw failed summaries remain unchanged. The candidate,
+173 inputs, production tuple, guest commands, authority and resource caps remain
+fixed. The workflow binds the third attempt's work and summary identities.
+
+Only the fixed anonymous token endpoint gains a bounded bare HTTP/1.1 chunked
+reader. The original response stream supplies strict hex sizes and CRLF, with
+header plus framing counts bounded by the same 64-KiB reservation. No extensions,
+trailers, mixed framing, content compression or alternate endpoint is admitted.
+Artifact Content-Length and byte/hash checks remain unchanged. Partial payload
+and framing observations are retained before refusal; final framing arriving
+beyond the original deadline cannot complete successfully. Token/header contents
+are not persisted. The outcome record links the exact CPython source and RFC.
+
+All 81 focused fixtures pass on this exact source, including eight new transport
+fixtures. The final root fixture log has SHA-256
+`14e876e12719cf4b0f5027405866c4a811f5dd5bb0f9e82c329ad4809a756a71`.
+The isolated `--check-plan` command admits the exact plan with native execution
+NOT_RUN; Python syntax, workflow YAML and whitespace checks pass. Independent
+review and fresh hosted gates remain separate. The new fixtures cover original-stream
+framing, mixed/duplicate/old-HTTP refusals, endpoint and artifact isolation,
+malformed/truncated bodies, early advertised overflow, shared metadata exhaustion,
+partial payload deadline expiry and a final delimiter arriving after the deadline.
+No real network, candidate package or container is used by these added fixtures.
 
 ## Original completed-source local checks
 

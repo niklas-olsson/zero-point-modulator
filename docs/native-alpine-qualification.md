@@ -1,11 +1,12 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: attempt 1 failed before acquisition; corrected attempt 2 is an
-unactivated source candidate pending independent review and fresh gates.**
-The [retained first outcome](native-alpine-evidence/attempt-1/outcome.md) records
-`SOURCE_GIT_INDIRECTION`, zero artifact requests and successful owned cleanup.
-No candidate package, container or interpreter executed, and native installation
-remains unqualified. This [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
+**Status: attempts 1 and 2 failed before candidate acquisition; corrected
+attempt 3 is an unactivated source candidate pending review and fresh gates.**
+The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
+`SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
+records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
+completed artifacts. Both owned cleanup results passed. No candidate package,
+container or interpreter executed, and native installation remains unqualified. This [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 fixture keeps the original inert compiler and adds a separate, explicitly gated
 native runner. It changes no installer, Python admission, operative integration
 pin or production execution authority. The original 173 inputs and limits remain
@@ -82,7 +83,7 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [current active plan](../tests/contracts/native-alpine/active-plan-2.json) binds the
+The [current active plan](../tests/contracts/native-alpine/active-plan-3.json) binds the
 host/guest drivers, their local imports, the workflow, original plan/recipe,
 commands, authority and caps. The original `plan-v1.json` and inert checker retain
 their historical `active_trial_implemented: false` fields. They do not become
@@ -90,11 +91,17 @@ native evidence merely because the separate runner exists.
 
 The unchanged [first active plan](../tests/contracts/native-alpine/active-plan-1.json)
 belongs to its failed run at `11fe6e8312ce2f5cdb3e6f6f659be35e27ed70b6`.
-It is not reinterpreted against later source. Attempt 2 has a separate identity,
-work directory, upload name and code binding. The only checkout admission change
-accepts the exact inactive three-false sparse configuration left by the supported
-checkout action; active extensions, includes, other values, links and nonordinary
-metadata remain refused. No Git configuration is rewritten to obtain admission.
+It is not reinterpreted against later source. The unchanged
+[second plan](../tests/contracts/native-alpine/active-plan-2.json) belongs to the
+failed token-framing run at `6629415673d59a969cef4f3920d5982327bc135a`.
+It narrowed checkout admission to the exact inactive three-false sparse file left
+by the supported checkout action; active extensions, includes, other values,
+links and nonordinary metadata still refuse. No Git configuration is rewritten.
+Attempt 3 has its own work directory, upload name and code binding. Its only new
+transport mode is bounded bare HTTP/1.1 chunked framing for the fixed anonymous
+token endpoint. Header and framing bytes share the original metadata reservation;
+artifact bodies still require exact Content-Length. The exact observed second-run
+Transfer-Encoding value remains unknown.
 
 Check active-plan source consistency without acquisition, Docker or candidate
 execution using an externally recorded exact hash:
@@ -221,10 +228,11 @@ include cleanup in its final verdict.
 
 No exact artifact identity is currently missing from this native closure. Actual
 interpreter identity, APK solving, installation and imports remain unobserved.
-Attempt 1 provides only early source-admission failure and cleanup evidence.
-The corrected source and its exact second plan require independent review and
-fresh hosted gates before a separately admitted attempt. Source-only success
-cannot qualify the native candidate, and the first failure remains retained.
+Attempt 1 provides early source-admission failure and cleanup evidence. Attempt 2
+adds successful source admission and a token-response framing refusal before body
+reading. The corrected source and its exact third plan require independent review
+and fresh hosted gates before a separately admitted attempt. Source-only success
+cannot qualify the native candidate; both actual failures remain retained.
 
 The [active-harness contract](native-alpine-active-harness.md) records separate
 plan admission, finite host acquisition and custody,

@@ -44,7 +44,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-2.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-3.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -71,6 +71,9 @@ FIXED_POLICY = {
     "physical_storage_quota": False, "opaque_daemon_caches_observed": False,
     "setup_transport_in_artifact_budget": False,
     "container_network": "none-with-loopback", "native_activation": "explicit-reviewed-plan-only",
+    "token_response_framing": "content-length-or-bounded-bare-http11-chunked",
+    "artifact_response_framing": "exact-content-length-only",
+    "response_metadata_scope": "headers-plus-token-chunk-framing",
 }
 COMMANDS = {
     "assembly": ["/usr/local/bin/python3.12", "-I", "-B", "/harness/alpine_sealed_guest.py", "assembly"],
@@ -125,7 +128,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-2"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-3"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -191,7 +194,7 @@ def public_summary(report):
     groups = {"environment": ("python", "kernel", "machine", "runner_os", "runner_version", "uid", "gid",
                                "engine_api", "git", "openssl", "docker_client", "docker_server", "native_interpreter"),
               "acquisition": ("requests", "body_bytes", "metadata_reserved_bytes", "reserved_body_bytes",
-                              "response_header_bytes", "artifacts_complete", "redirects", "origins"),
+                              "response_header_bytes", "response_framing_bytes", "artifacts_complete", "redirects", "origins"),
               "resources": ("samples", "maximum_sample_gap_ms", "peak_host_rss_bytes", "peak_logical_owned_bytes",
                             "peak_container_memory_bytes", "peak_container_pids", "last_container_cpu_ns",
                             "minimum_host_available_bytes", "storage_scope", "physical_storage_quota",
@@ -459,6 +462,11 @@ class HeaderReader:
 
 
 class BoundedHTTPResponse(http.client.HTTPResponse):
+    def _read_status(self):
+        status = super()._read_status()
+        self.wire_http_version = status[0]
+        return status
+
     def begin(self):
         reader = HeaderReader(self.fp)
         self.fp = reader
@@ -498,7 +506,7 @@ class Acquisition:
         self.directory, self.deadline = directory, deadline
         self.opener = opener or urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect(), BoundedHTTPSHandler())
         self.record = {"requests": 0, "body_bytes": 0, "metadata_reserved_bytes": 0,
-                       "reserved_body_bytes": 0, "response_header_bytes": 0,
+                       "reserved_body_bytes": 0, "response_header_bytes": 0, "response_framing_bytes": 0,
                        "artifacts_complete": 0, "redirects": 0, "origins": []}
 
     def persist(self):
@@ -553,24 +561,92 @@ class Acquisition:
             self.header_observation(response)
             require(response.status == 200, "ARTIFACT_HTTP_STATUS")
             require(response.headers.get_all("Content-Encoding", []) in ([], ["identity"]), "HTTP_ENCODING")
-            require(not response.headers.get_all("Transfer-Encoding", []), "HTTP_FRAMING")
+            transfers = response.headers.get_all("Transfer-Encoding", [])
+            response.zpm_token_chunked = False
+            if transfers:
+                # The exact anonymous token endpoint alone may have an unknown
+                # content length. Artifact bytes retain their original exact
+                # Content-Length requirement. Never combine framing authorities.
+                require(url == TOKEN_URL and maximum == CAPS["metadata_response_bytes"]
+                        and token is None and not allow_redirect, "HTTP_FRAMING")
+                require(len(transfers) == 1 and transfers[0].lower() == "chunked"
+                        and not response.headers.get_all("Content-Length", [])
+                        and not response.headers.get_all("Trailer", []), "HTTP_TOKEN_FRAMING")
+                require(isinstance(response, BoundedHTTPResponse) and response.wire_http_version == "HTTP/1.1"
+                        and response.version == 11
+                        and response.chunked is True and response.fp is not None, "HTTP_TOKEN_READER")
+                response.zpm_token_chunked = True
+                response.response_framing_bytes = 0
         except BaseException:
             response.close()
             raise
         return response
 
+    def token_framing(self, response, *, line=False):
+        """Charge raw framing before parsing, within the original header reserve.
+
+        Read the bounded response's original stream, never HTTPResponse.read's
+        permissive chunk-extension/trailer parser. No framing contents survive
+        in the credential-free counters or errors.
+        """
+        require(time.monotonic() < self.deadline, "ACQUISITION_DEADLINE")
+        remaining = (CAPS["request_metadata_reserved_bytes"] - response.response_header_bytes
+                     - response.response_framing_bytes)
+        require(remaining >= 0, "HTTP_METADATA_BOUND")
+        part = response.fp.readline(remaining + 1) if line else response.fp.read(min(2, remaining + 1))
+        response.response_framing_bytes += len(part)
+        self.record["response_framing_bytes"] += len(part)
+        self.persist()
+        require(time.monotonic() < self.deadline, "ACQUISITION_DEADLINE")
+        require(response.response_header_bytes + response.response_framing_bytes
+                <= CAPS["request_metadata_reserved_bytes"], "HTTP_METADATA_BOUND")
+        require(part.endswith(b"\r\n"), "HTTP_CHUNK_SYNTAX")
+        return part
+
+    def token_chunks(self, response, size):
+        """One bounded token body: bare sizes, exact CRLF, no extensions/trailers."""
+        total = 0
+        while True:
+            line = self.token_framing(response, line=True)
+            require(re.fullmatch(rb"[0-9A-Fa-f]{1,16}\r\n", line), "HTTP_CHUNK_SYNTAX")
+            length = int(line[:-2], 16)
+            if length == 0:
+                require(self.token_framing(response, line=True) == b"\r\n", "HTTP_CHUNK_TRAILER")
+                require(total > 0, "HTTP_BODY_INCOMPLETE")
+                return
+            require(length <= size - total, "ACQUISITION_BYTES")
+            while length:
+                require(time.monotonic() < self.deadline, "ACQUISITION_DEADLINE")
+                chunk = response.fp.read(min(65536, length))
+                require(bool(chunk), "HTTP_BODY_INCOMPLETE")
+                length -= len(chunk)
+                total += len(chunk)
+                yield chunk
+            require(self.token_framing(response) == b"\r\n", "HTTP_CHUNK_SYNTAX")
+
     def receive(self, response, size, destination=None):
         count, hasher, chunks, stream = 0, hashlib.sha256(), [], None
         try:
             lengths = response.headers.get_all("Content-Length", [])
-            require(len(lengths) == 1 and lengths[0].isdecimal() and 0 < int(lengths[0]) <= size, "HTTP_CONTENT_LENGTH")
-            require(destination is None or int(lengths[0]) == size, "ARTIFACT_DECLARED_LENGTH")
+            chunked = getattr(response, "zpm_token_chunked", False) is True
+            if chunked:
+                require(destination is None and not lengths and size == CAPS["metadata_response_bytes"], "HTTP_TOKEN_FRAMING")
+                pieces = self.token_chunks(response, size)
+            else:
+                require(len(lengths) == 1 and lengths[0].isdecimal() and 0 < int(lengths[0]) <= size, "HTTP_CONTENT_LENGTH")
+                require(destination is None or int(lengths[0]) == size, "ARTIFACT_DECLARED_LENGTH")
             stream = destination.open("xb") if destination is not None else None
             while True:
                 require(time.monotonic() < self.deadline, "ACQUISITION_DEADLINE")
-                chunk = response.read(min(65536, size - count + 1))
-                if not chunk:
-                    break
+                if chunked:
+                    try:
+                        chunk = next(pieces)
+                    except StopIteration:
+                        break
+                else:
+                    chunk = response.read(min(65536, size - count + 1))
+                    if not chunk:
+                        break
                 count += len(chunk)
                 self.record["body_bytes"] += len(chunk)
                 self.persist()  # Retain even overflow/partial bodies before refusal.
@@ -583,7 +659,7 @@ class Acquisition:
             if stream is not None:
                 stream.flush()
                 os.fsync(stream.fileno())
-            require(count == int(lengths[0]), "HTTP_BODY_INCOMPLETE")
+            require(chunked or count == int(lengths[0]), "HTTP_BODY_INCOMPLETE")
             return count, hasher.hexdigest(), b"".join(chunks)
         finally:
             response.close()
@@ -763,7 +839,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-2",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-3",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,
@@ -970,7 +1046,7 @@ class Trial:
         path = self.root / "acquisition.json"
         if path.exists():
             value = candidate.decode(candidate.read_bounded(path, 65536))
-            fields = {"requests", "body_bytes", "metadata_reserved_bytes", "reserved_body_bytes", "response_header_bytes",
+            fields = {"requests", "body_bytes", "metadata_reserved_bytes", "reserved_body_bytes", "response_header_bytes", "response_framing_bytes",
                       "artifacts_complete", "redirects", "origins"}
             require(type(value) is dict and set(value) == fields, "ACQUISITION_RECORD")
             require(all(type(value[name]) is int and value[name] >= 0 for name in fields - {"origins"}), "ACQUISITION_RECORD")
@@ -988,7 +1064,7 @@ class Trial:
                     and value["metadata_reserved_bytes"] == value["requests"] * CAPS["request_metadata_reserved_bytes"]
                     and value["reserved_body_bytes"] + value["metadata_reserved_bytes"] <= CAPS["acquisition_bytes"]
                     and value["body_bytes"] <= value["reserved_body_bytes"]
-                    and value["response_header_bytes"] <= value["metadata_reserved_bytes"]
+                    and value["response_header_bytes"] + value["response_framing_bytes"] <= value["metadata_reserved_bytes"]
                     and value["artifacts_complete"] <= 173 and value["redirects"] <= 4,
                     "ACQUISITION_OBSERVED_BOUND")
 

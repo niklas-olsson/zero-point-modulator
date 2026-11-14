@@ -656,6 +656,19 @@ class DeadlineAndOutputTests(Fixture):
 
 class TransportAndReportTests(Fixture):
     @staticmethod
+    def wire_response(body, headers=(("Transfer-Encoding", "chunked"),), version="HTTP/1.1"):
+        class Connection:
+            def __init__(self, raw):
+                self.stream = io.BytesIO(raw)
+            def makefile(self, mode):
+                return self.stream
+        raw = (version + " 200 OK\r\n" + "".join(key + ": " + value + "\r\n" for key, value in headers)
+               + "\r\n").encode("ascii") + body
+        response = runtime.BoundedHTTPResponse(Connection(raw))
+        response.begin()
+        return response
+
+    @staticmethod
     def response(body=b"abcde", **headers):
         class Response(io.BytesIO):
             status = 200
@@ -765,6 +778,144 @@ class TransportAndReportTests(Fixture):
                 acquisition.open("https://files.pythonhosted.org/controlled", 5)
             self.assertTrue(response.closed)
 
+    def test_exact_token_endpoint_reads_bounded_original_chunks_and_counts_framing(self):
+        wire = b"2\r\nab\r\n3\r\ncde\r\n0\r\n\r\n"
+        response = self.wire_response(wire)
+        header_bytes = response.response_header_bytes
+        response.read = Mock(side_effect=AssertionError("permissive decoder must not run"))
+        acquisition = self.acquisition(Mock(open=Mock(return_value=response)))
+        opened = acquisition.open(runtime.TOKEN_URL, candidate.CAPS["metadata_response_bytes"])
+        count, sha, body = acquisition.receive(opened, candidate.CAPS["metadata_response_bytes"])
+        self.assertEqual((count, body), (5, b"abcde"))
+        self.assertEqual(sha, hashlib.sha256(body).hexdigest())
+        self.assertEqual(acquisition.record["response_header_bytes"], header_bytes)
+        self.assertEqual(acquisition.record["response_framing_bytes"], len(wire) - len(body))
+        self.assertEqual(acquisition.record["requests"], 1)
+        self.assertEqual(acquisition.record["body_bytes"], 5)
+        self.assertTrue(response.closed)
+        self.assertNotIn("abcde", (self.root / "acquisition.json").read_text())
+
+    def test_token_framing_has_no_mixed_duplicate_compressed_trailer_or_old_http_mode(self):
+        acquisition = self.acquisition(object())
+        variants = [
+            ((("Transfer-Encoding", "chunked"), ("Content-Length", "5")), "HTTP/1.1"),
+            ((("Transfer-Encoding", "chunked"), ("Transfer-Encoding", "chunked")), "HTTP/1.1"),
+            ((("Transfer-Encoding", "gzip"),), "HTTP/1.1"),
+            ((("Transfer-Encoding", "chunked, gzip"),), "HTTP/1.1"),
+            ((("Transfer-Encoding", "chunked"), ("Trailer", "X-Unselected")), "HTTP/1.1"),
+            ((("Transfer-Encoding", "chunked"),), "HTTP/1.0"),
+            ((("Transfer-Encoding", "chunked"),), "HTTP/1.7"),
+        ]
+        for headers, version in variants:
+            with self.subTest(headers=headers, version=version):
+                response = self.wire_response(b"5\r\nabcde\r\n0\r\n\r\n", headers, version)
+                response.fp.read = Mock(side_effect=AssertionError("must refuse before body"))
+                acquisition.opener = Mock(open=Mock(return_value=response))
+                with self.assertRaises(candidate.Refused):
+                    acquisition.open(runtime.TOKEN_URL, candidate.CAPS["metadata_response_bytes"])
+                self.assertTrue(response.closed)
+                self.assertEqual(acquisition.record["body_bytes"], 0)
+
+    def test_chunked_token_is_not_an_artifact_or_a_different_endpoint(self):
+        acquisition = self.acquisition(object())
+        for url, maximum in ((runtime.TOKEN_URL + "&extra=1", candidate.CAPS["metadata_response_bytes"]),
+                             (runtime.TOKEN_URL, 5), ("https://files.pythonhosted.org/fixture", 5)):
+            response = self.wire_response(b"5\r\nabcde\r\n0\r\n\r\n")
+            acquisition.opener = Mock(open=Mock(return_value=response))
+            with self.subTest(url=url, maximum=maximum), self.assertRaisesRegex(candidate.Refused, "HTTP_FRAMING"):
+                acquisition.open(url, maximum)
+            self.assertTrue(response.closed)
+        response = self.wire_response(b"5\r\nabcde\r\n0\r\n\r\n")
+        acquisition.opener = Mock(open=Mock(return_value=response))
+        response = acquisition.open(runtime.TOKEN_URL, candidate.CAPS["metadata_response_bytes"])
+        destination = acquisition.directory / "must-not-exist"
+        with self.assertRaisesRegex(candidate.Refused, "HTTP_TOKEN_FRAMING"):
+            acquisition.receive(response, candidate.CAPS["metadata_response_bytes"], destination)
+        self.assertFalse(destination.exists())
+
+    def test_token_chunks_refuse_extensions_bad_sizes_delimiters_trailers_and_truncation(self):
+        acquisition = self.acquisition(object())
+        variants = [(b"1;name=value\r\nx\r\n0\r\n\r\n", 0), (b"-1\r\n", 0),
+                    (b"+1\r\n", 0), (b"00000000000000001\r\nx\r\n0\r\n\r\n", 0),
+                    (b"1\nx\n0\n\n", 0), (b"3\r\nabcXX", 3), (b"5\r\nabc", 3),
+                    (b"1\r\nx\r\n0\r\n", 1), (b"1\r\nx\r\n0\r\nX-Unknown: x\r\n\r\n", 1),
+                    (b"0\r\n\r\n", 0)]
+        for wire, observed in variants:
+            with self.subTest(wire=wire):
+                before = acquisition.record["body_bytes"]
+                response = self.wire_response(wire)
+                acquisition.opener = Mock(open=Mock(return_value=response))
+                response = acquisition.open(runtime.TOKEN_URL, candidate.CAPS["metadata_response_bytes"])
+                with self.assertRaises(candidate.Refused):
+                    acquisition.receive(response, candidate.CAPS["metadata_response_bytes"])
+                self.assertTrue(response.closed)
+                self.assertEqual(acquisition.record["body_bytes"] - before, observed)
+
+    def test_token_declared_chunk_overflow_refuses_before_payload_read(self):
+        response = self.wire_response(b"100001\r\n")
+        response.fp.read = Mock(side_effect=AssertionError("oversize chunk must not be read"))
+        acquisition = self.acquisition(Mock(open=Mock(return_value=response)))
+        response = acquisition.open(runtime.TOKEN_URL, candidate.CAPS["metadata_response_bytes"])
+        with self.assertRaisesRegex(candidate.Refused, "ACQUISITION_BYTES"):
+            acquisition.receive(response, candidate.CAPS["metadata_response_bytes"])
+        self.assertEqual(acquisition.record["body_bytes"], 0)
+        self.assertEqual(acquisition.record["response_framing_bytes"], 8)
+        self.assertTrue(response.closed)
+
+    def test_token_headers_and_framing_share_the_existing_metadata_reservation(self):
+        header_base = len(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nX-Pad: \r\n\r\n")
+        target_header = candidate.CAPS["request_metadata_reserved_bytes"] - 6
+        response = self.wire_response(b"1\r\nx\r\n0\r\n\r\n", (("Transfer-Encoding", "chunked"),
+                                      ("X-Pad", "x" * (target_header - header_base))))
+        self.assertEqual(response.response_header_bytes, target_header)
+        acquisition = self.acquisition(Mock(open=Mock(return_value=response)))
+        response = acquisition.open(runtime.TOKEN_URL, candidate.CAPS["metadata_response_bytes"])
+        with self.assertRaisesRegex(candidate.Refused, "HTTP_METADATA_BOUND"):
+            acquisition.receive(response, candidate.CAPS["metadata_response_bytes"])
+        self.assertEqual(acquisition.record["body_bytes"], 1)
+        self.assertEqual(acquisition.record["response_framing_bytes"], 7)
+        self.assertEqual(acquisition.record["metadata_reserved_bytes"], 65536)
+        self.assertEqual(json.loads((self.root / "acquisition.json").read_bytes())["response_framing_bytes"], 7)
+
+    def test_token_partial_payload_is_retained_before_the_original_deadline_stops_next_read(self):
+        response = self.wire_response(b"3\r\nabc\r\n0\r\n\r\n")
+        acquisition = self.acquisition(Mock(open=Mock(return_value=response)))
+        response = acquisition.open(runtime.TOKEN_URL, candidate.CAPS["metadata_response_bytes"])
+        original_read = response.fp.read
+        calls = []
+        def delayed_read(size):
+            calls.append(size)
+            value = original_read(size)
+            acquisition.deadline = time.monotonic() - 1
+            return value
+        response.fp.read = delayed_read
+        with self.assertRaisesRegex(candidate.Refused, "ACQUISITION_DEADLINE"):
+            acquisition.receive(response, candidate.CAPS["metadata_response_bytes"])
+        self.assertEqual(calls, [3])
+        self.assertEqual(acquisition.record["body_bytes"], 3)
+        self.assertEqual(acquisition.record["response_framing_bytes"], 3)
+        self.assertTrue(response.closed)
+
+    def test_token_final_delimiter_after_deadline_is_counted_but_never_completes(self):
+        response = self.wire_response(b"1\r\nx\r\n0\r\n\r\n")
+        acquisition = self.acquisition(Mock(open=Mock(return_value=response)))
+        response = acquisition.open(runtime.TOKEN_URL, candidate.CAPS["metadata_response_bytes"])
+        original_readline = response.fp.readline
+        calls = []
+        def delayed_final_line(size):
+            value = original_readline(size)
+            calls.append(value)
+            if value == b"\r\n":
+                acquisition.deadline = time.monotonic() - 1
+            return value
+        response.fp.readline = delayed_final_line
+        with self.assertRaisesRegex(candidate.Refused, "ACQUISITION_DEADLINE"):
+            acquisition.receive(response, candidate.CAPS["metadata_response_bytes"])
+        self.assertEqual(calls, [b"1\r\n", b"0\r\n", b"\r\n"])
+        self.assertEqual(acquisition.record["body_bytes"], 1)
+        self.assertEqual(acquisition.record["response_framing_bytes"], 10)
+        self.assertTrue(response.closed)
+
     def test_repeated_content_length_and_changed_artifact_length_refuse(self):
         acquisition = self.acquisition(object())
         for duplicate in (False, True):
@@ -779,7 +930,7 @@ class TransportAndReportTests(Fixture):
     def test_acquisition_observation_keeps_offending_counters_but_refuses_rewind(self):
         trial = self.trial()
         row = {"requests": 1, "body_bytes": 6, "metadata_reserved_bytes": 65536, "reserved_body_bytes": 5,
-               "response_header_bytes": 80, "artifacts_complete": 0, "redirects": 0,
+               "response_header_bytes": 80, "response_framing_bytes": 0, "artifacts_complete": 0, "redirects": 0,
                "origins": ["files.pythonhosted.org"]}
         runtime.atomic_private(trial.root / "acquisition.json", runtime.encoded(row))
         with self.assertRaisesRegex(candidate.Refused, "ACQUISITION_OBSERVED_BOUND"):

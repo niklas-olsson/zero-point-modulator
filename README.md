@@ -322,9 +322,11 @@ qualification. Its source-only checker and synthetic archive fixtures do not
 acquire packages or run the candidate. A separate code-bound runner and workflow
 require an explicitly reviewed exact plan before acquisition or native work.
 The [first native attempt](docs/native-alpine-evidence/attempt-1/outcome.md)
-failed at checkout-metadata admission before any artifact acquisition. Its
-cleanup passed; candidate installation and interfaces remain unqualified.
-The corrected second source plan requires fresh review and gates before activation.
+failed at checkout-metadata admission. The [second attempt](docs/native-alpine-evidence/attempt-2/outcome.md)
+passed that boundary, then refused the anonymous token response's framing before
+reading a body or acquiring a candidate artifact. Both cleanup results passed;
+candidate installation and interfaces remain unqualified. The third source plan
+adds bounded token framing and requires fresh review and gates before activation.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private

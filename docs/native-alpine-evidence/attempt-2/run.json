@@ -1,0 +1,54 @@
+{
+  "artifact": {
+    "id": 14122173666,
+    "name": "native-alpine-2-summary-43617683759-1",
+    "sole_entry": "summary.json",
+    "summary_bytes": 1971,
+    "summary_sha256": "f8766aa40c2bb0e29e4a531bd9ab626600bdadab1a63fe16aae13d3e7009e6cd",
+    "zip_bytes": 1232,
+    "zip_sha256": "265f1fed9c39af2e703b45418edb5a134739e1108f911bf1761b20dfed4dced1"
+  },
+  "coordinator": "ChatGPT /root",
+  "decoded_job_log": {
+    "retention": "Reviewed exact decoded UTF-8 response retained by the coordinator. Only the closed summary and derived metadata are published; the original GitHub job remains linked.",
+    "sha256": "c6b69524b1c772fc10e8d17bb274f70f503ca1168355efbe37727a0752b7e2c4",
+    "utf8_bytes": 44616
+  },
+  "outcome": {
+    "candidate_artifacts": 0,
+    "native_execution_qualified": false,
+    "observed_body_bytes": 0,
+    "observed_first_failure": "HTTP_FRAMING",
+    "observed_response_header_bytes": 749,
+    "observed_token_requests": 1,
+    "observed_transfer_encoding_value": "UNOBSERVED",
+    "owned_cleanup": "PASS",
+    "pending_mutation_reservations": 0
+  },
+  "repository": "niklas-olsson/zero-point-modulator",
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "scope": "Coordinator-derived custody metadata, not a native receipt. The original summary is unchanged. No corrected execution is implied.",
+  "source": {
+    "commit": "6629415673d59a969cef4f3920d5982327bc135a",
+    "parent": "11fe6e8312ce2f5cdb3e6f6f659be35e27ed70b6",
+    "plan_bytes": 6033,
+    "plan_file": "tests/contracts/native-alpine/active-plan-2.json",
+    "plan_sha256": "bc4e5168483bdf372af334a14f6e3e0bc1b58850bd026262cce834274028bced",
+    "tree": "bfb0da3b03f6b64b002bf1ee29a6eeb208e951f1"
+  },
+  "workflow": {
+    "conclusion": "failure",
+    "event": "push",
+    "execution_exit_code": 1,
+    "head_branch": "qualification/native-alpine/run/bc4e5168483bdf372af334a14f6e3e0bc1b58850bd026262cce834274028bced",
+    "native_job_conclusion": "failure",
+    "native_job_id": 132516272923,
+    "run_attempt": 1,
+    "run_id": 43617683759,
+    "source_job_conclusion": "success",
+    "source_job_id": 132516224804,
+    "status": "completed",
+    "summary_upload": "success",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43617683759"
+  }
+}

@@ -1,9 +1,11 @@
 # Native Alpine active-harness contract
 
-**Status: corrected attempt-2 source candidate for independent review.**
-The [first admitted attempt](native-alpine-evidence/attempt-1/outcome.md) failed
-before acquisition. No candidate binary, container or interpreter has run.
-Attempt 2 has not been admitted; it retains every original authority/resource cap.
+**Status: corrected attempt-3 source candidate for independent review.**
+The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
+metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
+passed that boundary and refused token response framing before reading a body.
+No candidate binary, container or interpreter has run. Attempt 3 has not been
+admitted; it retains every original authority/resource cap.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
 It changes only the ZPM qualification fixture. The original
@@ -41,7 +43,7 @@ or architecture-gated feature is part of this design.
 | Existing `check_alpine_sealed_candidate.py` | Retain the inert CLI, exact metadata admission and data-only archive helpers. No active flag is added to its command. |
 | New `check_alpine_sealed_runtime.py` | Explicit active entry point, plan admission, host process/resource guardian, bounded acquisition, Docker custody, stages, safe result reduction and cleanup. |
 | New `alpine_sealed_guest.py` | Fixed assembly-inventory and nonroot qualification commands. Use the original production APIs, separate owner interpreters and finite probe IDs. |
-| `native-alpine/active-plan-2.json` | Bind the original plan/recipe, distinct second attempt, exact commands, source manifests and unchanged authority/resource limits. The first plan remains unchanged historical evidence. |
+| `native-alpine/active-plan-3.json` | Bind the original plan/recipe, distinct third attempt, exact commands, source manifests and unchanged authority/resource limits. Both prior plans remain unchanged historical evidence. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -86,7 +88,13 @@ The acquisition subprocess accepts only the frozen 173 artifact identities.
 It streams bounded bodies to newly created files, accounts partial bodies and
 reserves metadata before each request. Four transfers are the maximum, not a
 requirement. The original 600-second/512-MiB/180-request envelope remains.
-One fixed anonymous Docker Hub pull-token request is memory-only. Registry
+One fixed anonymous Docker Hub pull-token request is memory-only. That endpoint
+alone may use an exact Content-Length or a bounded bare HTTP/1.1 chunked body.
+Chunk framing and headers share the existing 65,536-byte per-request reservation;
+payload shares the original 1-MiB token and aggregate body limits. Mixed framing,
+extensions, trailers, malformed or incomplete chunks refuse. All artifacts still
+require a single exact Content-Length. No permissive default chunk decoder is
+used, and neither token contents nor framing text enters a report. Registry
 authorization is confined to the exact `library/python` blob requests; the one
 allowed CloudFront redirect uses a fresh credential-free request. APK and wheel
 redirects, automatic retries, mutable tag pulls, index refreshes and resolution
