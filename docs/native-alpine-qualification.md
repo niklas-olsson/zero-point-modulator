@@ -1,12 +1,15 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: attempts 1 and 2 failed before candidate acquisition; corrected
-attempt 3 is an unactivated source candidate pending review and fresh gates.**
+**Status: three actual attempts failed; corrected attempt 4 is an unactivated
+source candidate pending review and fresh gates.**
 The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
 `SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
 records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
-completed artifacts. Both owned cleanup results passed. No candidate package,
-container or interpreter executed, and native installation remains unqualified. This [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
+completed artifacts. The [third outcome](native-alpine-evidence/attempt-3/outcome.md)
+records `INPUT_CHANGED` after 102 completed artifact acquisitions, with the exact
+failed path unobserved. All three owned cleanup results passed. No candidate
+package, container or interpreter executed, and native installation remains
+unqualified. This [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 fixture keeps the original inert compiler and adds a separate, explicitly gated
 native runner. It changes no installer, Python admission, operative integration
 pin or production execution authority. The original 173 inputs and limits remain
@@ -83,7 +86,7 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [current active plan](../tests/contracts/native-alpine/active-plan-3.json) binds the
+The [current active plan](../tests/contracts/native-alpine/active-plan-4.json) binds the
 host/guest drivers, their local imports, the workflow, original plan/recipe,
 commands, authority and caps. The original `plan-v1.json` and inert checker retain
 their historical `active_trial_implemented: false` fields. They do not become
@@ -97,11 +100,21 @@ failed token-framing run at `6629415673d59a969cef4f3920d5982327bc135a`.
 It narrowed checkout admission to the exact inactive three-false sparse file left
 by the supported checkout action; active extensions, includes, other values,
 links and nonordinary metadata still refuse. No Git configuration is rewritten.
-Attempt 3 has its own work directory, upload name and code binding. Its only new
-transport mode is bounded bare HTTP/1.1 chunked framing for the fixed anonymous
+The unchanged [third plan](../tests/contracts/native-alpine/active-plan-3.json)
+belongs to its failed run at `b2ab51a388e9d6dc0b677570a7e732da3b3a6dde`.
+Its only new transport mode was bounded bare HTTP/1.1 chunked framing for the fixed anonymous
 token endpoint. Header and framing bytes share the original metadata reservation;
 artifact bodies still require exact Content-Length. The exact observed second-run
 Transfer-Encoding value remains unknown.
+
+Attempt 4 has a new work directory, upload name and code binding. It uses a closed
+snapshot reader for acquisition and both guest-phase records published by atomic
+replacement. One retained descriptor and one bounded read can return a complete
+old-or-current record even when the original inode is retired during reading.
+The [active-harness contract](native-alpine-active-harness.md#live-record-observation)
+defines the narrow link-count/ctime exception, owner/mode/identity checks and
+unchanged deadlines. Source, artifact and terminal-result readers remain strict;
+the existing monotone counters and phase validators remain authoritative.
 
 Check active-plan source consistency without acquisition, Docker or candidate
 execution using an externally recorded exact hash:

@@ -8,10 +8,12 @@ import os
 from pathlib import Path
 import signal
 import ssl
+import stat
 import subprocess
 import sys
 import tempfile
 import time
+from types import SimpleNamespace
 import unittest
 import urllib.error
 from unittest.mock import Mock, patch
@@ -63,6 +65,262 @@ class Fixture(unittest.TestCase):
                                "RestartPolicy": {"Name": "no", "MaximumRetryCount": 0}},
                 "Mounts": [{"Source": source, "Destination": destination, "RW": writable,
                             "Type": "bind", "Propagation": "rprivate"} for source, destination, writable in row["mounts"]]}
+
+
+class LiveRecordSnapshotTests(Fixture):
+    """Real local inode replacement, with controlled observation boundaries."""
+
+    def read(self, name="acquisition.json", deadline=None):
+        return runtime.read_live_record(self.root, name, time.monotonic() + 10 if deadline is None else deadline)
+
+    def publish(self, raw=b'{"version":1}\n', name="acquisition.json"):
+        path = self.root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        runtime.atomic_private(path, raw)
+        return path
+
+    def test_real_atomic_replace_retires_open_inode_without_changing_its_snapshot(self):
+        old, new = b'{"version":1}\n', b'{"version":22}\n'
+        path = self.publish(old)
+        real_read = os.read
+        observations = []
+        def replace_then_read(fd, limit):
+            before = os.fstat(fd)
+            time.sleep(.001)
+            runtime.atomic_private(path, new)
+            after = os.fstat(fd)
+            observations.append((before, after, path.stat(), fd, limit))
+            return real_read(fd, limit)
+        with patch.object(runtime.os, "read", side_effect=replace_then_read) as reader:
+            self.assertEqual(self.read(), old)
+        reader.assert_called_once()
+        before, after, successor, fd, limit = observations[0]
+        self.assertEqual((before.st_nlink, after.st_nlink), (1, 0))
+        self.assertNotEqual(before.st_ctime_ns, after.st_ctime_ns)
+        self.assertEqual((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns),
+                         (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns))
+        self.assertNotEqual(before.st_ino, successor.st_ino)
+        self.assertEqual(limit, 65537)
+        with self.assertRaises(OSError):
+            os.fstat(fd)
+        self.assertEqual(path.read_bytes(), new)
+        self.assertEqual(self.read(), new)
+
+    def test_immutable_reader_still_refuses_the_same_real_retirement(self):
+        path = self.publish()
+        real_stat = os.fstat
+        calls = []
+        def replace_after_stat(fd):
+            info = real_stat(fd)
+            if not calls:
+                calls.append(fd)
+                time.sleep(.001)
+                runtime.atomic_private(path, b'{"version":2}\n')
+            return info
+        with patch.object(candidate.os, "fstat", side_effect=replace_after_stat), \
+                self.assertRaisesRegex(candidate.Refused, "INPUT_CHANGED"):
+            candidate.read_bounded(path, 65536)
+
+    def test_replacement_after_open_before_first_stat_keeps_already_retired_inode(self):
+        old = b'{"version":1}\n'
+        path = self.publish(old)
+        real_open = os.open
+        retired = []
+        def opened_before_replacement(name, flags, *args, **kwargs):
+            fd = real_open(name, flags, *args, **kwargs)
+            if name == path:
+                runtime.atomic_private(path, b'{"version":2}\n')
+                retired.append(os.fstat(fd))
+            return fd
+        real_read = os.read
+        def read_retired(fd, limit):
+            value = real_read(fd, limit)
+            retired.append(os.fstat(fd))
+            return value
+        with patch.object(runtime.os, "open", side_effect=opened_before_replacement), \
+                patch.object(runtime.os, "read", side_effect=read_retired):
+            self.assertEqual(self.read(), old)
+        self.assertEqual([info.st_nlink for info in retired], [0, 0])
+        self.assertEqual(retired[0].st_ctime_ns, retired[1].st_ctime_ns)
+
+    def test_closed_paths_and_exact_existing_bounds(self):
+        with patch.object(runtime.os, "open", side_effect=AssertionError("no path admission")):
+            for name in ("other.json", "work/qualification-result.json", "../acquisition.json", "/acquisition.json", True):
+                with self.subTest(name=name), self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_PATH"):
+                    self.read(name)
+        for name, limit in runtime.LIVE_RECORD_LIMITS.items():
+            with self.subTest(name=name):
+                raw = b"x" * limit
+                self.publish(raw, name)
+                self.assertEqual(self.read(name), raw)
+                self.publish(raw + b"x", name)
+                with patch.object(runtime.os, "read", side_effect=AssertionError("no oversized read")), \
+                        self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_BOUND"):
+                    self.read(name)
+                self.publish(b"", name)
+                with self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_BOUND"):
+                    self.read(name)
+
+    def test_nonordinary_symlink_hardlink_and_public_mode_refuse_before_read(self):
+        path = self.root / "acquisition.json"
+        other = self.root / "other"
+        other.write_bytes(b"private bytes")
+        path.symlink_to(other)
+        with self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_UNAVAILABLE"):
+            self.read()
+        path.unlink()
+        for kind in ("directory", "fifo", "hardlink", "mode"):
+            with self.subTest(kind=kind):
+                if kind == "directory":
+                    path.mkdir(mode=0o600)
+                elif kind == "fifo":
+                    os.mkfifo(path, 0o600)
+                else:
+                    self.publish()
+                    if kind == "hardlink":
+                        os.link(path, self.root / "extra-link")
+                    else:
+                        path.chmod(0o644)
+                with patch.object(runtime.os, "read", side_effect=AssertionError("no unowned read")), \
+                        self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_CUSTODY"):
+                    self.read()
+                if kind == "directory":
+                    path.rmdir()
+                else:
+                    path.unlink()
+
+    def test_in_place_mutation_and_metadata_changes_cannot_use_retirement_exception(self):
+        real_read = os.read
+        for change in ("same_size", "truncate", "restored_mtime", "mode", "temporary_hardlink"):
+            path = self.publish(b'{"version":1}\n')
+            original = path.stat()
+            def mutate_then_read(fd, limit):
+                time.sleep(.001)
+                if change in ("same_size", "truncate", "restored_mtime"):
+                    with path.open("r+b") as stream:
+                        stream.write(b'{"version":2}\n')
+                        if change == "truncate":
+                            stream.truncate(5)
+                    if change == "restored_mtime":
+                        os.utime(path, ns=(original.st_atime_ns, original.st_mtime_ns))
+                elif change == "mode":
+                    path.chmod(0o400)
+                else:
+                    extra = self.root / "temporary-link"
+                    os.link(path, extra)
+                    extra.unlink()
+                return real_read(fd, limit)
+            with self.subTest(change=change), patch.object(runtime.os, "read", side_effect=mutate_then_read), \
+                    self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_CHANGED"):
+                self.read()
+
+    def test_owner_and_group_are_required_before_read(self):
+        self.publish()
+        real_stat = os.fstat
+        for field in ("st_uid", "st_gid"):
+            def wrong_owner(fd):
+                info = real_stat(fd)
+                value = SimpleNamespace(**{name: getattr(info, name) for name in dir(info) if name.startswith("st_")})
+                setattr(value, field, getattr(value, field) + 1)
+                return value
+            with self.subTest(field=field), patch.object(runtime.os, "fstat", side_effect=wrong_owner), \
+                    patch.object(runtime.os, "read", side_effect=AssertionError("no wrong-owner read")), \
+                    self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_CUSTODY"):
+                self.read()
+
+    def test_all_retained_descriptor_identity_fields_must_survive_a_retirement(self):
+        path = self.publish()
+        real_stat, real_read = os.fstat, os.read
+        for field in ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_mode", "st_uid", "st_gid", "st_nlink", "st_ctime_ns"):
+            self.publish()
+            calls = []
+            def changed_after(fd):
+                info = real_stat(fd)
+                calls.append(info)
+                if len(calls) == 1:
+                    return info
+                value = SimpleNamespace(**{name: getattr(info, name) for name in dir(info) if name.startswith("st_")})
+                setattr(value, field, calls[0].st_ctime_ns - 1 if field == "st_ctime_ns" else
+                        2 if field == "st_nlink" else getattr(value, field) + 1)
+                return value
+            def replace_then_read(fd, limit):
+                runtime.atomic_private(path, b'{"version":2}\n')
+                return real_read(fd, limit)
+            with self.subTest(field=field), patch.object(runtime.os, "fstat", side_effect=changed_after), \
+                    patch.object(runtime.os, "read", side_effect=replace_then_read), \
+                    self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_CHANGED"):
+                self.read()
+
+    def test_short_read_is_not_retried_and_descriptor_is_closed(self):
+        self.publish()
+        seen = []
+        def short(fd, size):
+            seen.append(fd)
+            return b"{"
+        with patch.object(runtime.os, "read", side_effect=short) as reader, \
+                self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_CHANGED"):
+            self.read()
+        reader.assert_called_once()
+        with self.assertRaises(OSError):
+            os.fstat(seen[0])
+
+    def test_original_deadline_bounds_open_and_late_read_without_retry(self):
+        self.publish()
+        with patch.object(runtime.time, "monotonic", return_value=10), \
+                patch.object(runtime.os, "open", side_effect=AssertionError("expired before open")), \
+                self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_DEADLINE"):
+            self.read(deadline=10)
+        with patch.object(runtime.time, "monotonic", side_effect=[0, 0, 2]), \
+                patch.object(runtime.os, "read", wraps=os.read) as reader, \
+                self.assertRaisesRegex(candidate.Refused, "LIVE_RECORD_DEADLINE"):
+            self.read(deadline=1)
+        reader.assert_called_once()
+
+    def test_acquisition_caller_keeps_complete_old_snapshot_then_monotone_successor(self):
+        trial = self.trial()
+        publisher = runtime.Acquisition(trial.root / "inputs", trial.work_deadline, opener=object())
+        publisher.record.update(requests=1, body_bytes=3, metadata_reserved_bytes=65536, reserved_body_bytes=10,
+                                response_header_bytes=80, origins=["files.pythonhosted.org"])
+        publisher.persist()
+        real_read = os.read
+        def replace_then_read(fd, limit):
+            publisher.record["body_bytes"] = 5
+            publisher.persist()
+            return real_read(fd, limit)
+        with patch.object(runtime.os, "read", side_effect=replace_then_read):
+            trial.refresh_acquisition()
+        self.assertEqual(trial.record["acquisition"]["body_bytes"], 3)
+        trial.refresh_acquisition()
+        self.assertEqual(trial.record["acquisition"]["body_bytes"], 5)
+        publisher.record["body_bytes"] = 3
+        publisher.persist()
+        with self.assertRaisesRegex(candidate.Refused, "ACQUISITION_RECORD_REWIND"):
+            trial.refresh_acquisition()
+
+    def test_both_guest_phase_publishers_preserve_owner_and_monotone_validation(self):
+        trial = self.trial()
+        real_read = os.read
+        for stage in ("assembly", "qualification"):
+            control = {**trial.control, "stage": stage, "stage_started_ns": time.monotonic_ns()}
+            row = {"stage": stage, "control": control}
+            phases = guest.phase_record(control, stage)
+            path = trial.root / "work" / (stage + "-phase.json")
+            runtime.atomic_private(path, guest.encoded(phases))
+            def replace_then_read(fd, limit):
+                phases["phases"][0]["finished_ns"] = time.monotonic_ns()
+                guest.write(path, phases, (os.getuid(), os.getgid()))
+                return real_read(fd, limit)
+            with self.subTest(stage=stage), patch.object(runtime.os, "read", side_effect=replace_then_read):
+                previous = trial.observe_guest_phase(row, running=True)
+            self.assertIsNone(previous["phases"][0]["finished_ns"])
+            self.assertIsNotNone(trial.observe_guest_phase(row, running=True)["phases"][0]["finished_ns"])
+            info = path.stat()
+            self.assertEqual((stat.S_IMODE(info.st_mode), info.st_uid, info.st_gid, info.st_nlink),
+                             (0o600, os.getuid(), os.getgid(), 1))
+            phases["phases"][0]["finished_ns"] = None
+            guest.write(path, phases, (os.getuid(), os.getgid()))
+            with self.assertRaisesRegex(guest.GuestRefused, "PHASE_REWIND"):
+                trial.observe_guest_phase(row, running=True)
 
 
 class SourceAndConfigurationTests(Fixture):

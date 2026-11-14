@@ -325,8 +325,12 @@ The [first native attempt](docs/native-alpine-evidence/attempt-1/outcome.md)
 failed at checkout-metadata admission. The [second attempt](docs/native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary, then refused the anonymous token response's framing before
 reading a body or acquiring a candidate artifact. Both cleanup results passed;
-candidate installation and interfaces remain unqualified. The third source plan
-adds bounded token framing and requires fresh review and gates before activation.
+the [third attempt](docs/native-alpine-evidence/attempt-3/outcome.md) completed the
+token and four OCI redirects, then failed `INPUT_CHANGED` after 102 completed
+artifact acquisitions. Its cleanup also passed; candidate installation and
+interfaces remain unqualified. A separate fourth plan corrects a reproduced
+atomic live-record snapshot race and requires fresh review and gates before
+activation. The exact failed read in attempt 3 remains unidentified.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private

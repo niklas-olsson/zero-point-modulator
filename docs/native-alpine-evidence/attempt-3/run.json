@@ -1,0 +1,63 @@
+{
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "coordinator": "ChatGPT /root/assess_polyphony",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Coordinator-derived custody metadata, not a native receipt. The original summary is unchanged. No corrected execution is implied.",
+  "source": {
+    "commit": "b2ab51a388e9d6dc0b677570a7e732da3b3a6dde",
+    "tree": "abfbf60a5822725f58c3ef1ec4aaf795a8aaff96",
+    "parent": "6629415673d59a969cef4f3920d5982327bc135a",
+    "plan_file": "tests/contracts/native-alpine/active-plan-3.json",
+    "plan_bytes": 6242,
+    "plan_sha256": "6da9d7727ae89c35ac9d26c6437a5a3c549efb07961d43309cf619903520ea72"
+  },
+  "workflow": {
+    "run_id": 43621319674,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/native-alpine/run/6da9d7727ae89c35ac9d26c6437a5a3c549efb07961d43309cf619903520ea72",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43621319674",
+    "source_job_id": 132527438658,
+    "source_job_conclusion": "success",
+    "native_job_id": 132527489644,
+    "native_job_conclusion": "failure",
+    "execution_exit_code": 1,
+    "summary_upload": "success"
+  },
+  "artifact": {
+    "id": 14124107687,
+    "name": "native-alpine-3-summary-43621319674-1",
+    "zip_bytes": 1303,
+    "zip_sha256": "fcc3e18ce91d43d3f01ac0ac973d42dbcd59c75cce1a8b145f387849042a143d",
+    "sole_entry": "summary.json",
+    "summary_bytes": 2127,
+    "summary_sha256": "ef90332e6de20cc5e1434fc65dd896c3c465d49cf78aba9c99afc7728d097fdb",
+    "expires_at": "2026-11-28T17:29:14Z"
+  },
+  "decoded_job_log": {
+    "utf8_bytes": 44624,
+    "sha256": "fd5f9208ed069b57d82dde3b274932bb48b731aebaba6e38c59df36db135b35b",
+    "retention": "Exact decoded UTF-8 response freshly reacquired and compared byte-for-byte with the coordinator's retained log. Only the closed summary and derived metadata are published; the original GitHub job remains linked."
+  },
+  "outcome": {
+    "observed_first_failure": "INPUT_CHANGED",
+    "observed_failed_input_path": "UNOBSERVED",
+    "candidate_artifacts_complete": 102,
+    "observed_requests": 108,
+    "observed_body_bytes": 132038377,
+    "observed_response_header_bytes": 92555,
+    "observed_response_framing_bytes": 13,
+    "observed_oci_redirects": 4,
+    "owned_cleanup": "PASS",
+    "pending_mutation_reservations": 0,
+    "native_execution_qualified": false
+  },
+  "fresh_verification": {
+    "live_run_job_artifact_metadata": true,
+    "github_artifact_digest_matches_retained_zip": true,
+    "sole_zip_member_matches_original_summary": true,
+    "decoded_log_exact_match": true
+  }
+}

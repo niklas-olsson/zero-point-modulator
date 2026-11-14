@@ -44,7 +44,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-3.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-4.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -101,6 +101,16 @@ TRANSIENT_FILES = {name: CAPS["report_bytes"] for name in (
 )}
 FIXED_POLICY["transient_file_reservations"] = TRANSIENT_FILES
 FIXED_POLICY["root_created_temporary_files"] = ["work/assembly-phase.json.new", "work/assembly-result.json.new"]
+LIVE_RECORD_LIMITS = {"acquisition.json": 65536, "work/assembly-phase.json": 8192,
+                      "work/qualification-phase.json": 8192}
+FIXED_POLICY["live_record_snapshot"] = {
+    "schema": "zpm-native-alpine-live-snapshot/v1",
+    "records": LIVE_RECORD_LIMITS,
+    "reads_per_snapshot": 1, "retries": 0,
+    "owner": "invoking-uid-and-gid", "mode": "0600",
+    "ctime_exception": "unchanged-inode-link-count-retirement-1-to-0-only",
+    "deadline": "original-work-or-cleanup-observation-deadline",
+}
 RUN_PREFIX = "refs/heads/qualification/native-alpine/run/"
 
 
@@ -128,7 +138,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-3"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-4"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -166,6 +176,43 @@ def atomic_private(path, raw):
     finally:
         if temporary.exists():
             temporary.unlink()
+
+
+def read_live_record(root, name, deadline):
+    """Read one old-or-current immutable inode from a fixed atomic publisher.
+
+    A replacement can retire the open inode without changing its bytes. Keep
+    that descriptor, never reopen the successor or retry, and leave all source,
+    artifact and completed-result reads on candidate.read_bounded.
+    """
+    require(type(name) is str and name in LIVE_RECORD_LIMITS, "LIVE_RECORD_PATH")
+    require(type(deadline) in (int, float) and 0 < deadline < float("inf")
+            and time.monotonic() < deadline, "LIVE_RECORD_DEADLINE")
+    maximum = LIVE_RECORD_LIMITS[name]
+    descriptor = None
+    try:
+        descriptor = os.open(root / name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC)
+        before = os.fstat(descriptor)
+        require(stat.S_ISREG(before.st_mode) and stat.S_IMODE(before.st_mode) == 0o600
+                and before.st_uid == os.getuid() and before.st_gid == os.getgid()
+                and before.st_nlink in (0, 1), "LIVE_RECORD_CUSTODY")
+        require(0 < before.st_size <= maximum, "LIVE_RECORD_BOUND")
+        require(time.monotonic() < deadline, "LIVE_RECORD_DEADLINE")
+        raw = os.read(descriptor, maximum + 1)
+        after = os.fstat(descriptor)
+        require(len(raw) == before.st_size and all(getattr(before, field) == getattr(after, field)
+                for field in ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_mode", "st_uid", "st_gid")),
+                "LIVE_RECORD_CHANGED")
+        retired = before.st_nlink == 1 and after.st_nlink == 0
+        stable = before.st_nlink == after.st_nlink and before.st_ctime_ns == after.st_ctime_ns
+        require(stable or retired and after.st_ctime_ns >= before.st_ctime_ns, "LIVE_RECORD_CHANGED")
+        require(time.monotonic() < deadline, "LIVE_RECORD_DEADLINE")
+        return raw
+    except OSError:
+        raise Refused("LIVE_RECORD_UNAVAILABLE") from None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
 
 
 def report_bytes(report):
@@ -839,7 +886,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-3",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-4",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,
@@ -1010,8 +1057,8 @@ class Trial:
         return charge
 
     def observe_guest_phase(self, row, *, running):
-        path = self.root / "work" / (row["stage"] + "-phase.json")
-        value = candidate.decode(candidate.read_bounded(path, 8192))
+        name = "work/" + row["stage"] + "-phase.json"
+        value = candidate.decode(read_live_record(self.root, name, self.observation_deadline()))
         checked = guest.validate_phases(value, row["control"], row["stage"], now_ns=time.monotonic_ns(),
                                         running=running and not self.cleaning, previous=row.get("phase_observation"))
         row["phase_observation"] = checked
@@ -1045,7 +1092,7 @@ class Trial:
     def refresh_acquisition(self):
         path = self.root / "acquisition.json"
         if path.exists():
-            value = candidate.decode(candidate.read_bounded(path, 65536))
+            value = candidate.decode(read_live_record(self.root, "acquisition.json", self.observation_deadline()))
             fields = {"requests", "body_bytes", "metadata_reserved_bytes", "reserved_body_bytes", "response_header_bytes", "response_framing_bytes",
                       "artifacts_complete", "redirects", "origins"}
             require(type(value) is dict and set(value) == fields, "ACQUISITION_RECORD")

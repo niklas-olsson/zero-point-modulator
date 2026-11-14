@@ -1,11 +1,14 @@
 # Native Alpine active-harness contract
 
-**Status: corrected attempt-3 source candidate for independent review.**
+**Status: corrected attempt-4 source candidate for independent review.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
-No candidate binary, container or interpreter has run. Attempt 3 has not been
-admitted; it retains every original authority/resource cap.
+The [third attempt](native-alpine-evidence/attempt-3/outcome.md) completed 102
+artifact acquisitions before `INPUT_CHANGED`, with cleanup PASS. The exact failed
+read was not retained. No candidate package, container or interpreter has
+executed. Attempt 4 has not been admitted; it retains every original
+authority/resource cap.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
 It changes only the ZPM qualification fixture. The original
@@ -43,7 +46,7 @@ or architecture-gated feature is part of this design.
 | Existing `check_alpine_sealed_candidate.py` | Retain the inert CLI, exact metadata admission and data-only archive helpers. No active flag is added to its command. |
 | New `check_alpine_sealed_runtime.py` | Explicit active entry point, plan admission, host process/resource guardian, bounded acquisition, Docker custody, stages, safe result reduction and cleanup. |
 | New `alpine_sealed_guest.py` | Fixed assembly-inventory and nonroot qualification commands. Use the original production APIs, separate owner interpreters and finite probe IDs. |
-| `native-alpine/active-plan-3.json` | Bind the original plan/recipe, distinct third attempt, exact commands, source manifests and unchanged authority/resource limits. Both prior plans remain unchanged historical evidence. |
+| `native-alpine/active-plan-4.json` | Bind the original plan/recipe, distinct fourth attempt, exact commands, source manifests and unchanged authority/resource limits. All three prior plans remain unchanged historical evidence. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -81,6 +84,43 @@ credential helpers, provider variables or arbitrary guest environment. Record
 actual host Python, Git, OpenSSL, Docker client/server and runner-image versions.
 No new host privilege or container capability is obtained to make a prerequisite
 pass.
+
+## Live-record observation
+
+The sole acquisition subprocess publishes `acquisition.json` through
+`atomic_private`; the selected assembly/qualification guest publishes its own
+phase file through `guest.write`. Both writers create a new file and atomically
+replace the published pathname. The assembly guest assigns the invoking UID/GID
+before publication; qualification already runs under that identity. Files are
+0600. No publisher edits the old inode in place.
+
+Only three relative paths enter `read_live_record`: `acquisition.json` at
+65,536 bytes, `work/assembly-phase.json` and `work/qualification-phase.json` at
+8,192 bytes each. A snapshot uses one no-follow, nonblocking retained descriptor
+and one read of at most the existing bound plus one byte. No retry, wait for a
+newer publication, successor reopen or deadline renewal is allowed. The original
+work or cleanup observation deadline is checked before open, before read and
+after the descriptor metadata check.
+
+Admission requires a regular file, 0600 mode, invoking UID/GID and link count
+zero or one. Both fstats must agree on device, inode, size, mtime, complete mode,
+UID and GID; the read must have the original exact size. With stable link count,
+ctime must also remain identical. The sole exception permits ctime to advance
+when the opened inode's link count retires from one to zero during replacement.
+If replacement occurred before the first fstat, both counts may be zero but
+ctime must then remain unchanged. Hard links, observed in-place changes,
+nonordinary files, identity drift, short reads and unknown observations refuse.
+This is a snapshot contract for the fixed sole publishers, not proof against an
+adversarial same-UID writer.
+
+The existing JSON schema, attempt binding, monotone acquisition/phase history
+and resource/phase deadline validators still check the returned complete
+old-or-current record. Partial or rewound progress never becomes success.
+Artifact and source readers keep their strict unchanged-ctime checks. Child
+terminal records are read after reaping. Successful guest-result reads follow
+confirmed container exit; the existing failure-only guest-result read may race
+remaining guest work and therefore remains strict, best-effort evidence that
+cannot erase the latched failure. The separate locked output counter is unchanged.
 
 ## Finite acquisition and image assembly
 

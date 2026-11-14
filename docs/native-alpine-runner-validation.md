@@ -6,8 +6,10 @@ The [first admitted attempt](native-alpine-evidence/attempt-1/outcome.md) failed
 at source admission; the [second](native-alpine-evidence/attempt-2/outcome.md)
 passed source and host prerequisites, then refused token framing before body
 reading. Host Docker identity reads ran; no candidate container, interpreter,
-installation or native probe ran. The original checks below retain their source
-scope. The third plan requires fresh review and hosted gates.
+installation or native probe ran. The [third](native-alpine-evidence/attempt-3/outcome.md)
+completed 102 artifact acquisitions before `INPUT_CHANGED`; its exact failed
+path is unobserved and owned cleanup passed. The original checks below retain
+their source scope. The fourth plan requires fresh review and hosted gates.
 
 The original inert plan, 173-artifact recipe and native-member catalog retain
 SHA-256 `c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76`,
@@ -71,6 +73,54 @@ framing, mixed/duplicate/old-HTTP refusals, endpoint and artifact isolation,
 malformed/truncated bodies, early advertised overflow, shared metadata exhaustion,
 partial payload deadline expiry and a final delimiter arriving after the deadline.
 No real network, candidate package or container is used by these added fixtures.
+
+## Snapshot correction after attempt 3
+
+Agent-authored by ChatGPT `/root/assess_polyphony`. The new `active-plan-4.json`
+is 6,740 bytes, SHA-256
+`11d09421c5bd419cffe7be0624bd961bd0fadc3c76606dcf06f64f548ec51daf`.
+It binds the closed three-path live-record reader and the distinct fourth
+work/upload identity. The immutable candidate reader, guest publisher, original
+three plans, exact failed summaries, production sources, commands and all caps
+remain unchanged. The [third outcome](native-alpine-evidence/attempt-3/outcome.md)
+separates the freshly verified hosted failure from the locally reproduced
+atomic-publication race; it does not invent the missing failed path.
+
+All **93 focused fixtures PASS**, including 12 new snapshot checks. The real
+filesystem cases use the actual host and guest atomic publishers: a single open
+inode retires from link count one to zero with unchanged content/mtime, and a
+replacement before the first fstat leaves an already-unlinked stable inode.
+The unchanged immutable reader refuses the same replacement. Other fixtures
+reject in-place writes, restored-mtime changes, owner/group/mode/identity drift,
+hard links, wrong paths, nonordinary files, oversized/short reads and expired
+original deadlines. Actual caller fixtures retain acquisition and both guest
+phase monotonicity. No Docker or candidate acquisition occurs in these checks.
+
+The exact isolated `--check-plan` command returns `SOURCE_PLAN_ADMITTED` with
+native execution `NOT_RUN`. Independent review, fresh hosted source gates and
+any fourth native admission remain separate requirements.
+
+The focused fixture log is 18,034 bytes, SHA-256
+`7670e68e3566c1073d5d5c0cae521580e75db3acdc2e41a37d25763eabfd6ce7`.
+Python syntax, workflow YAML and whitespace checks pass. The workflow differs
+only in its fourth plan/work/upload identity. All three historical plans, the
+immutable candidate reader and the guest program were compared byte-for-byte
+against the actual parent `b2ab51a388e9d6dc0b677570a7e732da3b3a6dde`.
+
+The full local suite ran **687 tests in 118.954 seconds: 686 passed and one
+errored**. The unchanged
+`test_real_owned_process_cohort_uses_linux_counters` could not read
+`/proc/<pid>/task/<pid>/children`. The same single test failed in a separate clean
+worktree at the actual parent commit. This preserves the existing environment
+limitation; the required hosted full suite is not waived. No production observer
+or fixture gate was weakened to turn it green.
+
+Offline wheel construction, installation into a new isolated environment,
+installed `zpm --help`, example validation and the installed module path all
+passed. The local wheel is 83,051 bytes, SHA-256
+`1a8962f16190aabf30158729e646ff11bbdd5608f9322359ade67b2a6181a01a`.
+Those checks use host CPython 3.12.14 and do not qualify the frozen Alpine
+CPython 3.12.16 candidate or publish a release.
 
 ## Original completed-source local checks
 
