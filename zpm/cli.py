@@ -47,16 +47,18 @@ def parser() -> argparse.ArgumentParser:
         commands.add_parser(command).add_argument("repository")
     commands.add_parser("status")
     commands.add_parser("plan")
-    registry = commands.add_parser("registry", help="prepare disabled destinations without remote access")
+    registry = commands.add_parser("registry", help="manage explicit destination enrollment and public approvals")
     registry_commands = registry.add_subparsers(dest="registry_command", required=True)
     for command in ("init", "import", "validate", "migrate"):
         sub = registry_commands.add_parser(command)
-        sub.add_argument("configuration", help="strict version 2 disabled-destination JSON")
+        sub.add_argument("configuration", help="strict version 2 destination JSON; initialization and migration require disabled entries")
         if command == "migrate":
             sub.add_argument("--backup", required=True, help="new backup file in an existing local directory")
             sub.add_argument("--offline", action="store_true", help="assert all old controllers and configuration writers are stopped")
     registry_commands.add_parser("status")
-    registry_commands.add_parser("import-approval", help="retain an exact public approval while execution remains disabled").add_argument("approval")
+    activate = registry_commands.add_parser("activate", help="activate the full destination journal format without changing enabled settings")
+    activate.add_argument("--offline", action="store_true", help="assert older controllers and configuration writers are stopped")
+    registry_commands.add_parser("import-approval", help="retain an exact public approval without remote checks").add_argument("approval")
     inspect_approval = registry_commands.add_parser("approval", help="inspect one retained public approval without remote checks")
     inspect_approval.add_argument("destination_id")
     inspect_approval.add_argument("policy_binding_id")
@@ -68,11 +70,13 @@ def parser() -> argparse.ArgumentParser:
     deployment_commands.add_parser("verify", help="offline source and configuration integrity check").add_argument("directory")
     for command in ("check", "reconcile"):
         sub = commands.add_parser(command)
-        sub.add_argument("--provider", required=True, help="OpenJules endpoint, token reference and capacity ceiling JSON")
+        mode = sub.add_mutually_exclusive_group(required=True)
+        mode.add_argument("--provider", help="legacy OpenJules endpoint, token reference and capacity ceiling JSON")
+        mode.add_argument("--registry", action="store_true", help="use explicitly activated full destination enrollment")
+        sub.add_argument("--max-actions", type=int, default=16, help="legacy mutation limit; full destination mode counts every remote I/O")
         if command == "reconcile":
             sub.add_argument("--watch", action="store_true", help="hold controller ownership and poll with bounded delay")
             sub.add_argument("--interval", type=float, default=5.0)
-            sub.add_argument("--max-actions", type=int, default=16, help="mutation batch limit per tick, not a worker-count ceiling")
     return result
 
 
@@ -105,6 +109,8 @@ def main(argv: list[str] | None = None) -> int:
                         output = store.import_approval(args.approval)
                     elif command == "approval":
                         output = store.inspect_approval(args.destination_id, args.policy_binding_id)
+                    elif command == "activate":
+                        output = store.activate_destinations(offline=args.offline)
                     else:
                         output = store.registry_status()
         else:
@@ -121,11 +127,15 @@ def main(argv: list[str] | None = None) -> int:
                 elif args.command in {"status", "plan"}:
                     output = store.registry_status() if store.format_version == 2 else Controller(store).plan()
                 else:
-                    store.require_legacy()
-                    config = ProviderConfig.parse(read_json(args.provider))
-                    controller = Controller(store, OpenJulesProvider(config), config.max_workers)
+                    if args.registry:
+                        from .destination_controller import DestinationController
+                        controller = DestinationController(store)
+                    else:
+                        store.require_legacy()
+                        config = ProviderConfig.parse(read_json(args.provider))
+                        controller = Controller(store, OpenJulesProvider(config), config.max_workers)
                     if args.command == "check":
-                        output = controller.check()
+                        output = controller.check(args.max_actions) if args.registry else controller.check()
                     elif args.watch:
                         controller.run(args.interval, args.max_actions)
                         return 0

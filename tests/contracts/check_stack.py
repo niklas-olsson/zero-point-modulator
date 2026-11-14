@@ -579,6 +579,9 @@ def run(args):
         from check_two_runtime_stack import run_contract
         contention = run_contract(root, bundle, data, source_paths, revisions, image)
         checks.append("two independent managed runtimes contend through real canonical claims without duplicating protected execution")
+        from check_destination_stack import run_contract as run_destinations
+        destinations = run_destinations(root, bundle, data, source_paths, revisions, image)
+        checks.append("one controller qualifies two full destinations and preserves original recovery, native refusals and captured canonical work")
 
         report = {"passed": True, "schema_version": 1, "deployment_id": deployment, "image": image,
                   "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed",
@@ -586,6 +589,7 @@ def run(args):
                   "checks": checks, "canonical_task": first["task"]["id"], "candidate": candidate["id"],
                   "captured_artifacts": attempt["captured_artifacts"], "final_reserved": final_reserved,
                   "two_runtime_contention": contention,
+                  "full_destination_contract": destinations,
                   "sealed_dependencies": sealed_report(bundle, dependency_reference, root, deny_network=deny_network),
                   "proof": "real Docker, real HTTP, separate services, controlled code change",
                   "not_proven": ["live model inference", "child delegation", "independent semantic review", "forge publication", "merge authorization",
@@ -601,6 +605,9 @@ def run(args):
         if hasattr(exc, "contract_diagnostic"):
             diagnostic["two_runtime_contention"] = exc.contract_diagnostic
             # The nested helper has already redacted its distinct credentials.
+            (root / "diagnostics.json").write_text(json.dumps(diagnostic, indent=2, sort_keys=True))
+        if hasattr(exc, "destination_diagnostic"):
+            diagnostic["full_destination_contract"] = exc.destination_diagnostic
             (root / "diagnostics.json").write_text(json.dumps(diagnostic, indent=2, sort_keys=True))
         print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
         raise

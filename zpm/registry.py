@@ -73,10 +73,10 @@ def _policy(value: Any) -> dict[str, Any]:
             "timeout_seconds": float(timeout)}
 
 
-def _destination(value: Any, timeout: float) -> dict[str, Any]:
+def _destination(value: Any, timeout: float, *, active: bool = False) -> dict[str, Any]:
     value = _object(value, {"destination_id", "journal_incarnation", "endpoint", "token_ref",
                             "max_workers", "enabled"}, "destination")
-    if value["enabled"] is not False:
+    if type(value["enabled"]) is not bool or (not active and value["enabled"] is not False):
         raise ConfigurationError("offline destinations must explicitly set enabled to false")
     # Reuse the single credential/transport validation boundary without resolving
     # the environment reference or constructing a provider.
@@ -88,7 +88,7 @@ def _destination(value: Any, timeout: float) -> dict[str, Any]:
         "destination_id": _destination_id(value["destination_id"]),
         "journal_incarnation": _opaque_id(value["journal_incarnation"], "journal_incarnation"),
         "endpoint": transport.endpoint, "token_ref": transport.token_ref,
-        "max_workers": transport.max_workers, "enabled": False,
+        "max_workers": transport.max_workers, "enabled": value["enabled"],
     }
 
 
@@ -106,13 +106,13 @@ def _profile(value: Any) -> dict[str, Any]:
     }
 
 
-def configuration(value: Any) -> dict[str, Any]:
+def configuration(value: Any, *, active: bool = False) -> dict[str, Any]:
     value = _object(value, {"schema_version", "max_workers", "timeout_seconds", "destinations", "profiles"},
                     "registry configuration")
     policy = _policy({key: value[key] for key in ("schema_version", "max_workers", "timeout_seconds")})
     if not isinstance(value["destinations"], list) or not isinstance(value["profiles"], list):
         raise ConfigurationError("destinations and profiles must be lists")
-    destinations = [_destination(item, policy["timeout_seconds"]) for item in value["destinations"]]
+    destinations = [_destination(item, policy["timeout_seconds"], active=active) for item in value["destinations"]]
     profiles = [_profile(item) for item in value["profiles"]]
     ids = [item["destination_id"] for item in destinations]
     keys = [(item["destination_id"], item["repository"], item["profile"]) for item in profiles]
@@ -152,8 +152,8 @@ def _latest(connection: sqlite3.Connection, table: str, fields: tuple[str, ...])
         ON {matching} AND current.revision=latest.revision ORDER BY {ordering}"""))
 
 
-def import_configuration(connection: sqlite3.Connection, data: dict[str, Any]) -> None:
-    data = configuration(data)
+def import_configuration(connection: sqlite3.Connection, data: dict[str, Any], *, active: bool = False) -> None:
+    data = configuration(data, active=active)
     policy = {key: data[key] for key in ("schema_version", "max_workers", "timeout_seconds")}
     current_policy = connection.execute("SELECT * FROM registry_revisions ORDER BY revision DESC LIMIT 1").fetchone()
     destinations = {row["destination_id"]: decode_json(row["specification"])
@@ -187,7 +187,7 @@ def import_configuration(connection: sqlite3.Connection, data: dict[str, Any]) -
                            (item["destination_id"], item["repository"], item["profile"], revision, _encode(item)))
 
 
-def validate_records(connection: sqlite3.Connection) -> None:
+def validate_records(connection: sqlite3.Connection, *, active: bool = False) -> None:
     policies = list(connection.execute("SELECT * FROM registry_revisions ORDER BY revision"))
     if not policies or any(type(row["revision"]) is not int or row["revision"] < 1 for row in policies):
         raise ConfigurationError("destination registry has missing or invalid policy history")
@@ -196,7 +196,7 @@ def validate_records(connection: sqlite3.Connection) -> None:
         _policy(decode_json(row["policy"]))
     identities: dict[str, str] = {}
     for row in connection.execute("SELECT * FROM destinations ORDER BY revision"):
-        item = _destination(decode_json(row["specification"]), 10.0)
+        item = _destination(decode_json(row["specification"]), 10.0, active=active)
         if row["revision"] not in revisions or item["destination_id"] != row["destination_id"]:
             raise ConfigurationError("destination registry has invalid destination history")
         previous = identities.setdefault(item["destination_id"], item["journal_incarnation"])
@@ -214,8 +214,8 @@ def validate_records(connection: sqlite3.Connection) -> None:
             raise ConfigurationError("destination registry changed an immutable policy binding")
 
 
-def status(connection: sqlite3.Connection, deployment_id: str) -> dict[str, Any]:
-    validate_records(connection)
+def status(connection: sqlite3.Connection, deployment_id: str, *, active: bool = False) -> dict[str, Any]:
+    validate_records(connection, active=active)
     current = connection.execute("SELECT * FROM registry_revisions ORDER BY revision DESC LIMIT 1").fetchone()
     profiles = _latest(connection, "destination_profiles", ("destination_id", "repository", "profile"))
     destinations = []
@@ -229,8 +229,8 @@ def status(connection: sqlite3.Connection, deployment_id: str) -> dict[str, Any]
         })
     return {
         **decode_json(current["policy"]), "deployment_id": deployment_id,
-        "registry_revision": current["revision"], "execution_enabled": False,
-        "ready": False, "reason": OFFLINE_REASON, "destinations": destinations,
+        "registry_revision": current["revision"], "execution_enabled": active,
+        "ready": False, "reason": "Readiness requires explicit current destination checks." if active else OFFLINE_REASON, "destinations": destinations,
         "legacy_history_rows": connection.execute("SELECT COUNT(*) FROM workers").fetchone()[0],
         "remote_access_checked": False,
     }

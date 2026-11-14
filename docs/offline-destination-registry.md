@@ -4,14 +4,17 @@ ZPM can retain operator-approved execution-destination identities in a private
 version 2 journal. This is an **offline preparation feature**. It does not check
 an OpenJules service, resolve a credential, qualify an execution policy, admit a
 worker or enable distributed reconciliation. Every destination stays disabled.
-The existing version 1 installation and controller remain the execution path.
+The existing version 1 installation and controller remain supported. To use the
+separate, explicit full destination execution path after preparation, follow
+[full destination reconciliation](destination-reconciliation.md). Nothing in this
+offline procedure activates that path.
 
 The consumer work is tracked in [#50](https://github.com/niklas-olsson/zero-point-modulator/issues/50),
 following the [adopted OpenJules identity contract](https://github.com/niklas-olsson/OpenJules/issues/47#issuecomment-6846632568).
 The [adopted portable public approval](https://github.com/niklas-olsson/OpenJules/issues/47#issuecomment-6848006932)
-can also be imported and retained offline. Producer policy agreement, durable
-local admission/refusal, v2 transport and bounded multi-destination reconciliation
-are later work. Actual two-host
+can also be imported and retained offline. Native approval, v2 transport, durable
+local admission/refusal and bounded reconciliation are covered by the separate
+[activation and execution procedure](destination-reconciliation.md). Actual two-host
 installation and acceptance belong to [#51](https://github.com/niklas-olsson/zero-point-modulator/issues/51).
 
 ## Explicit configuration
@@ -24,7 +27,7 @@ remote response must not enroll its own identity.
 
 | Record | Fields |
 | --- | --- |
-| Registry policy | Required `schema_version: 2`, nonnegative `max_workers`, and `timeout_seconds` greater than zero and at most 120. These are retained inputs for future execution; this slice makes no requests. |
+| Registry policy | Required `schema_version: 2`, nonnegative `max_workers`, and `timeout_seconds` greater than zero and at most 120. These are retained inputs; offline preparation makes no requests. |
 | Each `destinations` entry | `destination_id`, `journal_incarnation`, `endpoint`, `token_ref`, nonnegative `max_workers`, and explicit `enabled: false`. |
 | Each `profiles` entry | `destination_id`, canonicalizable GitHub `repository`, existing OpenJules `profile`, `policy_binding_id`, and integer `policy_binding_version: 1`. |
 
@@ -70,7 +73,8 @@ local projection for v2 state.
 The v1 `check`, `reconcile`, enrollment/capacity mutations and controller API
 reject v2 state before credentials or provider I/O. The v1 HTTP adapter also
 rejects destination-bound input rather than sending it to the legacy route.
-There is no enable command or v2 launch fallback in this release.
+Only explicit full destination activation permits later active imports and v2
+reconciliation. Offline state has no v2 launch fallback.
 
 ## Import changes while retaining history
 
@@ -82,8 +86,8 @@ zpm --state .zpm/offline-registry.sqlite3 \
 An explicit import updates the registry policy and supplied records atomically.
 An identical normalized import is idempotent. A changed import increments the
 registry revision and retains each changed destination/profile record at that
-revision. Omitting a destination or profile does not delete it. Imports cannot
-enable destinations or change an enrolled destination's journal incarnation.
+revision. Omitting a destination or profile does not delete it. Offline imports cannot
+enable destinations; no import can change an enrolled destination's journal incarnation.
 A replacement journal requires a new destination ID in this initial version.
 An existing opaque policy-binding ID cannot be reused for a different profile
 identity within the same destination.
@@ -92,8 +96,8 @@ Endpoint/reference changes and selection of a new opaque policy-binding ID are
 stored as disabled local revisions. Earlier transport/profile records remain
 available in the private journal. Importing a candidate does not validate it,
 contact it, rotate a remote credential, release a reservation or retire a worker.
-Remote validation, admission and operational retirement require the later
-consumer implementation.
+Remote validation, admission and operational retirement require the separate
+explicit full destination mode.
 
 ## Retain an exact public execution approval
 
@@ -137,7 +141,7 @@ destination and policy-binding IDs. `registry approval` returns one retained
 envelope plus provenance, without resolving credentials or making remote calls.
 `status` and `plan` label each current profile `approved-public-contract` or
 `enrolled-only`; they also list prior approvals and whether each matches current
-enrollment. Every report keeps `execution_enabled`, `ready`,
+enrollment. Before full activation, every report keeps `execution_enabled`, `ready`,
 `remote_access_checked` and `native_policy_checked` false. An approved public
 artifact is not an available worker, native policy verdict, installation receipt,
 host attestation or authority to dispatch. This does not implement the paired

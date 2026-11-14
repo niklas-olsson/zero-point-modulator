@@ -13,11 +13,12 @@ Polyphony authority and OpenJules Docker runtime. An explicit optional model
 policy enables a root coding agent through OpenJules' host-owned inference
 broker. Missing capabilities block worker creation. Provider qualification,
 child execution, independent review and publication have their own boundaries.
-An optional [offline destination registry](docs/offline-destination-registry.md)
-retains disabled destination identities, exact public execution approvals and
-released legacy history. Approval import checks the public artifact and its
-enrolled binding; it does not qualify native policy, enable distributed execution
-or contact remote services.
+The [offline destination registry](docs/offline-destination-registry.md) retains
+operator-enrolled identities, exact public execution approvals and released legacy
+history. Separately, [explicit full destination mode](docs/destination-reconciliation.md)
+places capacity through approved v2 services while retaining every original
+operation and uncertain outcome. Approval import itself performs no remote checks
+and does not enable execution. Two-host installation remains a separate package.
 
 ## Install and inspect
 
@@ -56,9 +57,10 @@ healthy and reserved capacity, pending operations, shortfall, and blocking
 reasons. Local output is not a fresh readiness check. A plan without a provider
 configuration reports `max_workers: null`, since it does not know the deployment
 admission ceiling used by the next controller run.
-For an explicitly initialized v2 registry, these commands instead report its
-disabled local records; the v1 controller refuses that state. See the
-[offline registry commands and migration limits](docs/offline-destination-registry.md).
+For v2 state, these commands report dormant registry records or, after explicit
+activation, retained destination capacity and validation observations. The v1
+controller refuses both. See [offline preparation](docs/offline-destination-registry.md)
+and [full destination reconciliation](docs/destination-reconciliation.md).
 
 ## Configuration ownership
 
@@ -379,6 +381,7 @@ The table is navigation, not another protocol specification.
 | --- | --- | --- |
 | Enrollment, configuration and CLI | [models](zpm/models.py), [CLI](zpm/cli.py), [store](zpm/store.py) | [Install and inspect](#install-and-inspect), [configuration ownership](#configuration-ownership) and [commands](#check-and-reconcile) in this README |
 | Disabled destination registry, public approvals and offline state transition | [registry](zpm/registry.py), [public manifest syntax](zpm/portable_manifest.py), [approval retention](zpm/approvals.py), [store](zpm/store.py), [CLI](zpm/cli.py) | [Offline destination registry](docs/offline-destination-registry.md); [#50](https://github.com/niklas-olsson/zero-point-modulator/issues/50) for the consumer contract |
+| Full destination capacity and original recovery | [destination controller](zpm/destination_controller.py), [bound journal](zpm/destination_state.py), [exact response contracts](zpm/destination_contract.py) | [Destination reconciliation](docs/destination-reconciliation.md); [installed two-service trial](tests/contracts/check_destination_stack.py) |
 | Capacity, durable intent and recovery | [controller](zpm/controller.py), [store](zpm/store.py) | [Recovery and capacity rules](#recovery-and-capacity-rules) in this README |
 | Provider transport and lifecycle responses | [provider](zpm/provider.py), [HTTP transport](zpm/_http_transport.py), [response models](zpm/models.py) | [Wire contract](#openjules-wire-contract) in this README; [HTTP trial](docs/http-contract-trial.md) |
 | Installation, bootstrap and generated configuration | [deployment](zpm/deployment.py), [sealed dependencies](zpm/dependencies.py), [interpreter context](zpm/installation_context.py) | [Single-host installation](docs/single-host-installation.md) |

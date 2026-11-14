@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .models import Binding, ConfigurationError, count, identifier, released, repository
-from . import approvals, registry
+from . import approvals, registry, destination_state
 
 
 def encode(value: Any) -> str:
@@ -116,6 +116,9 @@ class Store:
                 expected.update(registry.REGISTRY_COLUMNS)
                 if approvals.enabled(self.connection):
                     expected.update(approvals.APPROVAL_COLUMNS)
+                if destination_state.enabled(self.connection):
+                    expected["workers"] += destination_state.WORKER_COLUMNS
+                    expected.update(destination_state.COLUMNS)
             tables = {row[0] for row in self.connection.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             )}
@@ -133,9 +136,12 @@ class Store:
             if hasattr(self, "deployment_id") and identity != self.deployment_id:
                 raise ConfigurationError("deployment state changed its original identity")
             if version == 2:
-                registry.validate_records(self.connection)
+                active = destination_state.enabled(self.connection)
+                registry.validate_records(self.connection, active=active)
                 approvals.validate_records(self.connection, identity)
-                if self.connection.execute("""SELECT 1 FROM workers WHERE protocol_version != 1
+                if active:
+                    destination_state.validate_records(self.connection, identity)
+                elif self.connection.execute("""SELECT 1 FROM workers WHERE protocol_version != 1
                         OR destination_binding IS NOT NULL LIMIT 1""").fetchone():
                     raise ConfigurationError("destination execution history is not supported by this offline version")
             return version
@@ -155,6 +161,20 @@ class Store:
     def require_registry(self) -> None:
         if self._format() != 2:
             raise ConfigurationError("destination registry requires explicit v2 initialization or migration")
+
+    def require_active_destinations(self) -> None:
+        self.require_registry()
+        if not destination_state.enabled(self.connection):
+            raise ConfigurationError(registry.OFFLINE_REASON)
+
+    def require_capacity(self) -> None:
+        if self._format() == 2:
+            self.require_active_destinations()
+
+    def activate_destinations(self, *, offline: bool) -> dict[str, Any]:
+        destination_state.activate(self, offline=offline)
+        _sync_file_and_directory(self.path)
+        return destination_state.plan(self)
 
     @classmethod
     def initialize_registry(cls, path: str | Path, data: dict[str, Any], deployment_id: str | None = None) -> "Store":
@@ -192,6 +212,8 @@ class Store:
 
     def registry_status(self) -> dict[str, Any]:
         self.require_registry()
+        if destination_state.enabled(self.connection):
+            return destination_state.plan(self)
         return approvals.annotate_status(self.connection, registry.status(self.connection, self.deployment_id))
 
     def import_approval(self, path: str | Path) -> dict[str, Any]:
@@ -211,10 +233,11 @@ class Store:
 
     def import_registry(self, data: dict[str, Any]) -> dict[str, Any]:
         self.require_registry()
-        data = registry.configuration(data)
+        active = destination_state.enabled(self.connection)
+        data = registry.configuration(data, active=active)
         with self.controller_lock(), self.transaction():
             self.require_registry()
-            registry.import_configuration(self.connection, data)
+            registry.import_configuration(self.connection, data, active=active)
         return self.registry_status()
 
     def _migration_ready(self) -> None:
@@ -300,11 +323,11 @@ class Store:
             os.close(descriptor)
 
     def enroll(self, spec: dict[str, Any] | Binding) -> dict[str, Any]:
-        self.require_legacy()
+        self.require_capacity()
         binding = spec if isinstance(spec, Binding) else Binding.parse(spec)
         value = encode(binding.to_dict())
         with self.transaction():
-            self.require_legacy()
+            self.require_capacity()
             row = self.connection.execute("SELECT * FROM bindings WHERE repository=?", (binding.repository,)).fetchone()
             if row is None:
                 self.connection.execute("INSERT INTO bindings VALUES (?, ?, 1, ?)", (binding.repository, value, encode({"ready": False, "reason": "not checked"})))
@@ -323,9 +346,9 @@ class Store:
         return [self.binding(row[0]) for row in self.connection.execute("SELECT repository FROM bindings ORDER BY repository")]
 
     def change(self, name: str, operation: str, workers: int | None = None) -> dict[str, Any]:
-        self.require_legacy()
+        self.require_capacity()
         with self.transaction():
-            self.require_legacy()
+            self.require_capacity()
             current = self.binding(name)
             spec = {key: current[key] for key in Binding.__dataclass_fields__}
             if operation == "target":
@@ -407,13 +430,7 @@ class Store:
             current = self.binding(binding.repository)
             if current["revision"] != revision or not current["enabled"] or current["paused"]:
                 raise ConfigurationError("enrollment changed before capacity reservation")
-            rows = self.workers(binding.repository)
-            occupied = {row["slot_id"] for row in rows if not released(row["snapshot"])}
-            index = 0
-            while f"slot-{index}" in occupied:
-                index += 1
-            slot = f"slot-{index}"
-            generation = 1 + max((row["generation"] for row in rows if row["slot_id"] == slot), default=0)
+            slot, generation = self.next_slot(binding.repository)
             key = str(uuid.uuid4())
             data = {
                 "schema_version": 1, "deployment_id": self.deployment_id,
@@ -425,6 +442,15 @@ class Store:
             }
             self.connection.execute("INSERT INTO workers VALUES (?, ?, ?, ?, ?, ?, 'reserve', ?)", (key, binding.repository, slot, generation, binding.profile, encode(data), key))
         return self.worker(key)
+
+    def next_slot(self, repository: str) -> tuple[str, int]:
+        rows = self.workers(repository)
+        occupied = {row["slot_id"] for row in rows if not released(row["snapshot"])}
+        index = 0
+        while f"slot-{index}" in occupied:
+            index += 1
+        slot = f"slot-{index}"
+        return slot, 1 + max((row["generation"] for row in rows if row["slot_id"] == slot), default=0)
 
     def dispatch(self, key: str, max_workers: int) -> dict[str, Any]:
         """Linearize launch permission against the current enrollment policy."""
@@ -448,28 +474,28 @@ class Store:
         return self.worker(key)
 
     def save_observation(self, key: str, data: dict[str, Any], clear_action: bool = True) -> None:
-        self.require_legacy()
+        self.require_capacity()
         if clear_action:
             self.connection.execute("UPDATE workers SET snapshot=?, pending_action=NULL, action_key=NULL WHERE launch_key=?", (encode(data), key))
         else:
             self.connection.execute("UPDATE workers SET snapshot=? WHERE launch_key=?", (encode(data), key))
 
     def uncertainty(self, key: str, reason: str) -> None:
-        self.require_legacy()
+        self.require_capacity()
         row = self.worker(key)
         data = dict(row["snapshot"])
         data.update(state="unknown", reason=reason, termination_confirmed=False, artifacts_captured=False, admission_open=False)
         self.save_observation(key, data, clear_action=False)
 
     def action(self, key: str, operation: str) -> dict[str, Any]:
-        self.require_legacy()
+        self.require_capacity()
         if operation not in {"drain", "stop"}:
             raise ConfigurationError("unsupported runtime operation")
         with self.transaction():
-            self.require_legacy()
+            self.require_capacity()
             row = self.worker(key)
             cancel_known_launch = (
-                row["pending_action"] == "ensure"
+                row["pending_action"] in {"ensure", "ensure-retry"}
                 and operation == "drain"
                 and bool(row["snapshot"]["worker_id"])
             )

@@ -43,7 +43,7 @@ The CI job currently pins:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `0dd5bf4e42b3677c3f2f564655bc87a97c4bf973`, merged runtime with approved managed public turns |
+| OpenJules | `7135d0988dff050df63acb89f75562dafccacf79`, merged full destination runtime retaining approved managed public turns |
 | Keystone Polyphony | `6480e36355bf0d5de4e25a560d40e665fd76038c`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out candidate revision, recorded in the report |
 
@@ -251,3 +251,16 @@ rejected: serialized dispatcher ticks can abandon requests on timeout and queue
 later requests, so a lifetime bound of one old request is unsupported. The final
 transport-generation fence removes that assumption. These were test-evidence
 findings before actual runtime qualification, not observed product failures.
+
+## Full destination consumer scene
+
+The same required job now runs the [full destination contract scene](destination-reconciliation.md#qualification-and-limits)
+after the ordinary generated installation and the independent runtime contention
+scene have stopped. It reuses their installed environments at the component set
+above, creates two fresh approved full-mode service journals, and uses one local
+ZPM controller with explicit destination enrollment. It exercises original-key
+loss/restart recovery, native permanent refusal, real canonical work/capture and
+installed `check/reconcile --registry`. Its nested `full_destination_contract`
+report distinguishes injected source-controller phases from ordinary installed
+CLI phases. Both service processes share this one CI host and Docker Engine;
+this is not the actual two-host installation in #51. Model calls are zero.
