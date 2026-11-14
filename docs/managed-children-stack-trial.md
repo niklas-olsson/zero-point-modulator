@@ -21,7 +21,7 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `247fe1d4647510d158eb564594a406ef33fcafc8`, merged runtime with approved managed public turns |
+| OpenJules | `394c1c22a740a80daf9dedd1b6a3e4712b2c5caf`, merged runtime with approved managed public turns |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
@@ -1045,7 +1045,7 @@ The focused source tests distinguish coherent retained-record rewrites,
 original cutoff renewal, private-route false positives, trickled HTTP deadlines,
 interrupted owned shutdown, cleanup-before-report and missing or changed pinned
 module bytes. Named fixtures remain distinct from the installed Docker and
-canonical evidence. Every changed set must pass the entire eight-job workflow
+canonical evidence. Every changed set must pass the entire required workflow
 on the exact head, relevant base and actual merged main, with exact evidence
 retained in [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 

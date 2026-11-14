@@ -19,9 +19,9 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`247fe1d4647510d158eb564594a406ef33fcafc8`](https://github.com/niklas-olsson/OpenJules/commit/247fe1d4647510d158eb564594a406ef33fcafc8) |
+| OpenJules | [`394c1c22a740a80daf9dedd1b6a3e4712b2c5caf`](https://github.com/niklas-olsson/OpenJules/commit/394c1c22a740a80daf9dedd1b6a3e4712b2c5caf) |
 
-This is the same merged runtime used by all five installed-stack jobs, including
+This is the same merged runtime used by all required installed-stack jobs, including
 the explicit managed-public profile. The cold-session option, loopback bootstrap,
 shared HTTP transport, bounded socket denial and scoped unsupported-capability
 diagnostic remain in that source. This HTTP lifecycle job does not enable a
@@ -36,9 +36,9 @@ regression below requires that replay without another client control request.
 The same pins also pair OpenJules' opt-in initial child outcomes with Polyphony's
 final-manifest validation. The separate installed child variant exercises that
 callback/capture contract; this HTTP lifecycle trial does not.
-The refreshed set requires OpenJules' full repository CI and all eight jobs on
+The refreshed set requires OpenJules' full repository CI and all required jobs on
 the changed ZPM revision: unit/package/CLI checks on both Python versions, this
-HTTP lifecycle job and all five Docker installation jobs. Historical runs do
+HTTP lifecycle job and all required Docker installation jobs. Historical runs do
 not qualify a different revision set. Record exact ZPM and component revisions,
 CI links and remaining acceptance in [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
@@ -65,7 +65,7 @@ To update the shared component pins:
    revision; retained historical results also keep their original revisions.
    Do not substitute a moving branch or tag.
 3. Run the HTTP trial locally, then require the ZPM unit, package, CLI and all
-   five integration jobs to pass for the proposed update before merging it.
+   required integration jobs to pass for the proposed update before merging it.
 
 The pin identifies the component contract intended for qualification. It does not promote the fixture
 runtime to a production managed coding profile or complete the installation

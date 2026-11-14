@@ -298,9 +298,9 @@ credential exclusively in the trusted OpenJules process.
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/247fe1d4647510d158eb564594a406ef33fcafc8).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/394c1c22a740a80daf9dedd1b6a3e4712b2c5caf).
 A valid generic source pin alone is insufficient. Require the component's CI and
-all eight ZPM jobs for the same exact integration set before promotion; retained
+all required ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
 
 The preceding OpenJules component `80a51b867d12867a313539186b7c5d7346d54149` is the
@@ -460,6 +460,16 @@ nonblocking waits. Resource limits, process identities, authority and execution
 deadlines are unchanged.
 
 The current shared OpenJules pin is
+[`394c1c22a740a80daf9dedd1b6a3e4712b2c5caf`](https://github.com/niklas-olsson/OpenJules/commit/394c1c22a740a80daf9dedd1b6a3e4712b2c5caf),
+tree `b7877d3e55b0faf575e1e44d34cd5fc5c443594e`, from
+[OpenJules #54](https://github.com/niklas-olsson/OpenJules/pull/54).
+It retains the existing managed runtime and adds producer-owned finite
+operator-local image acquisition, build, export and archive verification. The
+[sealed bootstrap trial](#sealed-bootstrap-qualification) tests its verified
+imported image with the three service environments. The entire changed consumer
+set requires its own installed qualification before promotion.
+
+The preceding shared OpenJules pin was
 [`247fe1d4647510d158eb564594a406ef33fcafc8`](https://github.com/niklas-olsson/OpenJules/commit/247fe1d4647510d158eb564594a406ef33fcafc8),
 tree `9d6bdc84891c836f19bae5a97f150e8c6bb0bc1d`, from
 [OpenJules #46](https://github.com/niklas-olsson/OpenJules/pull/46).
@@ -479,8 +489,8 @@ conversation profile and frozen canonical capture. Omitted policy keeps the
 existing behavior. The [installed managed-public scene](managed-children-stack-trial.md#managed-public-discussion-during-private-work)
 requires real installed Polyphony authority and transport, two confined children,
 an independently running peer, original signed effects, scoped private-read
-controls, owned cleanup and full service reopening. Its report and the complete
-eight-job workflow are required for every new installed set. Neither component
+controls, owned cleanup and full service reopening. Every new installed set
+requires its report and the complete required workflow. Neither component
 fixtures nor the independent public-peer scene substitute for that result.
 
 The preceding fully qualified installed set is ZPM
@@ -524,7 +534,7 @@ three deterministic provider requests and original signed remote receipt.
 Every changed set requires its own complete ZPM qualification; historical
 reports retain their original component identities.
 
-Every change to the integration set must pass all eight ZPM jobs before promotion.
+Every change to the integration set must pass all required ZPM jobs before promotion.
 Earlier `9e6aaa49` / OpenJules `d3d50b32` runtime reports, the 612-test component
 results and the [measurement set with OpenJules `80a51b86`](https://github.com/niklas-olsson/zero-point-modulator/pull/27#issuecomment-6809671165)
 remain bound to their recorded revisions; they do not qualify the changed set.
@@ -840,7 +850,7 @@ prove a managed public turn, child participation or delivery to a live peer.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/247fe1d4647510d158eb564594a406ef33fcafc8/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/394c1c22a740a80daf9dedd1b6a3e4712b2c5caf/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -858,7 +868,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/247fe1d4647510d158eb564594a406ef33fcafc8/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/394c1c22a740a80daf9dedd1b6a3e4712b2c5caf/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature
@@ -1199,20 +1209,48 @@ resolves the producers' requirements into a finite input set; it is not a
 dependency update service or an already-reviewed production lock. Review the
 resulting plan and artifacts before using them elsewhere.
 
-The additional CI job retains OpenJules
-`247fe1d4647510d158eb564594a406ef33fcafc8` and Polyphony
-`0cf8b4772b04269505e3e1cd41324e41409b80f9`. Bootstrap and repeat bootstrap run
-in a private network/PID namespace after dropping back to the invoking UID;
+The additional CI job uses the shared OpenJules pin and retains Polyphony
+`0cf8b4772b04269505e3e1cd41324e41409b80f9`. It calls OpenJules' own finite
+image build and archive verifier with the committed reviewed input manifests,
+imports that exact archive into the ordinary trial's Docker Engine, and passes
+the verified immutable image ID to this same installed trial. The OpenJules
+checkout includes the Git history needed for the separately pinned agent helpers
+and production Dockerfile. ZPM does not resolve image packages or parse image
+archives. The executable producer commands and exact manifest hashes are in the
+[`sealed-managed-stack` workflow](../.github/workflows/ci.yml).
+
+The producer build performs explicit online acquisition of declared inputs;
+its Docker build disables networking. Archive verification checks the hash of
+the record just created by that reviewed local build before import. Reusing an
+archive from another origin requires separate approval of its record and hash.
+The imported image then runs the existing controlled task/capture/drain/restart
+scene. Image acquisition, native image qualification and installed bootstrap
+remain distinct evidence boundaries.
+
+This combined lane requires Linux/amd64, CPython 3.12, glibc 2.17 or later,
+Git, a rootful Docker Engine with Docker CLI and `dockerd`, and the host's
+existing sudo/unshare capability. These host tools are prerequisites. The
+producer enforces its own acquisition, archive, storage and duration bounds;
+the installer retains the independent plan and command bounds above. Reports
+retain their separate measured scopes and do not claim a combined download,
+storage or peak-memory total. The archive and private build directory remain
+job-local. Only the producer's named safe metadata, exact dependency plan and
+credential-free installed evidence are uploaded.
+
+Bootstrap and repeat bootstrap run in a private network/PID namespace after
+dropping back to the invoking UID;
 the report retains namespace/network observations, elapsed time, scoped
 waited-child peak RSS and separate artifact/installed-storage measurements.
 Namespace setup requires the qualification host's existing sudo/unshare
 capability, not extra runtime service privileges. Subsequent real loopback
 service traffic uses the ordinary trial, which runs a protected task, captures
 it, drains to zero, restarts and checks retained state. The ordinary ranged-mode
-CI trials remain separate. This evidence uses a controlled task image and
-deterministic execution; it establishes neither live model behavior, external
-forge publication, two-host operation nor browser support. Exact native run and
-revision results belong in the #55 delivery record after they pass.
+CI trials keep their existing image build paths. This evidence uses the imported
+production managed image with deterministic execution; it establishes neither
+live model behavior, external forge publication, two-host operation nor browser
+support. Public binary distribution remains subject to OpenJules' separate
+permission and notice requirements. Exact native run and revision results
+belong in the delivery record after they pass.
 
 `start` runs all three services in the foreground. One local manager lock avoids
 two managers operating the same directory. The listeners bind to `127.0.0.1`,

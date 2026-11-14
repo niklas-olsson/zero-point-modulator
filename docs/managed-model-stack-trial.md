@@ -22,7 +22,7 @@ The separate `managed-model-stack` CI job pins these revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `247fe1d4647510d158eb564594a406ef33fcafc8`, merged runtime with approved managed public turns |
+| OpenJules | `394c1c22a740a80daf9dedd1b6a3e4712b2c5caf`, merged runtime with approved managed public turns |
 | Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
@@ -126,7 +126,8 @@ While the no-policy coordinator is held:
   Canonical records, artifacts and events remain empty. The readers use the
   generated paths, verify the pinned component schemas and read committed WAL
   state in SQLite read-only mode. Missing journals or unexpected schemas fail
-  the trial.
+  the trial. The pinned fresh lifecycle schema includes `destination_binding`;
+  the generated v1 installation does not configure the optional destination mode.
 - Retained deployment identity and runtime/model policy fingerprints remain
   unchanged. The entire Docker container and volume inventory matches the
   baseline taken before the first manager startup. Under the fixture lock,
