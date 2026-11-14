@@ -259,13 +259,16 @@ class Trial:
         require(label not in self.managers, "role manager already has an owner")
         self.limit(1)
         command = [sys.executable, str(bundle / "manage.py"), "start"] + (["--authority-only"] if authority_only else [])
+        record = {"process": None, "identity": None, "services": [], "services_observed": False,
+                  "output": bytearray(), "overflow": False, "reader_stop": threading.Event(), "reader": None}
         process = subprocess.Popen(command, cwd=bundle, env=environment, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True, start_new_session=True)
-        record = {"process": process, "identity": proc_identity(process.pid), "services": [],
-                  "services_observed": False, "output": bytearray(), "overflow": False,
-                  "reader_stop": threading.Event(), "reader": None}
+        # The returned immediate child belongs to this Popen object even when
+        # the next /proc observation fails. Record ownership before that read.
+        record["process"] = process
         self.managers[label] = record
         self.history.append(record)
+        record["identity"] = proc_identity(process.pid)
         require(record["identity"] is not None, "new role manager identity was unavailable")
 
         def read_output():
@@ -336,11 +339,16 @@ class Trial:
             try:
                 process = record["process"]
                 uncertain |= record["identity"] is None or not record["services_observed"]
-                if process.poll() is None and record["identity"] is not None and original_live(record["identity"]):
-                    try:
-                        os.kill(process.pid, signal.SIGTERM)
-                    except ProcessLookupError:
-                        pass
+                if process.poll() is None:
+                    if record["identity"] is None:
+                        # This is the still-unreaped child returned by our own
+                        # Popen, not a rediscovered PID or an inferred group.
+                        process.terminate()
+                    elif original_live(record["identity"]):
+                        try:
+                            os.kill(process.pid, signal.SIGTERM)
+                        except ProcessLookupError:
+                            pass
             except BaseException:
                 uncertain = True
         for frontend in self.frontends:
@@ -386,7 +394,7 @@ class Trial:
                 "outcome": "observed" if managers_reaped and children_exited and frontends_stopped and not uncertain else "unknown"}
 
 
-def exchange(endpoint, method, path, *, token, budget, query=None, data=None, expected=200, text=False, ca=None):
+def exchange(endpoint, method, path, *, token, budget, query=None, data=None, raw_body=None, expected=200, text=False, ca=None):
     """Fixed loopback transport with a total time and body byte bound."""
     parsed = urlsplit(endpoint)
     require(parsed.hostname == "127.0.0.1" and parsed.path == "" and parsed.scheme in {"http", "https"},
@@ -399,7 +407,9 @@ def exchange(endpoint, method, path, *, token, budget, query=None, data=None, ex
             context=ssl.create_default_context(cafile=str(ca)), **arguments)
     else:
         connection = http.client.HTTPConnection(parsed.hostname, parsed.port, **arguments)
-    body = canonical(data).encode() if data is not None else None
+    require(data is None or raw_body is None, "role HTTP request supplied conflicting bodies")
+    require(raw_body is None or type(raw_body) is bytes, "role captured replay body is not exact bytes")
+    body = raw_body if raw_body is not None else (canonical(data).encode() if data is not None else None)
     require(body is None or len(body) <= HTTP_LIMIT, "role HTTP request exceeds its bound")
     try:
         connection.request(method, path + ("?" + urlencode(query) if query else ""), body=body,
@@ -434,6 +444,9 @@ class LifecycleTLS:
         self.before_ensure = None
         self.lost_replies = self.admission_races = 0
         self.ensure_payloads = []
+        self.ensure_bodies = []
+        self.thread = None
+        self.thread_start_unknown = False
         owner = self
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(certificate)
@@ -510,6 +523,7 @@ class LifecycleTLS:
                             owner.trial.ensure_calls += 1
                         with owner.lock:
                             owner.ensure_payloads.append(json.loads(body))
+                            owner.ensure_bodies.append(bytes(body))
                             before, owner.before_ensure = owner.before_ensure, None
                             drop, owner.drop_next_ensure = owner.drop_next_ensure, False
                         if before is not None:
@@ -560,6 +574,9 @@ class LifecycleTLS:
                         connection.close()
 
         self.server = Server(("127.0.0.1", listen_port), Handler)
+        # Listener ownership begins when construction returns, before the
+        # fallible thread creation/start boundary.
+        trial.frontends.append(self)
         self.server.timeout = 0.1
         def serve():
             while not self.closed.is_set():
@@ -571,8 +588,12 @@ class LifecycleTLS:
                             self.errors.append("listener_failure")
                     return
         self.thread = threading.Thread(target=serve, name="role-tls-front", daemon=True)
-        self.thread.start()
-        trial.frontends.append(self)
+        try:
+            self.thread.start()
+        except BaseException:
+            self.thread_start_unknown = True
+            self.begin_stop()
+            raise
 
     def begin_stop(self):
         self.closed.set()
@@ -585,10 +606,13 @@ class LifecycleTLS:
                     pass
 
     def finish_stop(self, deadline):
-        self.thread.join(timeout=max(0, deadline - time.monotonic()))
+        if self.thread is not None and self.thread.ident is not None:
+            self.thread.join(timeout=max(0, deadline - time.monotonic()))
         for thread in self.handlers:
-            thread.join(timeout=max(0, deadline - time.monotonic()))
-        return not self.thread.is_alive() and all(not thread.is_alive() for thread in self.handlers)
+            if thread.ident is not None:
+                thread.join(timeout=max(0, deadline - time.monotonic()))
+        return (not self.thread_start_unknown and (self.thread is None or not self.thread.is_alive())
+                and all(not thread.is_alive() for thread in self.handlers))
 
 
 def role_dependency_plan(root, original, services):
@@ -904,16 +928,30 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         refusal = trial.wait(refused, "actual stale-admission refusal", 30)
         refusal_snapshot = json.loads(refusal["snapshot"])
         require(frontends["a"].admission_races == 1 and refusal_snapshot["disposition"]["reason"] == "stale_admission_revision"
+                and refusal_snapshot["disposition"]["kind"] == "never_admitted"
                 and refusal_snapshot["termination_confirmed"] and refusal_snapshot["artifacts_captured"]
                 and refusal_snapshot["active_executions"] == [], "native race did not yield the exact never-admitted result")
+        refused_bodies = [body for payload, body in zip(frontends["a"].ensure_payloads, frontends["a"].ensure_bodies)
+                          if payload["launch_key"] == refusal["launch_key"]]
+        require(len(refused_bodies) == 1, "native refusal lacks one captured original ensure body")
+        refused_body = refused_bodies[0]
         cli("control", "target", "0")
         cli("a", "open-admission")
         bound_query = {"schema_version": 2, **scope, **approvals["a"]["destination_binding"]}
         observed = lifecycle("a", "/api/v2/workers/" + refusal_snapshot["worker_id"], query=bound_query)
         require(observed == refusal_snapshot, "reopening changed the original refusal observation")
+        # Fixture-only idempotence replay of the exact captured original body.
+        # It passes through the same HTTPS frontend and native producer, and is
+        # counted by the common eight-ensure-call budget like any other ensure.
+        replayed = exchange(endpoints["a"], "POST", "/api/v2/workers/ensure",
+            token=supplied["ZPM_INSTALL_LIFECYCLE_A"], budget=trial, ca=ca, raw_body=refused_body)
+        require(replayed == refusal_snapshot and status()["reserved"] == 0
+                and status()["repositories"][0]["desired_workers"] == 0
+                and cli("a", "inspect-admission")["unreleased_workers"] == 0,
+                "exact original refusal replay changed identity, disposition or zero capacity")
         require(next(row for row in histories() if row["launch_key"] == refusal["launch_key"])["snapshot"] == refusal["snapshot"],
                 "controller lost its original refusal history")
-        checks.append("generated close-admission between real readiness and original ensure produces a permanent native never-admitted row retained across reopening")
+        checks.append("generated close-admission between real readiness and original ensure produces a permanent native never-admitted row; exact captured-body ensure replay after reopening preserves it at zero capacity")
 
         phase = "generated foreground roles and two autonomous canonical claims"
         require(status()["reserved"] == 0 and status()["repositories"][0]["desired_workers"] == 0,
@@ -1015,9 +1053,18 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
             return (snapshot, done, candidates) if len(done) == len(candidates) == 2 and all(row.get("termination_confirmed") for row in done) else None
         captured, completed, candidates = trial.wait(captured_pair, "two native captured canonical results", 60)
         artifacts = {}
+        held_attempts = {row["task"]: row["id"] for row in attempts}
+        retained_candidates = {}
         for attempt in completed:
+            require(attempt["id"] == held_attempts[attempt["task"]], "canonical capture replaced the original held attempt")
             require(attempt["launch_fenced"] is True and set(attempt["captured_artifacts"]) == {"patch", "log", "manifest"},
                     "role canonical result lacks native capture/fence evidence")
+            own_candidates = [row for row in candidates if row["task"] == attempt["task"]]
+            require(len(own_candidates) == 1 and own_candidates[0]["attempt"] == attempt["id"]
+                    and own_candidates[0]["patch"] == attempt["captured_artifacts"]["patch"]
+                    and own_candidates[0]["base"] == base,
+                    "role candidate is not bound to the original attempt, captured patch and approved base")
+            retained_candidates[attempt["task"]] = {key: own_candidates[0][key] for key in ("id", "task", "attempt", "patch", "base")}
             contents = {}
             for kind, identity in attempt["captured_artifacts"].items():
                 content = authority("/managed/artifacts/" + identity, text=True)
@@ -1050,6 +1097,10 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         trial.wait(lambda: authority(), "retained canonical authority reopening", 30)
         require(status()["reserved"] == 0 and status()["repositories"][0]["desired_workers"] == 0,
                 "retained role restart regenerated capacity")
+        reopened = authority()
+        require({row["task"]: {key: row[key] for key in ("id", "task", "attempt", "patch", "base")}
+                 for row in reopened["candidate"]} == retained_candidates,
+                "role reopening lost or changed original canonical candidate bindings")
         for identity, content in artifacts.items():
             require(authority("/managed/artifacts/" + identity, text=True) == content, "role reopening changed retained captured results")
         for label in selected:
@@ -1102,6 +1153,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
             "original_unknown_operation": frozen, "normal_service_restart": shutdown,
             "never_admitted": {"launch_key": refusal["launch_key"], "disposition": refusal_snapshot["disposition"]},
             "canonical_results": [{"task": row["task"], "attempt": row["id"],
+                "candidate": retained_candidates[row["task"]]["id"], "approved_base": base,
                 "runtime_principal": row["runtime_binding"]["runtime_principal"],
                 "captured_artifacts": row["captured_artifacts"]} for row in completed],
             "final_reserved": 0, "model_calls": 0, "child_delegations": 0,
@@ -1110,6 +1162,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
                 "maximum_concurrent_roots": 2, "root_timeout_ms": 60000, "container_memory_bytes": 536870912,
                 "container_uid": 65532, "container_cpu_quota": 100000, "container_pids_limit": 64},
             "harness_only": ["bounded lifecycle HTTPS pass-through with one actual-reply loss and one generated close-admission race",
+                "one exact captured-body permanent-refusal ensure replay after reopening",
                 "read-only native journals and exact /proc service ownership", "label-verified Docker barrier release"],
             "not_proven": ["two independent hosts or Docker Engines", "authority private-CA support or remote authority TLS",
                 "public distribution", "browser execution", "model inference", "canonical semantic acceptance", "abrupt producer loss"]}
