@@ -25,10 +25,12 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`0dd5bf4e42b3677c3f2f564655bc87a97c4bf973`](https://github.com/niklas-olsson/OpenJules/commit/0dd5bf4e42b3677c3f2f564655bc87a97c4bf973) |
+| OpenJules | [`7135d0988dff050df63acb89f75562dafccacf79`](https://github.com/niklas-olsson/OpenJules/commit/7135d0988dff050df63acb89f75562dafccacf79) |
 
-This is the same merged runtime used by all required installed-stack jobs, including
-the explicit managed-public profile. The cold-session option, loopback bootstrap,
+This is the merged full destination runtime used by all required installed-stack
+jobs, retaining the explicit managed-public profile. The new full destination
+consumer has a separate [two-service scene](destination-reconciliation.md#qualification-and-limits)
+in the installed managed-stack job; this HTTP fixture remains the legacy contract check. The cold-session option, loopback bootstrap,
 shared HTTP transport, bounded socket denial and scoped unsupported-capability
 diagnostic remain in that source. This HTTP lifecycle job does not enable a
 child session or a public profile, start a discussion participant, or supply a

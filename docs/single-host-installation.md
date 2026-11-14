@@ -351,7 +351,7 @@ qualification records are retained in
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/0dd5bf4e42b3677c3f2f564655bc87a97c4bf973).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/7135d0988dff050df63acb89f75562dafccacf79).
 A valid generic source pin alone is insufficient. Require the component's CI and
 all required ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
@@ -523,10 +523,15 @@ imported image with the three service environments. The entire changed consumer
 set requires its own installed qualification before promotion.
 
 The current shared OpenJules pin is
-[`0dd5bf4e42b3677c3f2f564655bc87a97c4bf973`](https://github.com/niklas-olsson/OpenJules/commit/0dd5bf4e42b3677c3f2f564655bc87a97c4bf973),
-tree `e92f616a633766341fab8ef896b5848d7e0fa22d`, from
-[OpenJules #57](https://github.com/niklas-olsson/OpenJules/pull/57).
-It adds the bounded typed capability refusal consumed by this ZPM revision.
+[`7135d0988dff050df63acb89f75562dafccacf79`](https://github.com/niklas-olsson/OpenJules/commit/7135d0988dff050df63acb89f75562dafccacf79),
+tree `7f94829abf16ba0e1e258421454cff3f5ac1de71`, from
+[OpenJules #64](https://github.com/niklas-olsson/OpenJules/pull/64).
+Its [actual-main checks](https://github.com/niklas-olsson/OpenJules/actions/runs/43609471106)
+passed. It adds the separately activated full destination producer consumed by
+[explicit destination reconciliation](destination-reconciliation.md), while the
+generated installation remains the supported ordinary single-host path. The
+bounded typed capability refusal from [#57](https://github.com/niklas-olsson/OpenJules/pull/57)
+remains supported.
 Positive and unclassified replies omit the diagnostic, and the producer retains
 its legacy human explanation during mixed-version operation. The paired HTTP
 and installed historical-authority trials qualify the new producer/consumer
@@ -923,7 +928,7 @@ prove a managed public turn, child participation or delivery to a live peer.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/0dd5bf4e42b3677c3f2f564655bc87a97c4bf973/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/7135d0988dff050df63acb89f75562dafccacf79/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -941,7 +946,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/0dd5bf4e42b3677c3f2f564655bc87a97c4bf973/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/7135d0988dff050df63acb89f75562dafccacf79/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature
