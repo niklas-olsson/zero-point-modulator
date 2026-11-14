@@ -2,8 +2,10 @@
 
 This file preserves the earlier unfinished checkpoints. The completed source
 candidate is now described in the [canonical native guide](native-alpine-qualification.md)
-and [active-harness contract](native-alpine-active-harness.md). It awaits
-independent review and has no native execution result.
+and [active-harness contract](native-alpine-active-harness.md). The
+[first admitted native attempt](native-alpine-evidence/attempt-1/outcome.md)
+later failed before acquisition. Earlier NOT_RUN statements below describe their
+named source checkpoints, not the current investigation status.
 
 ## Original draft at 7cb9306
 

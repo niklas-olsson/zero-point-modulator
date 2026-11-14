@@ -320,8 +320,11 @@ The [Alpine sealed-bootstrap candidate](docs/native-alpine-qualification.md)
 freezes one Alpine 3.24.4 / official CPython 3.12.16 input set for native
 qualification. Its source-only checker and synthetic archive fixtures do not
 acquire packages or run the candidate. A separate code-bound runner and workflow
-require an explicitly reviewed exact plan before acquisition or native work;
-native qualification remains NOT RUN.
+require an explicitly reviewed exact plan before acquisition or native work.
+The [first native attempt](docs/native-alpine-evidence/attempt-1/outcome.md)
+failed at checkout-metadata admission before any artifact acquisition. Its
+cleanup passed; candidate installation and interfaces remain unqualified.
+The corrected second source plan requires fresh review and gates before activation.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private
@@ -389,7 +392,7 @@ The table is navigation, not another protocol specification.
 | Installation, bootstrap and generated configuration | [deployment](zpm/deployment.py), [sealed dependencies](zpm/dependencies.py), [interpreter context](zpm/installation_context.py) | [Single-host installation](docs/single-host-installation.md) |
 | Offline installation receipt and contract examples | [pure admission data API](zpm/installation_admission.py), [attributed fixtures](tests/fixtures/installation-admission) | [Installation-admission contract fixtures](docs/single-host-installation.md#installation-admission-contract-fixtures); [#56](https://github.com/niklas-olsson/zero-point-modulator/issues/56) |
 | Installed trials and component pins | [trial harnesses](tests/contracts), [CI workflow](.github/workflows/ci.yml) | The corresponding trial guide above; [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3) for integrated acceptance |
-| Native Alpine sealed-bootstrap investigation | [inert source admission](tests/contracts/check_alpine_sealed_candidate.py), [explicit native runner](tests/contracts/check_alpine_sealed_runtime.py), [frozen public inputs and plans](tests/contracts/native-alpine) | [Native candidate, limits and pending execution](docs/native-alpine-qualification.md), [active-harness contract](docs/native-alpine-active-harness.md); [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63) |
+| Native Alpine sealed-bootstrap investigation | [inert source admission](tests/contracts/check_alpine_sealed_candidate.py), [explicit native runner](tests/contracts/check_alpine_sealed_runtime.py), [frozen public inputs and plans](tests/contracts/native-alpine) | [Native candidate, limits and retained outcomes](docs/native-alpine-qualification.md), [active-harness contract](docs/native-alpine-active-harness.md); [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63) |
 | Cold-session and idle observations | [operational measurements](tests/contracts/operational_measurement.py), [cold trial](tests/contracts/check_cold_children_stack.py) | [Cold-session measurements](docs/cold-session-measurements.md) |
 | Installed publication procedure and trial | [publication trial](tests/contracts/check_publication_stack.py), [execution-only workflow](.github/workflows/managed-publication-execution.yml), [full publication workflow](.github/workflows/managed-publication.yml) | [Publish a final child composition](docs/single-host-installation.md#publish-a-final-child-composition); OpenJules owns the publisher |
 

@@ -44,7 +44,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-1.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-2.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -125,7 +125,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-1"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-2"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -357,12 +357,17 @@ def verify_source_files(root, service, records):
 def source_blob(path, *, maximum=CAPS["source_tracked_bytes"]):
     """Tracked empty Git blobs are valid, unlike nonempty metadata documents."""
     fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
-    with os.fdopen(fd, "rb") as stream:
-        before = os.fstat(stream.fileno())
+    try:
+        before = os.fstat(fd)
         require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1
                 and 0 <= before.st_size <= maximum, "SOURCE_FILE_BOUND")
-        raw = stream.read(maximum + 1)
-        after = os.fstat(stream.fileno())
+        with os.fdopen(fd, "rb") as stream:
+            fd = None
+            raw = stream.read(maximum + 1)
+            after = os.fstat(stream.fileno())
+    finally:
+        if fd is not None:
+            os.close(fd)
     require(len(raw) == before.st_size and all(getattr(before, name) == getattr(after, name)
             for name in ("st_dev", "st_ino", "st_size", "st_mode", "st_mtime_ns", "st_ctime_ns")), "SOURCE_CHANGED")
     return raw
@@ -395,8 +400,25 @@ def source_git_metadata(root, repository):
     remote = config['remote "origin"'] if config.has_section('remote "origin"') else {}
     require(remote.get("url") in {"https://github.com/" + repository, "https://github.com/" + repository + ".git"}
             and remote.get("fetch") == "+refs/heads/*:refs/remotes/origin/*", "SOURCE_GIT_ORIGIN")
-    for relative in ("objects/info/alternates", "info/grafts", "commondir", "config.worktree"):
+    for relative in ("objects/info/alternates", "info/grafts", "commondir"):
         require(not (metadata / relative).exists() and not (metadata / relative).is_symlink(), "SOURCE_GIT_INDIRECTION")
+    # checkout's sparse-checkout disable writes these three false values, then
+    # removes extensions.worktreeConfig. The closed main config above excludes
+    # that extension, so this exact ordinary file is inactive, not indirection.
+    worktree_path = metadata / "config.worktree"
+    try:
+        os.lstat(worktree_path)
+    except FileNotFoundError:
+        pass
+    else:
+        worktree = configparser.RawConfigParser(strict=True)
+        try:
+            worktree.read_string(source_blob(worktree_path, maximum=65536).decode("utf-8"))
+        except (OSError, UnicodeError, configparser.Error, Refused):
+            raise Refused("SOURCE_GIT_WORKTREE_CONFIG") from None
+        require(not worktree.defaults() and set(worktree.sections()) == {"core", "index"}
+                and dict(worktree["core"]) == {"sparsecheckout": "false", "sparsecheckoutcone": "false"}
+                and dict(worktree["index"]) == {"sparse": "false"}, "SOURCE_GIT_WORKTREE_CONFIG")
     def unavailable(error):
         raise Refused("SOURCE_GIT_OBSERVATION") from None
     for directory, dirs, files in os.walk(metadata, followlinks=False, onerror=unavailable):
@@ -741,7 +763,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-1",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-2",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,
@@ -1686,4 +1708,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

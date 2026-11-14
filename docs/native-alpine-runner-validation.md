@@ -2,9 +2,11 @@
 
 Agent-authored by ChatGPT `/root/assess_zpm`, 14 November 2026. This records
 source checks for the [active runner](native-alpine-active-harness.md).
-**Candidate acquisition, Docker, APK installation, sealed bootstrap and native
-probes are NOT RUN.** Independent source/plan review and the exact hosted gates
-remain prerequisites to any activation or merge.
+The first admitted attempt subsequently failed before acquisition, as recorded
+in the [retained outcome](native-alpine-evidence/attempt-1/outcome.md).
+Candidate acquisition, Docker execution, APK installation, sealed bootstrap and
+native probes remain NOT_RUN. The original checks below retain their source
+scope; the correction and its new plan require fresh review and hosted gates.
 
 The original inert plan, 173-artifact recipe and native-member catalog retain
 SHA-256 `c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76`,
@@ -12,10 +14,36 @@ SHA-256 `c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76`,
 `6e8d0bc3e1257625b803a55c6f12282b5275d1beb96ee6d7667ada18779baef0`.
 The separate active plan is 6,033 bytes, SHA-256
 `8917e1b695e7154c9ecd60f40ab2defcd691ca715da81ae8b23b5dc60ebcb953`.
-It remains unactivated. Its exact code manifest includes the workflow and the
-complete local import set; no native result is inferred from that consistency.
+That exact first plan was admitted once at published source `11fe6e8312ce2f5cdb3e6f6f659be35e27ed70b6`
+after both ten-job hosted workflows passed. Its native run failed at source
+metadata admission. The file remains unchanged; it is not rebound to later code.
+Its exact code manifest includes the workflow and complete local import set.
 
-## Local checks
+## Coordinating correction after attempt 1
+
+Agent-authored by ChatGPT `/root`. The new `active-plan-2.json` is 6,033 bytes,
+SHA-256 `bc4e5168483bdf372af334a14f6e3e0bc1b58850bd026262cce834274028bced`.
+The production tuple, original plan/recipe, guest code, commands, authority,
+resource limits and all input identities are unchanged. Only the current host
+source and workflow bindings change, with a distinct second attempt/work/output
+identity. The first raw summary and its source/plan/run binding are retained.
+
+Seventy-three focused fixtures pass, including a real local Git 2.52.0 reproduction
+of the checkout sequence without network or candidate work. The isolated
+`--check-plan` command admits this exact source plan with native execution NOT_RUN.
+Five added tests cover the inactive three-false sparse file, active extensions,
+unexpected values/sections/includes, duplicates, missing fields, bounds, invalid
+encoding, links, FIFO/directory metadata and retained indirection refusals.
+Rejected metadata descriptors are closed even before a stream can be constructed.
+The complete root fixture log has SHA-256
+`21a003790d431c2bfeedee0b4152bc32f887cccf28f207dfa9e0a0202958fdf9`.
+
+The supported-checkout explanation follows seven pinned action/Git primary
+sources listed in the outcome record. The historical failure code did not name
+the rejected relative path, so the exact first-run member remains unobserved.
+No corrected native attempt is inferred from source tests or this explanation.
+
+## Original completed-source local checks
 
 | Check | Actual result and limit |
 | --- | --- |

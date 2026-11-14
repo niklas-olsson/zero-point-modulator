@@ -134,6 +134,121 @@ class SourceAndConfigurationTests(Fixture):
                  self.assertRaisesRegex(candidate.Refused, "SOURCE_GIT_CONFIG"):
                 runtime.source_git_metadata(self.root, "fixture/source")
 
+    def checkout_metadata(self):
+        metadata = self.root / ".git"
+        metadata.mkdir()
+        (metadata / "config").write_text(
+            '[core]\n repositoryformatversion=0\n filemode=true\n bare=false\n'
+            '[remote "origin"]\n url=https://github.com/fixture/source\n'
+            ' fetch=+refs/heads/*:refs/remotes/origin/*\n[gc]\n auto=0\n')
+        body = b'[core]\n\tsparseCheckout = false\n\tsparseCheckoutCone = false\n[index]\n\tsparse = false\n'
+        (metadata / "config.worktree").write_bytes(body)
+        return metadata, body
+
+    def test_disabled_checkout_worktree_file_is_read_only_and_needs_no_git(self):
+        metadata, body = self.checkout_metadata()
+        main = (metadata / "config").read_bytes()
+        with patch.object(runtime.subprocess, "Popen", side_effect=AssertionError("No Git")):
+            runtime.source_git_metadata(self.root, "fixture/source")
+        self.assertEqual((metadata / "config.worktree").read_bytes(), body)
+        self.assertEqual((metadata / "config").read_bytes(), main)
+
+    @unittest.skipUnless(sys.platform.startswith("linux") and Path("/usr/bin/git").is_file(),
+                         "The supported checkout reproduction requires native Linux Git")
+    def test_real_checkout_sparse_disable_leaves_the_admitted_inactive_file(self):
+        environment = {"PATH": "/usr/bin:/bin", "HOME": str(self.root),
+                       "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1",
+                       "GIT_TERMINAL_PROMPT": "0"}
+        for arguments in (["init", str(self.root)],
+                          ["remote", "add", "origin", "https://github.com/fixture/source"],
+                          ["config", "--local", "gc.auto", "0"],
+                          ["sparse-checkout", "disable"],
+                          ["config", "--local", "--unset-all", "extensions.worktreeConfig"]):
+            subprocess.run(["/usr/bin/git", *arguments], cwd=self.root, env=environment,
+                           check=True, timeout=5, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        metadata = self.root / ".git"
+        self.assertTrue((metadata / "config.worktree").is_file())
+        self.assertNotIn("worktreeconfig", (metadata / "config").read_text().lower())
+        with patch.object(runtime.subprocess, "Popen", side_effect=AssertionError("Admission cannot run Git")):
+            runtime.source_git_metadata(self.root, "fixture/source")
+
+    def test_worktree_file_accepts_only_the_disabled_sparse_shape(self):
+        metadata, body = self.checkout_metadata()
+        changes = [body.replace(b"sparseCheckout = false", b"sparseCheckout = true"),
+                   body.replace(b"sparseCheckoutCone = false", b"sparseCheckoutCone = true"),
+                   body.replace(b"sparse = false", b"sparse = true"),
+                   body.replace(b"false", b"0"), body.replace(b"false", b"False"),
+                   body + b'[include]\n path=/not-read\n',
+                   body + b'[DEFAULT]\n hidden=false\n',
+                   body + b'[core]\n worktree=/not-used\n',
+                   body.replace(b'[index]', b'[index "hidden"]'),
+                   body.replace(b'\tsparse = false', b'\tsparse = false\n\tsparse = false'),
+                   body.replace(b'\tsparseCheckoutCone = false\n', b''),
+                   b'', b'\xff', b' ' * 65537]
+        for value in changes:
+            (metadata / "config.worktree").write_bytes(value)
+            with self.subTest(value=value[:100]), patch.object(runtime.subprocess, "Popen", side_effect=AssertionError("No Git")), \
+                 self.assertRaisesRegex(candidate.Refused, "SOURCE_GIT_WORKTREE_CONFIG"):
+                runtime.source_git_metadata(self.root, "fixture/source")
+
+    def test_inactive_worktree_file_cannot_be_a_link_fifo_or_directory(self):
+        metadata, body = self.checkout_metadata()
+        path = metadata / "config.worktree"
+        target = self.root / "ordinary"
+        target.write_bytes(body)
+        opened = set()
+        actual_open, actual_close = os.open, os.close
+        def observe_open(value, *arguments, **keywords):
+            descriptor = actual_open(value, *arguments, **keywords)
+            if Path(value) == path:
+                opened.add(descriptor)
+            return descriptor
+        def observe_close(descriptor):
+            opened.discard(descriptor)
+            return actual_close(descriptor)
+        for kind in ("symlink", "dangling", "hardlink", "fifo", "directory"):
+            path.unlink()
+            if kind == "symlink":
+                path.symlink_to(target)
+            elif kind == "dangling":
+                path.symlink_to(self.root / "absent")
+            elif kind == "hardlink":
+                os.link(target, path)
+            elif kind == "fifo":
+                os.mkfifo(path)
+            else:
+                path.mkdir()
+            with self.subTest(kind=kind), patch.object(runtime.os, "open", side_effect=observe_open), \
+                 patch.object(runtime.os, "close", side_effect=observe_close), \
+                 patch.object(runtime.subprocess, "Popen", side_effect=AssertionError("No Git")), \
+                 self.assertRaisesRegex(candidate.Refused, "SOURCE_GIT_WORKTREE_CONFIG"):
+                runtime.source_git_metadata(self.root, "fixture/source")
+            self.assertEqual(opened, set(), "Refused metadata must leave no open descriptor")
+            if kind == "directory":
+                path.rmdir()
+            else:
+                path.unlink()
+            path.write_bytes(body)
+
+    def test_inactive_file_does_not_admit_extensions_or_other_git_indirection(self):
+        metadata, body = self.checkout_metadata()
+        main_path = metadata / "config"
+        main = main_path.read_bytes()
+        for value in (b"true", b"false"):
+            main_path.write_bytes(main + b'[extensions]\n worktreeConfig=' + value + b'\n')
+            with self.subTest(extension=value), patch.object(runtime.subprocess, "Popen", side_effect=AssertionError("No Git")), \
+                 self.assertRaisesRegex(candidate.Refused, "SOURCE_GIT_CONFIG"):
+                runtime.source_git_metadata(self.root, "fixture/source")
+        main_path.write_bytes(main)
+        for relative in ("objects/info/alternates", "info/grafts", "commondir"):
+            path = metadata / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("/not-read")
+            with self.subTest(relative=relative), patch.object(runtime.subprocess, "Popen", side_effect=AssertionError("No Git")), \
+                 self.assertRaisesRegex(candidate.Refused, "SOURCE_GIT_INDIRECTION"):
+                runtime.source_git_metadata(self.root, "fixture/source")
+            path.unlink()
+
     def test_container_environment_authority_and_mount_drift_refuse(self):
         trial = self.trial()
         row = {"stage": "qualification", "name": trial.owner + "-qualification", "image": "sha256:" + "c" * 64,

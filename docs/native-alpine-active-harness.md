@@ -1,7 +1,9 @@
 # Native Alpine active-harness contract
 
-**Status: complete source candidate for independent review. No active plan is
-admitted and no candidate binary, container or interpreter has run.**
+**Status: corrected attempt-2 source candidate for independent review.**
+The [first admitted attempt](native-alpine-evidence/attempt-1/outcome.md) failed
+before acquisition. No candidate binary, container or interpreter has run.
+Attempt 2 has not been admitted; it retains every original authority/resource cap.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
 It changes only the ZPM qualification fixture. The original
@@ -39,7 +41,7 @@ or architecture-gated feature is part of this design.
 | Existing `check_alpine_sealed_candidate.py` | Retain the inert CLI, exact metadata admission and data-only archive helpers. No active flag is added to its command. |
 | New `check_alpine_sealed_runtime.py` | Explicit active entry point, plan admission, host process/resource guardian, bounded acquisition, Docker custody, stages, safe result reduction and cleanup. |
 | New `alpine_sealed_guest.py` | Fixed assembly-inventory and nonroot qualification commands. Use the original production APIs, separate owner interpreters and finite probe IDs. |
-| New `native-alpine/active-plan-1.json` | Bind the original plan/recipe, attempt identity, exact reviewed commands, source manifests and unchanged authority/resource limits. This file will remain unexecuted until independent source/plan review. |
+| `native-alpine/active-plan-2.json` | Bind the original plan/recipe, distinct second attempt, exact commands, source manifests and unchanged authority/resource limits. The first plan remains unchanged historical evidence. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 

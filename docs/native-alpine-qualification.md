@@ -1,7 +1,11 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: complete source candidate; independent activation review pending.
-Native execution is NOT RUN.** This [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
+**Status: attempt 1 failed before acquisition; corrected attempt 2 is an
+unactivated source candidate pending independent review and fresh gates.**
+The [retained first outcome](native-alpine-evidence/attempt-1/outcome.md) records
+`SOURCE_GIT_INDIRECTION`, zero artifact requests and successful owned cleanup.
+No candidate package, container or interpreter executed, and native installation
+remains unqualified. This [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 fixture keeps the original inert compiler and adds a separate, explicitly gated
 native runner. It changes no installer, Python admission, operative integration
 pin or production execution authority. The original 173 inputs and limits remain
@@ -78,11 +82,19 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [active plan](../tests/contracts/native-alpine/active-plan-1.json) binds the
+The [current active plan](../tests/contracts/native-alpine/active-plan-2.json) binds the
 host/guest drivers, their local imports, the workflow, original plan/recipe,
 commands, authority and caps. The original `plan-v1.json` and inert checker retain
 their historical `active_trial_implemented: false` fields. They do not become
 native evidence merely because the separate runner exists.
+
+The unchanged [first active plan](../tests/contracts/native-alpine/active-plan-1.json)
+belongs to its failed run at `11fe6e8312ce2f5cdb3e6f6f659be35e27ed70b6`.
+It is not reinterpreted against later source. Attempt 2 has a separate identity,
+work directory, upload name and code binding. The only checkout admission change
+accepts the exact inactive three-false sparse configuration left by the supported
+checkout action; active extensions, includes, other values, links and nonordinary
+metadata remain refused. No Git configuration is rewritten to obtain admission.
 
 Check active-plan source consistency without acquisition, Docker or candidate
 execution using an externally recorded exact hash:
@@ -125,7 +137,7 @@ custody, stage deadlines, exact configurations and failure handling. Its source
 and fault fixtures include controlled idle children and fake protocol/daemon
 records. They do not run Docker, acquire the candidate or execute its packages.
 
-## Native sequence, pending activation review
+## Native sequence and per-attempt admission
 
 1. **Admission.** Independently review the exact plan and active-runner head.
    The separate active entry point requires the reviewed plan hash before output
@@ -205,14 +217,14 @@ storage accounting are distinct. The active runner must count interrupted bodies
 reconcile owned PID/start identities, sample container memory/CPU/PID evidence and
 include cleanup in its final verdict.
 
-## Remaining prerequisite
+## Remaining qualification
 
 No exact artifact identity is currently missing from this native closure. Actual
-interpreter identity, APK solving, installation, imports, resource use and cleanup
-remain unobserved. The completed source candidate's acquisition, archive
-composition, Docker commands, measurement, report reduction and cleanup require
-independent review before the first native attempt. Source-only success does not
-satisfy that gate.
+interpreter identity, APK solving, installation and imports remain unobserved.
+Attempt 1 provides only early source-admission failure and cleanup evidence.
+The corrected source and its exact second plan require independent review and
+fresh hosted gates before a separately admitted attempt. Source-only success
+cannot qualify the native candidate, and the first failure remains retained.
 
 The [active-harness contract](native-alpine-active-harness.md) records separate
 plan admission, finite host acquisition and custody,
