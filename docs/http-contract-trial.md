@@ -65,7 +65,7 @@ To update the shared component pins:
    revision; retained historical results also keep their original revisions.
    Do not substitute a moving branch or tag.
 3. Run the HTTP trial locally, then require the ZPM unit, package, CLI and all
-   five integration jobs to pass for the proposed update before merging it.
+   required integration jobs to pass for the proposed update before merging it.
 
 The pin identifies the component contract intended for qualification. It does not promote the fixture
 runtime to a production managed coding profile or complete the installation
