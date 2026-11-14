@@ -374,6 +374,87 @@ class HarnessChecks(unittest.TestCase):
         subject.check_registry_timeout(path, 3)
         self.assertEqual(path.read_bytes(), before)
 
+    def sqlite_error(self, code=sqlite3.SQLITE_BUSY, name='SQLITE_BUSY'):
+        error = sqlite3.OperationalError('private token and /private/path must never be exported')
+        error.sqlite_errorcode, error.sqlite_errorname = code, name
+        return error
+
+    def test_actual_retained_read_lock_is_pending_until_same_original_row_is_readable(self):
+        path = self.root / 'locked.sqlite3'
+        writer = sqlite3.connect(path)
+        self.addCleanup(writer.close)
+        writer.execute('CREATE TABLE workers (worker_id TEXT)')
+        writer.execute('INSERT INTO workers VALUES (?)', ('original',))
+        writer.commit()
+        self.assertEqual(writer.execute('PRAGMA journal_mode').fetchone()[0], 'delete')
+        writer.execute('BEGIN EXCLUSIVE')
+        calls = []
+        def observe():
+            calls.append(True)
+            if len(calls) == 2:
+                writer.rollback()
+            return subject.rows(path, 'workers', budget=self.trial)
+        value = self.trial.wait(observe, 'original retained row', 1)
+        self.assertEqual(value, [{'worker_id': 'original'}])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(self.trial.journal_observation,
+            {'transient_reads': 1, 'last_transient': {'table': 'workers', 'sqlite_errorcode': 5, 'sqlite_errorname': 'SQLITE_BUSY'}})
+        self.assertEqual(writer.execute('SELECT COUNT(*) FROM workers').fetchone()[0], 1)
+
+    def test_transient_lock_cannot_extend_existing_observation_deadline(self):
+        pending = subject.JournalReadFailure('workers', self.sqlite_error(6, 'SQLITE_LOCKED'))
+        predicate = Mock(side_effect=pending)
+        with self.assertRaises(AssertionError):
+            self.trial.wait(predicate, 'never unlocked', 0.3)
+        self.assertLessEqual(self.clock.now, 0.3)
+        self.assertLessEqual(predicate.call_count, 3)
+        self.assertEqual(self.trial.journal_observation['transient_reads'], predicate.call_count)
+        self.assertEqual(self.trial.case_deadline, self.trial.work_deadline)
+
+    def test_missing_schema_is_fatal_and_has_only_closed_journal_diagnostics(self):
+        path = self.root / 'missing-table.sqlite3'
+        with sqlite3.connect(path) as database:
+            database.execute('CREATE TABLE original (value INTEGER)')
+        predicate = Mock(side_effect=lambda: subject.rows(path, 'workers', budget=self.trial))
+        with self.assertRaises(subject.JournalReadFailure) as raised:
+            self.trial.wait(predicate, 'missing original schema', 1)
+        self.assertEqual(predicate.call_count, 1)
+        failure = subject.RoleTrialFailure('journal read', [], raised.exception, {'outcome': 'observed'},
+                                           self.trial.journal_observation)
+        self.assertEqual(failure.role_diagnostic['journal'],
+            {'table': 'workers', 'sqlite_errorcode': 1, 'sqlite_errorname': 'SQLITE_ERROR'})
+        raw = json.dumps(failure.role_diagnostic)
+        self.assertNotIn(str(path), raw)
+        self.assertNotIn('no such table', raw)
+        self.assertEqual(self.trial.journal_observation['transient_reads'], 0)
+
+    def test_unclassified_or_mismatched_sqlite_error_never_retries_or_exports_raw_text(self):
+        for code, name in ((None, None), (True, 'SQLITE_ERROR'), (5, 'private token'),
+                           (5, 'SQLITE_LOCKED'), (sqlite3.SQLITE_CREATE_TEMP_TRIGGER, 'SQLITE_CREATE_TEMP_TRIGGER')):
+            with self.subTest(code=code, name=name):
+                error = subject.JournalReadFailure('workers', self.sqlite_error(code, name))
+                self.assertFalse(error.transient)
+                predicate = Mock(side_effect=error)
+                with self.assertRaises(subject.JournalReadFailure):
+                    self.trial.wait(predicate, 'fatal original observation', 1)
+                self.assertEqual(predicate.call_count, 1)
+                raw = json.dumps(subject.RoleTrialFailure('read', [], error, {}).role_diagnostic)
+                self.assertNotIn('private token', raw)
+                self.assertNotIn('/private/path', raw)
+
+    def test_journal_read_timeout_is_clipped_to_the_original_case_deadline(self):
+        path = self.root / 'existing.sqlite3'
+        path.touch()
+        self.trial.case_deadline = self.clock.now + 0.03
+        connection = Mock()
+        connection.execute.return_value.fetchall.return_value = []
+        with patch.object(subject.sqlite3, 'connect', return_value=connection) as connect:
+            self.assertEqual(subject.rows(path, 'workers', budget=self.trial), [])
+        self.assertAlmostEqual(connect.call_args.kwargs['timeout'], 0.03)
+        self.assertTrue(connect.call_args.kwargs['uri'])
+        self.assertTrue(connect.call_args.args[0].endswith('?mode=ro'))
+        connection.close.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

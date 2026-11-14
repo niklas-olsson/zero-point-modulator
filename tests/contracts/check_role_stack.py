@@ -42,6 +42,8 @@ ORDINARY_HTTP_SECONDS = 3
 RACE_CLOSE_SECONDS = 15
 RACE_REQUEST_SECONDS = 20
 RACE_CASE_SECONDS = 45
+SQLITE_CODES = {name: getattr(sqlite3, name) for name in dir(sqlite3)
+                if name.startswith("SQLITE_") and type(getattr(sqlite3, name)) is int}
 REQUIREMENTS = "Set the controlled answer to42 once after the role barrier."
 TASK_PROGRAM = """from pathlib import Path
 import os, sys, time
@@ -71,6 +73,19 @@ class RoleCheck(AssertionError):
         self.check = message
         self.command = command
         self.returncode = returncode
+
+
+class JournalReadFailure(RoleCheck):
+    """Closed read-only oracle evidence, never a SQLite message or file path."""
+    def __init__(self, table, error):
+        super().__init__("role journal oracle could not read retained state")
+        code, name = getattr(error, "sqlite_errorcode", None), getattr(error, "sqlite_errorname", None)
+        classified = type(code) is int and type(name) is str and SQLITE_CODES.get(name) == code
+        self.journal = {"table": table, "sqlite_errorcode": code if classified else None,
+                        "sqlite_errorname": name if classified else "SQLITE_UNCLASSIFIED"}
+        self.transient = classified and any(
+            (name == prefix or name.startswith(prefix + "_")) and code & 255 == primary
+            for prefix, primary in (("SQLITE_BUSY", sqlite3.SQLITE_BUSY), ("SQLITE_LOCKED", sqlite3.SQLITE_LOCKED)))
 
 
 def require(value, message):
@@ -121,7 +136,7 @@ def original_live(identity):
 
 
 class RoleTrialFailure(AssertionError):
-    def __init__(self, phase, checks, error, cleanup):
+    def __init__(self, phase, checks, error, cleanup, journal_observation=None):
         super().__init__("role installation trial failed during " + phase)
         # Closed, credential-free fields only. Never include str(error), argv,
         # nested native stderr, private file paths or any credential catalog.
@@ -134,6 +149,10 @@ class RoleTrialFailure(AssertionError):
                 self.role_diagnostic["command"] = error.command
             if error.returncode is not None:
                 self.role_diagnostic["returncode"] = error.returncode
+        if isinstance(error, JournalReadFailure):
+            self.role_diagnostic["journal"] = error.journal
+        if journal_observation is not None:
+            self.role_diagnostic["journal_observation"] = journal_observation
 
 
 class Trial:
@@ -154,6 +173,7 @@ class Trial:
         self.frontends = []
         self.ensure_calls = 0
         self.ensure_lock = threading.Lock()
+        self.journal_observation = {"transient_reads": 0, "last_transient": None}
 
     def limit(self, seconds, *, cleanup=False):
         remaining = (self.cleanup_deadline if cleanup else min(self.work_deadline, self.case_deadline)) - time.monotonic()
@@ -240,6 +260,12 @@ class Trial:
                 self.check()
                 try:
                     result = predicate()
+                except JournalReadFailure as error:
+                    if not error.transient:
+                        raise
+                    self.journal_observation["transient_reads"] += 1
+                    self.journal_observation["last_transient"] = dict(error.journal)
+                    result = None
                 except (ConnectionError, OSError, http.client.HTTPException):
                     result = None
                 if result:
@@ -687,20 +713,24 @@ def verify_role_environments(bundle, data):
                 "role sealed intent changed its original plan, interpreter, source revisions or service")
 
 
-def rows(path, table, maximum=8):
+def rows(path, table, maximum=8, *, budget=None):
     """Small read-only native-journal oracle, never a state writer."""
     require(table in {"workers", "deliveries", "managed_workers", "worker_operations", "worker_executions", "attempts", "calls", "registry_revisions"},
             "undeclared role journal table")
     require(path.is_file() and not path.is_symlink(), "role journal oracle requires an existing regular file")
-    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=0.1)) as database:
-        database.row_factory = sqlite3.Row
-        result = database.execute('SELECT * FROM "' + table + '" ORDER BY rowid LIMIT ?', (maximum + 1,)).fetchall()
+    timeout = 0.1 if budget is None else budget.limit(0.1)
+    try:
+        with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=timeout)) as database:
+            database.row_factory = sqlite3.Row
+            result = database.execute('SELECT * FROM "' + table + '" ORDER BY rowid LIMIT ?', (maximum + 1,)).fetchall()
+    except sqlite3.Error as error:
+        raise JournalReadFailure(table, error) from None
     require(len(result) <= maximum, "role journal history exceeded its declared cardinality")
     return [dict(row) for row in result]
 
 
-def check_registry_timeout(path, expected):
-    revisions = rows(path, "registry_revisions", maximum=16)
+def check_registry_timeout(path, expected, *, budget=None):
+    revisions = rows(path, "registry_revisions", maximum=16, budget=budget)
     require(revisions and json.loads(revisions[-1]["policy"])["timeout_seconds"] == expected,
             "retained registry did not confirm its declared current request allowance")
 
@@ -744,7 +774,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         return cli("control", "reconcile", "--max-actions", "6")
 
     def histories():
-        return rows(bundles["control"] / "state/zpm.sqlite3", "workers")
+        return rows(bundles["control"] / "state/zpm.sqlite3", "workers", budget=trial)
 
     def settle(count):
         value = tick()
@@ -788,7 +818,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         if not path.exists():
             private_json(path, result)
         report = cli("control", "registry-import", path)
-        check_registry_timeout(bundles["control"] / "state/zpm.sqlite3", timeout_seconds)
+        check_registry_timeout(bundles["control"] / "state/zpm.sqlite3", timeout_seconds, budget=trial)
         return report
 
     def lifecycle(label, path, *, query=None, token=None, expected=200):
@@ -1028,7 +1058,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         # Enable the declared destinations at target zero with hosts closed,
         # before starting that one ordinary writer.
         registry({"a", "b"})
-        check_registry_timeout(bundles["control"] / "state/zpm.sqlite3", ORDINARY_HTTP_SECONDS)
+        check_registry_timeout(bundles["control"] / "state/zpm.sqlite3", ORDINARY_HTTP_SECONDS, budget=trial)
         require(status()["reserved"] == 0 and status()["repositories"][0]["desired_workers"] == 0,
                 "enabled registry import silently placed role work")
         trial.stop("control")
@@ -1062,7 +1092,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
             for attempt in attempts:
                 label = attempt["runtime_binding"]["runtime_principal"].removeprefix("runtime-")
                 state = Path(native[label]["state_directory"])
-                deliveries = rows(state / "dispatcher/dispatch.sqlite3", "deliveries")
+                deliveries = rows(state / "dispatcher/dispatch.sqlite3", "deliveries", budget=trial)
                 delivery = next((row for row in deliveries if row["task_id"] == attempt["task"]), None)
                 if delivery is None or delivery["binding"] is None or delivery["phase"] != "dispatching":
                     return None
@@ -1071,11 +1101,11 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
                         and binding["attempt"]["id"] == attempt["id"]
                         and binding["binding"]["attempt_id"] == attempt["id"],
                         "role dispatcher changed the original canonical task/attempt binding")
-                drivers = rows(state / "runtime/journal.sqlite3", "workers")
+                drivers = rows(state / "runtime/journal.sqlite3", "workers", budget=trial)
                 driver = next((row for row in drivers if row["worker_id"] == delivery["worker_id"]), None)
                 if driver is None or not driver["container_id"] or driver["start_confirmed"] != 1:
                     return None
-                executions = rows(state / "runtime/journal.sqlite3", "attempts")
+                executions = rows(state / "runtime/journal.sqlite3", "attempts", budget=trial)
                 execution = next((row for row in executions if row["worker_id"] == driver["worker_id"]
                                   and row["attempt_id"] == attempt["id"]), None)
                 if execution is None or execution["exec_dispatched"] != 1 or not execution["exec_id"]:
@@ -1083,7 +1113,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
                 require(execution["cancelled"] == 0 and execution["exit_code"] is None
                         and 0 < execution["seconds"] <= 60 and execution["input_sha256"] == digest(REQUIREMENTS.encode()),
                         "role Docker execution changed its original input, state or bounded attempt")
-                local = rows(Path(native[label]["lifecycle_database"]), "worker_executions")
+                local = rows(Path(native[label]["lifecycle_database"]), "worker_executions", budget=trial)
                 require([row for row in local if row["worker_id"] == driver["worker_id"]] == [{
                     "worker_id": driver["worker_id"], "execution_id": attempt["id"], "parent_id": None,
                     "termination_confirmed": 0, "artifacts_captured": 0}],
@@ -1256,8 +1286,9 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         if failure is None and cleanup.get("outcome") != "observed":
             phase, failure = "owned role cleanup", RuntimeError("owned role cleanup is unknown")
     if failure is not None:
-        raise RoleTrialFailure(phase, checks, failure, cleanup) from None
+        raise RoleTrialFailure(phase, checks, failure, cleanup, trial.journal_observation) from None
     report["cleanup"] = cleanup
+    report["journal_observation"] = trial.journal_observation
     report["elapsed_seconds"] = round(time.monotonic() - trial.started, 3)
     encoded = canonical(report).encode()
     if len(encoded) > REPORT_LIMIT or any(token.encode() in encoded for token in sensitive) or time.monotonic() >= trial.deadline:
