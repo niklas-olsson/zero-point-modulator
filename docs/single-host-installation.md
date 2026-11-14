@@ -1195,8 +1195,12 @@ Well-formed invalid/disabled examples or mismatched scope/base/profile/capabilit
 facts cannot produce a fixture match. A selected public-conversation requirement
 remains unvalidated because the proposed managed installation descriptor does
 not provide that independent contract. A child-grant capability is never treated
-as actual child execution or conversation support. Error reports contain only
-fixed consumer reason codes, never raw producer diagnostics or token-map keys.
+as actual child execution or conversation support. Its optional child-policy
+projection has exactly `max_children`, `max_child_seconds`, `max_child_turns`
+and `child_capabilities`, with bounded scalar types. This shape check does not
+revalidate native policy relationships or reconstruct the authority digest.
+Error reports contain only fixed consumer reason codes, never raw producer
+diagnostics or token-map keys.
 
 Receipt `components.*.valid` and `compatible` remain null. The phase is always
 `offline-prepared`; `source_identity_verified`, `native_validation_performed`,

@@ -265,6 +265,7 @@ def _openjules(result, component):
         _require(peers[0] == {"contract": "keystone-polyphony/managed-runtime-v1", "required_capabilities": expected}, "unsupported_contract")
         for peer in peers:
             _object(peer, {"contract", "required_capabilities"})
+            _require(type(peer["required_capabilities"]) is dict)
             for key, value in peer["required_capabilities"].items():
                 if key in {"child_initial_outcome", "schema_version"}:
                     _version(value)
@@ -321,6 +322,15 @@ def _polyphony(result, component):
         _version(profile["child_initial_outcome"])
         _require(profile["child_policy"] is None or type(profile["child_policy"]) is dict)
         _require(profile["child_grants"] == (profile["child_policy"] is not None))
+        if profile["child_policy"] is not None:
+            child = _object(profile["child_policy"], {
+                "max_children", "max_child_seconds", "max_child_turns", "child_capabilities",
+            })
+            _integer(child["max_children"], 1)
+            _integer(child["max_child_turns"], 1)
+            _require(type(child["max_child_seconds"]) in {int, float}
+                     and 0 < child["max_child_seconds"] <= 604800)
+            _names(child["child_capabilities"])
         # Only validate the published scalar shape. Native policy relations,
         # attenuation, budgets and profile_digest construction stay producer-owned.
         for name in ("attempt_seconds", "budget_seconds"):

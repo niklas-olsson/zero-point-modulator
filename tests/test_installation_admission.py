@@ -104,6 +104,29 @@ class InstallationAdmissionTests(unittest.TestCase):
         self.assertEqual(result["code"], "required_peer_unvalidated")
         self.assert_unqualified(result)
 
+    def test_malformed_public_peer_capability_maps_are_bounded_refusals(self):
+        for value in (None, [], "private-native-value", 0, 1, False, True):
+            data = fixture("managed_public")
+            peers = data[3]["openjules"]["result"]["descriptor"]["profiles"][0]["required_peer_contracts"]
+            peers[1]["required_capabilities"] = value
+            with self.subTest(value=value):
+                report = compare(data)
+                self.assertIsNone(report["fixture_compatible"])
+                self.assertEqual(report["components"]["openjules"], {
+                    "status": "unvalidated", "fixture_valid": None, "code": "result_malformed",
+                })
+                self.assert_unqualified(report)
+                public = admission.public_summary(report)
+                self.assertNotIn("private-native-value", admission.encode(public).decode("ascii"))
+
+    def test_selected_public_feature_cannot_omit_its_peer(self):
+        data = fixture("managed_public")
+        data[3]["openjules"]["result"]["descriptor"]["profiles"][0]["required_peer_contracts"].pop()
+        report = compare(data)
+        self.assertIsNone(report["fixture_compatible"])
+        self.assertEqual(report["components"]["openjules"]["status"], "unvalidated")
+        self.assert_unqualified(report)
+
     def test_native_invalid_receipt_has_no_partial_descriptor_and_is_not_compatibility(self):
         result = compare(fixture("boolean_port"))
         self.assertFalse(result["fixture_compatible"])
@@ -204,6 +227,46 @@ class InstallationAdmissionTests(unittest.TestCase):
         profile.update(child_grants=False, child_policy=None)
         self.assertFalse(compare(data)["fixture_compatible"])
         self.assertEqual(compare(data)["code"], "required_capability_mismatch")
+
+    def test_child_policy_requires_the_closed_public_scalar_projection(self):
+        original = KP_FIXTURES["child"]["descriptor"]["profiles"][0]["child_policy"]
+        invalid = [{}, {"max_children": False}, {"private-native-key": "private-native-value"}]
+        invalid.extend({key: value for key, value in original.items() if key != missing}
+                       for missing in original)
+        invalid.append({**original, "private-native-key": "private-native-value"})
+        for field in ("max_children", "max_child_turns"):
+            invalid.extend({**original, field: value}
+                           for value in (False, True, 0, -1, 1.0, "2", None, 2**63))
+        invalid.extend({**original, "max_child_seconds": value}
+                       for value in (False, True, 0, -1, 604801, 10**400, "120", None))
+        invalid.extend({**original, "child_capabilities": value}
+                       for value in (None, "repository-read", [True], ["duplicate", "duplicate"],
+                                     [""], ["x" * 513], [str(n) for n in range(101)]))
+        for policy in invalid:
+            data = fixture("children")
+            data[3]["keystone-polyphony"]["result"]["descriptor"]["profiles"][0]["child_policy"] = policy
+            with self.subTest(policy=policy):
+                report = compare(data)
+                self.assertIsNone(report["fixture_compatible"])
+                self.assertEqual(report["components"]["keystone-polyphony"], {
+                    "status": "unvalidated", "fixture_valid": None, "code": "result_malformed",
+                })
+                self.assert_unqualified(report)
+                public = admission.public_summary(report)
+                self.assertNotIn("private-native", admission.encode(public).decode("ascii"))
+
+    def test_child_projection_does_not_reimplement_native_policy_relations(self):
+        data = fixture("children")
+        profile = data[3]["keystone-polyphony"]["result"]["descriptor"]["profiles"][0]
+        # These scalar values are well-formed projection data, not proof that a
+        # native validator admitted child duration or capability attenuation.
+        profile["child_policy"].update(max_child_seconds=600.5,
+                                       child_capabilities=["different-capability"])
+        report = compare(data)
+        self.assertIs(report["fixture_compatible"], True)
+        self.assert_unqualified(report)
+        profile["child_policy"]["child_capabilities"] = []
+        self.assertIs(compare(data)["fixture_compatible"], True)
 
     def test_all_numeric_version_and_boolean_result_aliases_are_refused(self):
         mutations = [
