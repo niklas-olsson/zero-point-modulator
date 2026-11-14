@@ -56,7 +56,7 @@ def temporary_credential():
 
 
 @contextmanager
-def local_server(app):
+def local_server(app, *, lifespan="auto"):
     import uvicorn
 
     with socket.socket() as listener:
@@ -64,6 +64,7 @@ def local_server(app):
         port = listener.getsockname()[1]
         server = uvicorn.Server(uvicorn.Config(
             app, log_level="error", access_log=False, timeout_graceful_shutdown=2,
+            lifespan=lifespan,
         ))
         thread = threading.Thread(
             target=lambda: server.run(sockets=[listener]), daemon=True,

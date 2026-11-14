@@ -21,8 +21,8 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `394c1c22a740a80daf9dedd1b6a3e4712b2c5caf`, merged runtime with approved managed public turns |
-| Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
+| OpenJules | `0dd5bf4e42b3677c3f2f564655bc87a97c4bf973`, merged runtime with approved managed public turns |
+| Keystone Polyphony | `6480e36355bf0d5de4e25a560d40e665fd76038c`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
 The paired initial-outcome changes are [OpenJules #16](https://github.com/niklas-olsson/OpenJules/pull/16)
@@ -34,7 +34,11 @@ and [controller publication](https://github.com/niklas-olsson/keystone-polyphony
 remain evidence for that revision. The operative Polyphony pin now includes
 [managed-task refusal on legacy paths](https://github.com/niklas-olsson/keystone-polyphony/pull/133)
 and the [merged authority-boundary documentation](https://github.com/niklas-olsson/keystone-polyphony/pull/134).
-The six probed authority modules are unchanged. The restricted public profile
+The current pin also includes [Polyphony #141](https://github.com/niklas-olsson/keystone-polyphony/pull/141),
+which names the maintained grant primitive and service `delegated_grants` and
+`delegated_grant_service`, retaining the legacy imports and v1 wire contract.
+The source probe covers those implementations and the compatibility wrapper.
+The restricted public profile
 from [Polyphony #135](https://github.com/niklas-olsson/keystone-polyphony/pull/135)
 pins MCP 1.30.0, so dependency requirements are not claimed unchanged.
 Every changed component set must pass the complete installed workflow before promotion.
@@ -179,15 +183,17 @@ checkout. Its tree is `389ec80cb6a99edf2993d59e4540f6bdeaaa5f18`.
 This historical revision is the direct parent of the original outcome authority
 commit `653c0a71a921c0d23b8e0171277524125e929e66`. The merged positive revision
 in the component table contains that implementation through its later branch
-ancestry. The six authority modules checked by the import probe match their
-original `653c0a71` Git blobs. Dependency requirements are separately pinned by
+ancestry. The source probe checks each revision's actual Git blobs, including
+the maintained delegated-grant modules in the current revision and their absence
+in the historical revision. It does not assume source files remained unchanged
+through the naming refactor. Dependency requirements are separately pinned by
 the selected source; the restricted profile now requires MCP 1.30.0.
 The full source trees differ: the later package exports the safe experimental
 receipt class without import-time I/O or managed capability/schema registration,
 and contains opt-in sidecar measurement and repository automation changes. The
 operative revision also refuses managed task IDs through legacy advisory and
-experimental task or baton paths. Those guards do not change the six probed
-authority modules. This phase still exercises the
+experimental task or baton paths. The naming refactor preserves existing v1
+capabilities, child policy and routes. This phase still exercises the
 actual canonical service, not each legacy entry point.
 The additional historical checkout remains negative compatibility evidence and
 does not replace the operative positive revision.

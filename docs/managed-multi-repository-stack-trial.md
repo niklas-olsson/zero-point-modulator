@@ -21,8 +21,8 @@ topology and observations below.
 
 | Component | Revision used by the job |
 | --- | --- |
-| OpenJules | `394c1c22a740a80daf9dedd1b6a3e4712b2c5caf` |
-| Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
+| OpenJules | `0dd5bf4e42b3677c3f2f564655bc87a97c4bf973` |
+| Keystone Polyphony | `6480e36355bf0d5de4e25a560d40e665fd76038c`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
 
@@ -96,14 +96,15 @@ claim-versus-drain regressions, actual Docker
 [versioned creation proof](https://github.com/niklas-olsson/OpenJules/pull/20),
 strict cleanup transport checks, explicit owned cleanup, child outcomes and
 durable replay. The positive Polyphony pin is the actual merged revision
-`0cf8b4772b04269505e3e1cd41324e41409b80f9`, tree `ca53939281041c98e1d36294078d183862c71cbd`.
+`6480e36355bf0d5de4e25a560d40e665fd76038c`, tree `3e8841f995df388b5d9c108ead1b677355c8ca07`.
 It retains the initial child outcomes and includes
 [Polyphony #133](https://github.com/niklas-olsson/keystone-polyphony/pull/133)'s
 managed-task refusal on legacy advisory and experimental paths, followed by
 [the merged boundary documentation](https://github.com/niklas-olsson/keystone-polyphony/pull/134)
 and the [restricted public profile](https://github.com/niklas-olsson/keystone-polyphony/pull/135).
-The canonical coordinator, managed runtime and child service and managed CLI
-match the preceding positive pin. The restricted profile pins MCP 1.30.0;
+The pin also includes [Polyphony #141](https://github.com/niklas-olsson/keystone-polyphony/pull/141),
+which gives the maintained delegated-grant implementation and service canonical
+names while retaining legacy imports, v1 routes and behavior. The restricted profile pins MCP 1.30.0;
 the complete changed environment still requires installed qualification.
 This shared-service scene exercises canonical behavior, and the component's
 refusal tests cover its legacy paths. The separate

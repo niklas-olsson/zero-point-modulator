@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
 import unicodedata
 from dataclasses import asdict, dataclass
@@ -174,20 +175,61 @@ def released(data: dict[str, Any]) -> bool:
     return data.get("state") in {"stopped", "failed"} and data.get("termination_confirmed") is True and data.get("artifacts_captured") is True and data.get("admission_open") is False and not data.get("active_executions")
 
 
-def readiness(data: Any) -> tuple[bool, str]:
+def _capability_diagnostic(data: Any) -> dict[str, Any]:
+    """Accept only the bounded producer-owned observation adopted in OJ #51."""
+    invalid = "unsupported provider capability diagnostic"
+    try:
+        encoded = json.dumps(data, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError, RecursionError):
+        raise ConfigurationError(invalid) from None
+    if len(encoded) > 1024 or not isinstance(data, dict) or set(data) != {
+        "schema_version", "producer", "dimension", "code", "requirement",
+    }:
+        raise ConfigurationError(invalid)
+    requirement = data["requirement"]
+    if (type(data["schema_version"]) is not int or data["schema_version"] != 1
+            or data["producer"] != "openjules" or data["dimension"] != "canonical_authority"
+            or data["code"] != "required_capability_unsupported"
+            or not isinstance(requirement, dict) or set(requirement) != {"name", "version"}
+            or requirement["name"] != "child_initial_outcome"
+            or type(requirement["version"]) is not int or requirement["version"] != 1):
+        raise ConfigurationError(invalid)
+    return {**data, "requirement": dict(requirement)}
+
+
+def capability_observation(data: Any, expected_scope: dict[str, str] | None = None) -> tuple[bool, str, dict[str, Any] | None]:
+    """Validate capability facts before retaining a typed, scope-bound refusal.
+
+    The human reason is never interpreted or copied. Omission supports legacy
+    peers; any present invalid extension blocks even an otherwise positive reply.
+    """
     if not isinstance(data, dict) or type(data.get("schema_version")) is not int or data["schema_version"] != 1:
-        return False, "unsupported provider capability schema"
+        return False, "unsupported provider capability schema", None
     operations = data.get("operations")
-    if not isinstance(operations, list) or not OPERATIONS.issubset(set(x for x in operations if isinstance(x, str))):
-        return False, "provider lacks required lifecycle operations"
-    # Only this fixed runtime-owned diagnostic may cross the wire boundary.
-    # Controller.check also binds a classified negative to the requested scope.
-    if (all(isinstance(operation, str) for operation in operations)
-            and data.get("profile_supported") is True and data.get("repository_access") is False
-            and data.get("managed_dispatch") is False
-            and data.get("reason") == UNSUPPORTED_AUTHORITY_REASON):
-        return False, UNSUPPORTED_AUTHORITY_REASON
+    if (not isinstance(operations, list) or not all(isinstance(item, str) for item in operations)
+            or not OPERATIONS.issubset(operations)):
+        return False, "provider lacks required lifecycle operations", None
+    if expected_scope is not None and any(data.get(key) != value for key, value in expected_scope.items()):
+        return False, "provider capability response does not match the requested scope", None
+    if "diagnostic" in data:
+        if any(not isinstance(data.get(key), str) or not data[key]
+               for key in ("deployment_id", "repository", "profile")):
+            return False, "provider capability response does not match the requested scope", None
+        try:
+            diagnostic = _capability_diagnostic(data["diagnostic"])
+        except ConfigurationError as error:
+            return False, str(error), None
+        if (data.get("profile_supported") is not True or data.get("repository_access") is not False
+                or data.get("managed_dispatch") is not False):
+            return False, "provider capability diagnostic contradicts capability flags", None
+        return False, UNSUPPORTED_AUTHORITY_REASON, diagnostic
     for key in ("profile_supported", "repository_access", "managed_dispatch"):
         if data.get(key) is not True:
-            return False, f"{key} unavailable"
-    return True, "ready"
+            return False, f"{key} unavailable", None
+    return True, "ready", None
+
+
+def readiness(data: Any) -> tuple[bool, str]:
+    """Return the existing readiness projection without a retained observation."""
+    ready, reason, _ = capability_observation(data)
+    return ready, reason

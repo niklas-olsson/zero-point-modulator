@@ -65,7 +65,7 @@ class HistoricalSourceTests(unittest.TestCase):
             "src.liminal_bridge.coordinator_service", "src.liminal_bridge.managed_service",
             "src.core.collaboration.authority", "src.core.collaboration.managed_runtime",
             "src.core.collaboration.child_grants",
-        ) + (("src.core.collaboration.child_outcomes",) if outcomes else ())
+        ) + (trial.CURRENT_ONLY_MODULES if outcomes else ())
         for module in names:
             path = checkout.joinpath(*module.split(".")).with_suffix(".py")
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -100,7 +100,7 @@ class HistoricalSourceTests(unittest.TestCase):
         self.assertEqual(prior["revision"], old[1])
         self.assertFalse(prior["initial_outcome_module_present"])
         self.assertTrue(newer["initial_outcome_module_present"])
-        self.assertEqual(set(newer["module_sha256"]), set(prior["module_sha256"]) | {trial.OUTCOME_MODULE})
+        self.assertEqual(set(newer["module_sha256"]), set(prior["module_sha256"]) | set(trial.CURRENT_ONLY_MODULES))
         self.assertNotIn(str(self.root), json.dumps(prior | newer))
         self.assertEqual(self.probe(old, False), prior)
 
@@ -163,6 +163,28 @@ class HistoricalSourceTests(unittest.TestCase):
         self.environment["PYTHONPATH"] = str(self.root)
         with self.assertRaises(AssertionError):
             self.probe(old, False)
+
+    def test_extracted_current_implementations_are_pinned_beyond_compatibility_wrappers(self):
+        source = self.source("current-extracted", outcomes=True)
+        checkout, _, _ = source
+        self.probe(source, True)
+        for name in trial.CURRENT_ONLY_MODULES[1:]:
+            relative = "/".join(name.split(".")) + ".py"
+            module = checkout / relative
+            original = module.read_bytes()
+            with self.subTest(module=name):
+                subprocess.run(["git", "-C", str(checkout), "update-index", "--assume-unchanged", relative],
+                               check=True, capture_output=True)
+                module.write_text("VALUE = 'changed maintained implementation'\n")
+                self.assertEqual(subprocess.check_output(
+                    ["git", "-C", str(checkout), "status", "--porcelain", "--untracked-files=all"], text=True
+                ), "")
+                with self.assertRaisesRegex(AssertionError, "pinned Git blob"):
+                    self.probe(source, True)
+                module.write_bytes(original)
+                subprocess.run(["git", "-C", str(checkout), "update-index", "--no-assume-unchanged", relative],
+                               check=True, capture_output=True)
+                self.probe(source, True)
 
 
 class HistoricalStateTests(unittest.TestCase):
@@ -258,7 +280,8 @@ class HistoricalStateTests(unittest.TestCase):
     def runtime_capability(self, ready):
         return {"schema_version": 1, **self.scope, "profile": self.profile, "operations": sorted(OPERATIONS),
                 "profile_supported": True, "repository_access": ready, "managed_dispatch": ready,
-                "children": ready, "reason": "ready" if ready else trial.RUNTIME_REASON}
+                "children": ready, "reason": "ready" if ready else trial.RUNTIME_REASON,
+                **({} if ready else {"diagnostic": deepcopy(trial.DIAGNOSTIC)})}
 
     def test_capability_requires_exact_positive_and_only_the_historical_omission(self):
         current = self.current_capability()
@@ -301,7 +324,8 @@ class HistoricalStateTests(unittest.TestCase):
             provider = SimpleNamespace(capabilities=lambda *_: value)
             controller = Controller(store, provider, max_workers=1)
             report = controller.tick()
-            self.assertEqual(report["repositories"][0]["validation"], {"ready": False, "reason": expected})
+            self.assertEqual(report["repositories"][0]["validation"],
+                             {"ready": False, "reason": expected, "diagnostic": trial.DIAGNOSTIC})
             admission.require_controller_plan(report, self.scope, self.profile, 1, False,
                                               unavailable_reason=expected)
             with self.assertRaises(AssertionError):
@@ -309,7 +333,7 @@ class HistoricalStateTests(unittest.TestCase):
 
             # The actual current-service/no-managed-policy scene still uses
             # the generic runtime reason and normalized controller default.
-            value = value | {"reason": admission.RUNTIME_REASON}
+            value = {key: item for key, item in value.items() if key != "diagnostic"} | {"reason": admission.RUNTIME_REASON}
             admission.require_runtime_capabilities(value, self.scope, self.profile, False)
             with self.assertRaises(AssertionError):
                 trial.require_child_runtime(value, self.scope, self.profile, False)

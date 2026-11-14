@@ -36,7 +36,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Update this immutable pin with docs/http-contract-trial.md.
-          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
+          ref: 0dd5bf4e42b3677c3f2f564655bc87a97c4bf973
           path: .contract/OpenJules
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -47,9 +47,11 @@ jobs:
       - name: Record OpenJules revision
         run: git -C .contract/OpenJules rev-parse HEAD
       - name: Install contract trial dependencies
-        run: python -m pip install "fastapi>=0.110.0" "uvicorn>=0.28.0" "httpx>=0.27.0" "docker>=7.0.0" "pyyaml>=6.0.1"
+        run: python -m pip install "fastapi>=0.110.0" "uvicorn>=0.28.0" "httpx>=0.27.0" "docker>=7.0.0" "pyyaml>=6.0.1" "cryptography>=42.0.0" "pytest>=7"
       - name: Verify the shared lifecycle contract
         run: python tests/contracts/check_openjules.py --openjules-checkout .contract/OpenJules
+      - name: Verify scoped producer diagnostics with the actual HTTP consumer
+        run: python tests/contracts/check_capability_diagnostics.py --openjules-checkout .contract/OpenJules
 
   managed-stack:
     name: Install and verify the managed stack
@@ -67,14 +69,14 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged managed-public runtime, shared by every integration gate.
           # Update this pin with docs/managed-stack-trial.md.
-          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
+          ref: 0dd5bf4e42b3677c3f2f564655bc87a97c4bf973
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
           # Same merged initial-outcome authority in every installed-stack gate.
-          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
+          ref: 6480e36355bf0d5de4e25a560d40e665fd76038c
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -153,7 +155,7 @@ jobs:
         with:
           repository: niklas-olsson/OpenJules
           # Same qualified producer as the ordinary installed stack.
-          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
+          ref: 0dd5bf4e42b3677c3f2f564655bc87a97c4bf973
           path: openjules
           persist-credentials: false
           # The producer's approved helpers and recipe have separate Git pins.
@@ -161,7 +163,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
+          ref: 6480e36355bf0d5de4e25a560d40e665fd76038c
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -248,13 +250,13 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Same merged managed-public runtime as every other integration gate.
           # Update this pin with docs/managed-isolation-stack-trial.md.
-          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
+          ref: 0dd5bf4e42b3677c3f2f564655bc87a97c4bf973
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
+          ref: 6480e36355bf0d5de4e25a560d40e665fd76038c
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -297,13 +299,13 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Same merged managed-public runtime as every other integration gate.
           # Update with docs/managed-multi-repository-stack-trial.md.
-          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
+          ref: 0dd5bf4e42b3677c3f2f564655bc87a97c4bf973
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
+          ref: 6480e36355bf0d5de4e25a560d40e665fd76038c
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -346,14 +348,14 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged managed-public runtime, shared by every integration gate.
           # Update this pin with docs/managed-children-stack-trial.md.
-          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
+          ref: 0dd5bf4e42b3677c3f2f564655bc87a97c4bf973
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
           # Same merged initial-outcome authority in every installed-stack gate.
-          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
+          ref: 6480e36355bf0d5de4e25a560d40e665fd76038c
           path: polyphony
           persist-credentials: false
       - uses: actions/checkout@v4
@@ -451,13 +453,13 @@ jobs:
           repository: niklas-olsson/OpenJules
           # Merged managed-public runtime, shared by every integration gate.
           # Update this pin with docs/managed-model-stack-trial.md.
-          ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf
+          ref: 0dd5bf4e42b3677c3f2f564655bc87a97c4bf973
           path: openjules
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9
+          ref: 6480e36355bf0d5de4e25a560d40e665fd76038c
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5

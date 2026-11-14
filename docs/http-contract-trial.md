@@ -5,6 +5,12 @@ actual OpenJules worker lifecycle API. The runtime is OpenJules' explicitly name
 `SubprocessFixture`, loaded from its test checkout. Five real Python subprocesses
 start, emit output, and terminate during the scenario.
 
+A second paired trial exercises typed capability observations through the actual
+managed OpenJules service and ZPM HTTP provider. Its authority responses and
+Docker preflight are named producer fixtures; Git, SQLite, service lifecycle,
+local sockets and both HTTP boundaries are real. It makes no worker, protected
+task or model call. The trials have separate reports and evidence scopes.
+
 This is component integration evidence. It does not establish a production
 OpenJules driver, real coding agents, Polyphony authorization, Docker confinement,
 durable artifact storage, or the complete installation acceptance in
@@ -19,7 +25,7 @@ ZPM source checked out for that workflow event and an immutable OpenJules pin:
 | Component | Revision checked |
 | --- | --- |
 | ZPM | The workflow checkout; a pull request uses GitHub's proposed merge commit |
-| OpenJules | [`394c1c22a740a80daf9dedd1b6a3e4712b2c5caf`](https://github.com/niklas-olsson/OpenJules/commit/394c1c22a740a80daf9dedd1b6a3e4712b2c5caf) |
+| OpenJules | [`0dd5bf4e42b3677c3f2f564655bc87a97c4bf973`](https://github.com/niklas-olsson/OpenJules/commit/0dd5bf4e42b3677c3f2f564655bc87a97c4bf973) |
 
 This is the same merged runtime used by all required installed-stack jobs, including
 the explicit managed-public profile. The cold-session option, loopback bootstrap,
@@ -28,7 +34,7 @@ diagnostic remain in that source. This HTTP lifecycle job does not enable a
 child session or a public profile, start a discussion participant, or supply a
 restricted conversation service.
 Their common merged Polyphony pin is
-`0cf8b4772b04269505e3e1cd41324e41409b80f9`;
+`6480e36355bf0d5de4e25a560d40e665fd76038c`;
 this HTTP-only trial does not run Polyphony. Its merged ancestry includes
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15)
 after an accepted drain or stop encounters a busy runtime lock. The deterministic
@@ -44,7 +50,12 @@ CI links and remaining acceptance in [ZPM #3](https://github.com/niklas-olsson/z
 
 Both revisions are printed in the job log. The contract job runs on Python 3.12,
 installs FastAPI, Uvicorn and the dispatcher's HTTPX, Docker SDK and PyYAML import
-dependencies, and expects all nine checks to pass with five subprocess fixtures.
+dependencies, and expects all nine lifecycle checks to pass with five subprocess
+fixtures. The paired diagnostic trial additionally imports cryptography through
+the child journal's bounded public-record validators and uses pytest only to load
+the producer's explicit existing test fixtures. It compares the exact shared
+`tests/fixtures/capability-diagnostic-v1.json` bytes and records their SHA-256 plus
+both source revisions, trees and dirty-state flags.
 The SDK is imported without creating a Docker client. The trial does not use model,
 repository-publication or authority credentials. The workflow has read-only
 repository permissions, and the contract job does not retain checkout credentials.
@@ -78,8 +89,9 @@ the ZPM controller and OpenJules lifecycle implementation. From the ZPM checkout
 in a disposable virtual environment:
 
 ```sh
-python -m pip install -e . fastapi uvicorn httpx docker pyyaml
+python -m pip install -e . fastapi uvicorn httpx docker pyyaml cryptography pytest
 python tests/contracts/check_openjules.py --openjules-checkout ../OpenJules
+python tests/contracts/check_capability_diagnostics.py --openjules-checkout ../OpenJules
 ```
 
 Pass the actual OpenJules checkout path if the repositories are elsewhere. The
@@ -146,3 +158,23 @@ fixture's launch records and cancellation tombstones remain in memory. This
 trial therefore proves same-process backend behavior and ZPM journal recovery,
 not backend durability across a runtime restart. Production launch fencing and
 capture remain separate acceptance requirements.
+
+## Paired typed diagnostic trial
+
+The producer's composed managed-service fixture performs real scoped authority
+HTTP calls. The paired trial checks supported capability omission, the adopted
+unsupported-authority object, changed human wording, a generic authority outage,
+a wrong requested profile, and recovery. ZPM stores only the validated bounded
+diagnostic, makes no replacement launch, and clears the classification when the
+next response no longer supports it. It checks retained producer journals and
+Docker-fixture counters for absence of new work. Focused consumer tests separately
+cover malformed/unknown/null/oversized payloads, Boolean aliases, positive
+contradictions, transport denial, journal reopen and original-key drain recovery.
+
+The explicit `FakeDocker` supplies preflight image/daemon/topology facts only;
+the authority HTTP responder supplies deterministic capability facts only.
+Neither proves production confinement, actual installed Polyphony, two hosts,
+browser execution or a live model. The installed child trial separately repeats
+the typed refusal against the pinned historical Polyphony process. Local socket
+restrictions can prevent the composed service from starting; retain that result
+as a local limitation and require the unchanged native CI trial to pass.

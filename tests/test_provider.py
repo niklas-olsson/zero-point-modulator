@@ -21,6 +21,7 @@ from zpm.provider import OpenJulesProvider, ProviderError
 from zpm.store import Store
 
 from .support import FixtureProvider
+from .test_capability_diagnostics import DIAGNOSTIC
 
 
 class TransportTests(unittest.TestCase):
@@ -391,10 +392,11 @@ class TransportTests(unittest.TestCase):
         self.assertLessEqual(sum(row["method"] == "POST" for row in requests), 1)
         return report
 
-    def test_scoped_unsupported_reason_is_durable_without_releasing_or_adding_capacity(self):
+    def test_scoped_typed_diagnostic_is_durable_without_releasing_or_adding_capacity(self):
         # This is a real HTTP/transport/Controller/Store test. Runtime lifecycle
         # behavior and the classified capability response remain named fixtures.
         reason = "Canonical managed authority is unsupported: child_initial_outcome=1"
+        validation = {"ready": False, "reason": reason, "diagnostic": DIAGNOSTIC}
         runtime = FixtureProvider()
         original_capabilities = runtime.capabilities
         unavailable = {"value": False}
@@ -402,7 +404,7 @@ class TransportTests(unittest.TestCase):
         def capability(*args, **kwargs):
             value = original_capabilities(*args, **kwargs)
             if unavailable["value"]:
-                value.update(repository_access=False, managed_dispatch=False, reason=reason)
+                value.update(repository_access=False, managed_dispatch=False, reason=reason, diagnostic=DIAGNOSTIC)
             return value
 
         self.runtime_http(runtime, lambda request: None)
@@ -418,7 +420,7 @@ class TransportTests(unittest.TestCase):
                 unavailable["value"] = True
                 blocked = self.bounded_tick(controller, [capabilities])
                 row = blocked["repositories"][0]
-                self.assertEqual(row["validation"], {"ready": False, "reason": reason})
+                self.assertEqual(row["validation"], validation)
                 self.assertEqual(row["reasons"], [reason])
                 self.assertEqual((row["desired_workers"], row["effective_target"], row["permitted_target"],
                                   row["healthy"], row["reserved"], row["shortfall"]), (1, 1, 1, 0, 0, 1))
@@ -428,7 +430,7 @@ class TransportTests(unittest.TestCase):
             with Store(state, "deployment-a") as store:
                 before = len(self.requests)
                 retained = Controller(store).plan()["repositories"][0]
-                self.assertEqual(retained["validation"], {"ready": False, "reason": reason})
+                self.assertEqual(retained["validation"], validation)
                 self.assertEqual(retained["reasons"], [reason])
                 self.assertEqual(len(self.requests), before, "offline status contacted the provider")
                 controller = Controller(store, self.provider, 2)
@@ -448,7 +450,7 @@ class TransportTests(unittest.TestCase):
                 unavailable["value"] = True
                 blocked = self.bounded_tick(controller, [capabilities, ("GET", worker)])
                 row = blocked["repositories"][0]
-                self.assertEqual(row["validation"], {"ready": False, "reason": reason})
+                self.assertEqual(row["validation"], validation)
                 self.assertEqual(row["reasons"], [reason])
                 self.assertEqual((row["desired_workers"], row["effective_target"], row["healthy"],
                                   row["reserved"], row["shortfall"]), (2, 2, 1, 1, 1))
@@ -456,7 +458,7 @@ class TransportTests(unittest.TestCase):
 
             with Store(state, "deployment-a") as store:
                 self.assertEqual(Controller(store).plan()["repositories"][0]["validation"],
-                                 {"ready": False, "reason": reason})
+                                 validation)
                 store.change("owner/project", "target", 1)
                 unavailable["value"] = False
                 recovered = self.bounded_tick(Controller(store, self.provider, 2),
@@ -468,10 +470,10 @@ class TransportTests(unittest.TestCase):
             self.assertEqual(len([call for call in runtime.calls if call[0] == "ensure"]), 1)
             self.assertFalse(any(call[0] in {"drain", "stop"} for call in runtime.calls))
 
-    def test_unsupported_reason_requires_the_exact_negative_contract_and_requested_scope(self):
+    def test_typed_diagnostic_requires_the_exact_negative_contract_and_requested_scope(self):
         reason = "Canonical managed authority is unsupported: child_initial_outcome=1"
         value = FixtureProvider().capabilities("deployment-a", "github:github.com/owner/project", "fixture")
-        value.update(repository_access=False, managed_dispatch=False, reason=reason)
+        value.update(repository_access=False, managed_dispatch=False, reason=reason, diagnostic=DIAGNOSTIC)
         scope_error = "provider capability response does not match the requested scope"
         cases = [
             ({}, reason),
@@ -482,16 +484,16 @@ class TransportTests(unittest.TestCase):
             ({"schema_version": True}, "unsupported provider capability schema"),
             ({"operations": ["ensure", "discover", "observe", "drain"]}, "provider lacks required lifecycle operations"),
             ({"operations": "ensure discover observe drain stop"}, "provider lacks required lifecycle operations"),
-            ({"operations": value["operations"] + [None]}, "repository_access unavailable"),
-            ({"profile_supported": False}, "profile_supported unavailable"),
-            ({"profile_supported": 1}, "profile_supported unavailable"),
-            ({"repository_access": 0}, "repository_access unavailable"),
-            ({"managed_dispatch": 0}, "repository_access unavailable"),
-            ({"managed_dispatch": None}, "repository_access unavailable"),
-            ({"managed_dispatch": True}, "repository_access unavailable"),
-            ({"reason": reason + "\nfixture-secret"}, "repository_access unavailable"),
-            ({"reason": "fixture-secret arbitrary remote diagnostic"}, "repository_access unavailable"),
-            ({"reason": None}, "repository_access unavailable"),
+            ({"operations": value["operations"] + [None]}, "provider lacks required lifecycle operations"),
+            ({"profile_supported": False}, "provider capability diagnostic contradicts capability flags"),
+            ({"profile_supported": 1}, "provider capability diagnostic contradicts capability flags"),
+            ({"repository_access": 0}, "provider capability diagnostic contradicts capability flags"),
+            ({"managed_dispatch": 0}, "provider capability diagnostic contradicts capability flags"),
+            ({"managed_dispatch": None}, "provider capability diagnostic contradicts capability flags"),
+            ({"managed_dispatch": True}, "provider capability diagnostic contradicts capability flags"),
+            ({"reason": reason + "\nfixture-secret"}, reason),
+            ({"reason": "fixture-secret arbitrary remote diagnostic"}, reason),
+            ({"reason": None}, reason),
             ({}, reason),
         ]
         with tempfile.TemporaryDirectory() as directory, Store(Path(directory) / "state.sqlite3", "deployment-a") as store:
@@ -503,7 +505,10 @@ class TransportTests(unittest.TestCase):
                     self.response = json.dumps(value | changes).encode()
                     report = self.bounded_tick(controller, [("GET", "capabilities")])
                     row = report["repositories"][0]
-                    self.assertEqual(row["validation"], {"ready": False, "reason": expected})
+                    validation = {"ready": False, "reason": expected}
+                    if expected == reason:
+                        validation["diagnostic"] = DIAGNOSTIC
+                    self.assertEqual(row["validation"], validation)
                     self.assertEqual(row["reasons"], [expected])
                     self.assertEqual((row["effective_target"], row["shortfall"], report["reserved"]), (1, 1, 0))
                     self.assertEqual(store.workers(), [])
@@ -513,12 +518,13 @@ class TransportTests(unittest.TestCase):
     def test_http_failure_body_cannot_supply_the_unsupported_diagnostic(self):
         self.response = json.dumps({
             "reason": "Canonical managed authority is unsupported: child_initial_outcome=1",
+            "diagnostic": DIAGNOSTIC,
             "secret": "fixture-secret",
         }).encode()
         with tempfile.TemporaryDirectory() as directory, Store(Path(directory) / "state.sqlite3", "deployment-a") as store:
             store.enroll({"schema_version": 1, "repository": "owner/project",
                           "profile": "fixture", "desired_workers": 1})
-            for status in (403, 503):
+            for status in (401, 403, 429, 503):
                 with self.subTest(status=status):
                     self.status = status
                     report = self.bounded_tick(Controller(store, self.provider, 1), [("GET", "capabilities")])

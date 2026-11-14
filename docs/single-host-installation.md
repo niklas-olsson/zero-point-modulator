@@ -351,7 +351,7 @@ qualification records are retained in
 
 ## Managed interpreter context and bootstrap recovery
 
-This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/394c1c22a740a80daf9dedd1b6a3e4712b2c5caf).
+This contract requires the [pinned OpenJules context implementation](https://github.com/niklas-olsson/OpenJules/commit/0dd5bf4e42b3677c3f2f564655bc87a97c4bf973).
 A valid generic source pin alone is insufficient. Require the component's CI and
 all required ZPM jobs for the same exact integration set before promotion; retained
 reports for earlier revisions do not qualify this new installation contract.
@@ -512,7 +512,7 @@ Both runtime watchdogs reap exited children adopted by PID 1 using bounded,
 nonblocking waits. Resource limits, process identities, authority and execution
 deadlines are unchanged.
 
-The current shared OpenJules pin is
+The preceding shared OpenJules image-acquisition pin is
 [`394c1c22a740a80daf9dedd1b6a3e4712b2c5caf`](https://github.com/niklas-olsson/OpenJules/commit/394c1c22a740a80daf9dedd1b6a3e4712b2c5caf),
 tree `b7877d3e55b0faf575e1e44d34cd5fc5c443594e`, from
 [OpenJules #54](https://github.com/niklas-olsson/OpenJules/pull/54).
@@ -521,6 +521,18 @@ operator-local image acquisition, build, export and archive verification. The
 [sealed bootstrap trial](#sealed-bootstrap-qualification) tests its verified
 imported image with the three service environments. The entire changed consumer
 set requires its own installed qualification before promotion.
+
+The current shared OpenJules pin is
+[`0dd5bf4e42b3677c3f2f564655bc87a97c4bf973`](https://github.com/niklas-olsson/OpenJules/commit/0dd5bf4e42b3677c3f2f564655bc87a97c4bf973),
+tree `e92f616a633766341fab8ef896b5848d7e0fa22d`, from
+[OpenJules #57](https://github.com/niklas-olsson/OpenJules/pull/57).
+It adds the bounded typed capability refusal consumed by this ZPM revision.
+Positive and unclassified replies omit the diagnostic, and the producer retains
+its legacy human explanation during mixed-version operation. The paired HTTP
+and installed historical-authority trials qualify the new producer/consumer
+observation without changing capacity, task authority or recovery keys.
+Image acquisition retains its separately approved input and helper revisions.
+The complete installed set requires its own passing ZPM qualification.
 
 The preceding shared OpenJules pin was
 [`247fe1d4647510d158eb564594a406ef33fcafc8`](https://github.com/niklas-olsson/OpenJules/commit/247fe1d4647510d158eb564594a406ef33fcafc8),
@@ -559,7 +571,7 @@ record and its link. Earlier results retain their original revisions. These
 reports do not qualify the new producer or close the separate completed-cycle
 measurement criterion.
 
-The unchanged positive Polyphony revision is
+The preceding positive Polyphony revision is
 `0cf8b4772b04269505e3e1cd41324e41409b80f9`, tree
 `ca53939281041c98e1d36294078d183862c71cbd`, from
 [Polyphony #135](https://github.com/niklas-olsson/keystone-polyphony/pull/135).
@@ -573,15 +585,23 @@ which reuses the stopped managed bundle and must produce its own passing report.
 Those component and independent-peer results do not establish live-provider
 judgment or replace the managed root-and-child report.
 
+The current shared Polyphony pin is
+`6480e36355bf0d5de4e25a560d40e665fd76038c`, tree
+`3e8841f995df388b5d9c108ead1b677355c8ca07`, from
+[Polyphony #141](https://github.com/niklas-olsson/keystone-polyphony/pull/141).
+Its [exact-merge CI](https://github.com/niklas-olsson/keystone-polyphony/actions/runs/43577103675)
+passed before the supported merge controller confirmed publication. The maintained
+grant implementation and service now use `delegated_grants` and
+`delegated_grant_service`; legacy imports, exception identities, v1 routes,
+capabilities and policy remain compatible.
+
 All normal and manual checkouts, the publisher's source assertion and the
 historical-admission probe select this operative revision. The probe retains
 historical `473df5a0` as the negative revision and validates both source trees and
-imported bytes. Its six authority modules match the original `653c0a71` blobs;
-the canonical child service and managed CLI also match the previous positive
-pin. The new restricted profile pins MCP 1.30.0, so dependency requirements are
-not claimed unchanged. The safe experimental receipt export, legacy refusal
-guards and restricted profile do not add canonical capabilities or alter the
-probed modules. Existing canonical scenes retain their assertions, while the
+imported bytes, including the new maintained modules and their absence on the
+historical source. It no longer assumes the compatibility wrapper contains the
+implementation or that current modules match older blobs. Existing canonical
+scenes retain their assertions, while the
 separate attachment starts two independent installed public peers with exactly
 three deterministic provider requests and original signed remote receipt.
 Every changed set requires its own complete ZPM qualification; historical
@@ -903,7 +923,7 @@ prove a managed public turn, child participation or delivery to a live peer.
 ## Clean a captured worker's runtime resources
 
 The pinned OpenJules runtime provides an
-[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/394c1c22a740a80daf9dedd1b6a3e4712b2c5caf/docs/managed-docker-runtime.md#explicit-host-cleanup).
+[explicit host cleanup command](https://github.com/niklas-olsson/OpenJules/blob/0dd5bf4e42b3677c3f2f564655bc87a97c4bf973/docs/managed-docker-runtime.md#explicit-host-cleanup).
 Use its installed environment, generated `config/openjules.json`, and original
 deployment/repository/worker scope. Stop the OpenJules service through its
 supervisor first and retain access to the original canonical authority. The
@@ -921,7 +941,7 @@ OpenJules operation is explicitly invoked.
 ## Publish a final child composition
 
 The pinned OpenJules child baseline also includes an explicit operator command
-for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/394c1c22a740a80daf9dedd1b6a3e4712b2c5caf/docs/managed-publication.md).
+for [final artifact composition and draft PR publication](https://github.com/niklas-olsson/OpenJules/blob/0dd5bf4e42b3677c3f2f564655bc87a97c4bf973/docs/managed-publication.md).
 Run it from the approved OpenJules checkout with that service's environment.
 Its separate private configuration selects the captured canonical candidate,
 exact source base, numeric GitHub repository identity, target branch, feature
@@ -1262,8 +1282,8 @@ resolves the producers' requirements into a finite input set; it is not a
 dependency update service or an already-reviewed production lock. Review the
 resulting plan and artifacts before using them elsewhere.
 
-The additional CI job uses the shared OpenJules pin and retains Polyphony
-`0cf8b4772b04269505e3e1cd41324e41409b80f9`. It calls OpenJules' own finite
+The additional CI job uses the shared OpenJules and Polyphony pins above.
+It calls OpenJules' own finite
 image build and archive verifier with the committed reviewed input manifests,
 imports that exact archive into the ordinary trial's Docker Engine, and passes
 the verified immutable image ID to this same installed trial. The OpenJules
