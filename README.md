@@ -258,6 +258,38 @@ snapshot containing the immutable specification, `worker_id`, state, reason,
 `admission_open`, `active_executions`, `termination_confirmed`, and
 `artifacts_captured`.
 
+Capabilities may include the optional OpenJules diagnostic adopted in
+[OpenJules #51](https://github.com/niklas-olsson/OpenJules/issues/51):
+
+```json
+{
+  "schema_version": 1,
+  "producer": "openjules",
+  "dimension": "canonical_authority",
+  "code": "required_capability_unsupported",
+  "requirement": {"name": "child_initial_outcome", "version": 1}
+}
+```
+
+The outer response carries this object under `diagnostic`. ZPM validates its
+exact keys, integer versions, vocabulary and 1,024-byte UTF-8 limit after the
+outer schema, lifecycle operations and requested deployment/repository/profile.
+This one classified refusal requires `profile_supported: true`,
+`repository_access: false` and `managed_dispatch: false`. ZPM derives its display
+reason from the validated code and retains the bounded object in
+`validation.diagnostic`; remote human `reason` text is never interpreted or copied.
+
+Positive and generic-negative responses omit the field. A legacy positive can
+remain ready without it, while a legacy negative remains generically blocked.
+A present `null`, malformed or unknown diagnostic, a scope mismatch, or
+contradictory capability flags blocks readiness and retains no classified fact.
+The next check replaces the observation, including removing a prior diagnostic
+after generic failure or recovery. Offline `plan` and `status` retain the last
+observation across restart; they do not imply freshness, a permission grant,
+successful launch or completed execution. A refusal does not release uncertain
+capacity or change the original observation, drain and stop keys. The v1
+controller still refuses v2 destination state.
+
 The provider interface and transport are in `zpm/provider.py`; strict response
 validation is in `zpm/models.py`. This contract is implemented with OpenJules
 [lifecycle issue #3](https://github.com/niklas-olsson/OpenJules/issues/3).

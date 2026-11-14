@@ -104,8 +104,8 @@ class PublicationExecutionWorkflowTests(unittest.TestCase):
     def test_pin_image_execute_or_additional_command_drift_is_rejected(self):
         self.reject_changes([
             ("ref: ${{ github.sha }}", "ref: main"),
-            ("ref: 394c1c22a740a80daf9dedd1b6a3e4712b2c5caf", "ref: main"),
-            ("ref: 0cf8b4772b04269505e3e1cd41324e41409b80f9", "ref: main"),
+            ("ref: 0dd5bf4e42b3677c3f2f564655bc87a97c4bf973", "ref: main"),
+            ("ref: 6480e36355bf0d5de4e25a560d40e665fd76038c", "ref: main"),
             ("PYTHON_BASE=python:3.12-slim", "PYTHON_BASE=python:latest"),
             ("check_publication_stack.py execute", "check_publication_stack.py publish"),
             ("check_publication_stack.py execute", "check_publication_stack.py observe"),

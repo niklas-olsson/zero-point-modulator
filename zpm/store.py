@@ -328,9 +328,12 @@ class Store:
                 self.connection.execute("UPDATE bindings SET spec=?, revision=revision+1 WHERE repository=?", (value, current["repository"]))
         return self.binding(name)
 
-    def validation(self, name: str, ready: bool, reason: str, revision: int) -> None:
+    def validation(self, name: str, ready: bool, reason: str, revision: int, diagnostic: dict[str, Any] | None = None) -> None:
         self.require_legacy()
-        self.connection.execute("UPDATE bindings SET validation=? WHERE repository=? AND revision=?", (encode({"ready": ready, "reason": reason}), name, revision))
+        observation = {"ready": ready, "reason": reason}
+        if diagnostic is not None:
+            observation["diagnostic"] = diagnostic
+        self.connection.execute("UPDATE bindings SET validation=? WHERE repository=? AND revision=?", (encode(observation), name, revision))
 
     def action_budgets(self, maximum: int) -> dict[str, int]:
         """Share one tick's mutation budget, rotating small batches durably.

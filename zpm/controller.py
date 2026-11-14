@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from .models import Binding, ConfigurationError, UNSUPPORTED_AUTHORITY_REASON, count, readiness, released, snapshot
+from .models import Binding, ConfigurationError, capability_observation, count, released, snapshot
 from .provider import ProviderError, WorkerProvider
 from .store import Store
 
@@ -66,14 +66,11 @@ class Controller:
         for row in self.store.bindings():
             try:
                 response = self.provider.capabilities(self.store.deployment_id, row["repository"], row["profile"])
-                ready, reason = readiness(response)
                 expected = {"deployment_id": self.store.deployment_id, "repository": row["repository"], "profile": row["profile"]}
-                if ((ready or reason == UNSUPPORTED_AUTHORITY_REASON)
-                        and any(response.get(key) != value for key, value in expected.items())):
-                    ready, reason = False, "provider capability response does not match the requested scope"
+                ready, reason, diagnostic = capability_observation(response, expected)
             except (ProviderError, ConfigurationError) as exc:
-                ready, reason = False, str(exc)
-            self.store.validation(row["repository"], ready, reason, row["revision"])
+                ready, reason, diagnostic = False, str(exc), None
+            self.store.validation(row["repository"], ready, reason, row["revision"], diagnostic)
         return self.plan()
 
     def _accept(self, row: dict[str, Any], response: Any, observing: bool = False) -> dict[str, Any]:

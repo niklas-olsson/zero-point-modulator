@@ -27,10 +27,11 @@ from check_stack import Client, eventually, require
 
 RUNTIME_REASON = "Canonical managed authority is unsupported: child_initial_outcome=1"
 CONTROLLER_REASON = RUNTIME_REASON
+DIAGNOSTIC = json.loads((Path(__file__).resolve().parents[1] / "fixtures/capability-diagnostic-v1.json").read_text())["diagnostic"]
 HISTORICAL_REVISION = "473df5a0406accfe5cb550877e7b28a602cb116c"
 HISTORICAL_TREE = "389ec80cb6a99edf2993d59e4540f6bdeaaa5f18"
-CURRENT_REVISION = "0cf8b4772b04269505e3e1cd41324e41409b80f9"
-CURRENT_TREE = "ca53939281041c98e1d36294078d183862c71cbd"
+CURRENT_REVISION = "6480e36355bf0d5de4e25a560d40e665fd76038c"
+CURRENT_TREE = "3e8841f995df388b5d9c108ead1b677355c8ca07"
 MODULES = (
     "src.liminal_bridge.coordinator_service",
     "src.liminal_bridge.managed_service",
@@ -39,6 +40,11 @@ MODULES = (
     "src.core.collaboration.child_grants",
 )
 OUTCOME_MODULE = "src.core.collaboration.child_outcomes"
+CURRENT_ONLY_MODULES = (
+    OUTCOME_MODULE,
+    "src.core.collaboration.delegated_grants",
+    "src.liminal_bridge.delegated_grant_service",
+)
 CHILD_SCHEMA = {
     "workers": ("worker_id", "spec", "policy_digest", "context", "closed", "close_reason",
                 "close_delivered", "retire"),
@@ -120,7 +126,7 @@ def source_provenance(checkout, interpreter, environment, revision, tree, *, out
     require("PYTHONPATH" not in environment and "PYTHONHOME" not in environment
             and environment.get("PYTHONNOUSERSITE") == "1",
             "historical authority environment changes Python source selection")
-    modules = (*MODULES, OUTCOME_MODULE)
+    modules = (*MODULES, *CURRENT_ONLY_MODULES)
     pinned = _pinned_modules(checkout, revision, modules if outcomes else MODULES)
     try:
         result = subprocess.run(
@@ -140,8 +146,8 @@ def source_provenance(checkout, interpreter, environment, revision, tree, *, out
     digests = {}
     for name in modules:
         entry = value["modules"][name]
-        if name == OUTCOME_MODULE and not outcomes:
-            require(entry is None, "historical authority unexpectedly imports the newer outcome implementation")
+        if name in CURRENT_ONLY_MODULES and not outcomes:
+            require(entry is None, "historical authority unexpectedly imports a newer implementation")
             continue
         expected = Path(checkout).joinpath(*name.split(".")).with_suffix(".py")
         require(isinstance(entry, dict) and set(entry) == {"origin", "sha256"}
@@ -194,6 +200,8 @@ def require_child_runtime(value, scope, profile, ready):
     require_runtime_capabilities(value, scope, profile, ready, unavailable_reason=RUNTIME_REASON)
     require(value.get("children") is ready,
             "historical admission changed child readiness for a different reason")
+    require(("diagnostic" not in value) if ready else canonical(value.get("diagnostic")) == canonical(DIAGNOSTIC),
+            "historical admission lacks the expected typed runtime refusal")
 
 
 def historical_histories(bundle, configuration, scope, profile, expected=None):
@@ -349,6 +357,8 @@ def qualify_historical_authority(
             value = completed_reconcile(processes, commands["zpm"], paths["zpm"], environments["zpm"],
                                         "historical-blocked-" + str(number))
             row = require_controller_plan(value, scope, profile, 1, False, unavailable_reason=CONTROLLER_REASON)
+            require(canonical(row["validation"].get("diagnostic")) == canonical(DIAGNOSTIC),
+                    "historical controller did not retain the producer's typed refusal")
             require(older_process.poll() is None, "historical authority exited during the denied phase")
             older_capabilities()
             require_child_runtime(runtime.request("GET", "/api/workers/capabilities", query=query),

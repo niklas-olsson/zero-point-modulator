@@ -16,15 +16,16 @@ rounds, warm provider reuse, publication-before-journal crash recovery, or an
 actual generated forge proposal. Those criteria remain separate in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
-The candidate uses OpenJules `394c1c22a740a80daf9dedd1b6a3e4712b2c5caf`
-and Polyphony `0cf8b4772b04269505e3e1cd41324e41409b80f9` with the
+The candidate uses OpenJules `0dd5bf4e42b3677c3f2f564655bc87a97c4bf973`
+and Polyphony `6480e36355bf0d5de4e25a560d40e665fd76038c` with the
 workflow's exact ZPM checkout. Those are merged components. Every changed
 installed set requires this scene's report and all required ZPM gates before
 promotion; component CI and historical reports retain their original scope.
 
 The original public-discussion delivery was ZPM
 `43a18ac50b1e2798ff37b8a8113731af32769872` with OpenJules
-`5bdda3de5bc3b2f8afb8de9abc191661245fe8ba` and the same Polyphony revision. Its
+`5bdda3de5bc3b2f8afb8de9abc191661245fe8ba` and Polyphony
+`0cf8b4772b04269505e3e1cd41324e41409b80f9`. Its
 [actual-main managed-stack job](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43149758935/job/130956180524)
 passed this scene with three deterministic HTTP calls, original signed records,
 exact replay and completed process containment. Those reports remain historical

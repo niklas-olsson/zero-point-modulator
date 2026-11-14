@@ -43,8 +43,8 @@ The CI job currently pins:
 
 | Component | Revision |
 | --- | --- |
-| OpenJules | `394c1c22a740a80daf9dedd1b6a3e4712b2c5caf`, merged runtime with approved managed public turns |
-| Keystone Polyphony | `0cf8b4772b04269505e3e1cd41324e41409b80f9`, merged restricted public profile, authority and managed-task refusal |
+| OpenJules | `0dd5bf4e42b3677c3f2f564655bc87a97c4bf973`, merged runtime with approved managed public turns |
+| Keystone Polyphony | `6480e36355bf0d5de4e25a560d40e665fd76038c`, merged restricted public profile, authority and managed-task refusal |
 | ZPM | The workflow's checked-out candidate revision, recorded in the report |
 
 All installed-stack jobs use this same three-repository candidate set. The HTTP
