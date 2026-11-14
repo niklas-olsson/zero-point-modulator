@@ -1145,6 +1145,104 @@ generated managed service exposes no legacy webhook route. This refusal does
 not establish convergence of every standalone ingress or enable public managed
 conversation; see [OpenJules #23](https://github.com/niklas-olsson/OpenJules/pull/23).
 
+## Installation-admission contract fixtures
+
+The first data-only slice of [#56](https://github.com/niklas-olsson/zero-point-modulator/issues/56)
+is available in `zpm.installation_admission`. It defines the private
+`zpm-installation-admission/v1` receipt and compares selected scope, base,
+authority profile digest and required protocol facts from producer examples.
+It does not replace native policy validators or inspect installed dependencies.
+Existing `prepare`, `verify`, bootstrap, service startup and operative component
+pins do not call this API. There is no new CLI or persisted configuration ledger.
+
+| Function | Inputs and result |
+| --- | --- |
+| `prepare_receipt(selection_bytes, inputs, receipt_id=...)` | Bind exact explicitly supplied selection and private input bytes, returning a private `offline-prepared` receipt. The caller supplies an opaque random UUID4; no private digest becomes a public identifier. |
+| `encode(receipt)` | Stable ASCII JSON, sorted keys, compact separators and final LF. The caller retains these bytes privately if needed; the function does not write files. |
+| `compare_fixtures(receipt_bytes, selection_bytes, inputs, observations)` | Refuse a changed selection/input binding, then compare bounded per-producer examples. Return only `evidence: contract-fixture` and a separate nullable `fixture_compatible` result. |
+| `public_summary(report)` | Check the closed fixture-status report and return its safe allowlisted projection. It excludes all selected input/configuration/credential hashes, source identities, profile digests, private values and raw producer diagnostics. |
+
+The selection is bounded UTF-8 JSON with exactly `schema_version: 1`,
+`deployment_id`, `installation_plan_digest`, `components` and `profiles`.
+`components` has exactly `openjules` and `keystone-polyphony`; each selects
+`repository`, full `source_revision`, `validation_contract` and
+`contract_digest`. These are expected identities, **not verified source
+attestations**. Profiles contain exactly canonical `repository`, `profile`,
+immutable `base`, existing producer-owned `profile_digest` and `capabilities`,
+sorted uniquely by repository/profile. The consumer compares that existing
+digest; it never reconstructs native profile, child, model or reviewer policy.
+
+`inputs` is a separate in-memory mapping of explicitly supplied bytes. OpenJules
+has `configuration` and optional `scope_declarations`; Polyphony has optional
+`managed_policy` and required `credentials`. Optional absent bytes are `None`.
+The API hashes exact bytes, including whitespace, and records each binding
+separately in the private receipt. It does not open credential files or resolve
+environment references. A changed policy, credential input, source selection,
+contract digest or even selection whitespace invalidates reuse of the old
+receipt. Input hashes establish correlation only, not input authenticity.
+
+An `observations` mapping supplies each service's UTF-8 fixture envelope or
+`None`. Every envelope has exactly `source_revision`, `contract_digest`,
+`input_digests` and the producer-specific `result`. These wrapper fields are
+checked against the private receipt. They are caller-supplied example data and
+do not prove a producer command executed. OpenJules results also bind their own
+exact configuration/scope digests. Polyphony results intentionally have no input
+hash or self-reported source fields. Its explicit enabled/disabled state is
+preserved: a valid disabled authority cannot meet required managed support.
+
+Missing, malformed, unsupported or differently bound results stay unvalidated.
+Well-formed invalid/disabled examples or mismatched scope/base/profile/capability
+facts cannot produce a fixture match. A selected public-conversation requirement
+remains unvalidated because the proposed managed installation descriptor does
+not provide that independent contract. A child-grant capability is never treated
+as actual child execution or conversation support. Error reports contain only
+fixed consumer reason codes, never raw producer diagnostics or token-map keys.
+
+Receipt `components.*.valid` and `compatible` remain null. The phase is always
+`offline-prepared`; `source_identity_verified`, `native_validation_performed`,
+`live_capabilities_checked` and `execution_qualified` are always false. Passing
+caller flags or a fixture cannot promote those fields. This slice deliberately
+has no `native-config-validated` path. A fixture match supplies no launch,
+publication or task permission, availability, installed readiness or release
+evidence. It cannot release an uncertain reservation.
+
+Selection/receipt documents are bounded to 131,072 bytes, each producer example
+to 8,000,000 bytes, nesting to 24 levels and the composition to 100 profiles,
+matching the installer limit rather than changing a native producer's limit.
+Configuration, policy and credential inputs each have a 1,000,000-byte limit;
+scope declarations have a 65,536-byte limit. Strict JSON rejects duplicate
+fields, nonfinite values and invalid UTF-8. Closed objects and exact scalar
+types reject Boolean/integer aliases. Encoding/parsing/hashing is local work;
+there is no filesystem, subprocess, network, clock or model operation.
+
+### Fixture provenance and remaining integration
+
+The attributed [fixture set](../tests/fixtures/installation-admission/README.md)
+retains the exact OpenJules artifact from merged producer revision
+`77e1191bc373c9a7bd999eaf33bc5a0b54d8323c` and selected unchanged conformance
+vectors. Its SHA-256 is
+`1eaa70ae5ea2b28259c7f7f1884bb93335f7f51cd3dc1edbaf58710f9644573b`, calculated
+over **exact committed artifact bytes**, not canonicalized JSON. This explicit
+producer rule differs from the canonical JSON artifact encoding proposed by
+Polyphony [#139](https://github.com/niklas-olsson/keystone-polyphony/issues/139#issuecomment-6869132293).
+Polyphony examples here are synthetic definition fixtures with synthetic
+digests, not outputs of a delivered native validator or static contract.
+
+Run the pure examples and negative/no-effect checks with:
+
+```sh
+python -m unittest tests.test_installation_admission -v
+```
+
+Later integration must independently verify pinned producer source and contract
+bytes, explicitly bootstrap isolated interpreters, invoke their actual native
+commands against the retained selected inputs, and bind the outputs before any
+service/runtime state creation. Source/result fields supplied by a process are
+insufficient attestation. Paired native and affected installed task/capture/drain/
+restart evidence remains outstanding in #56, OpenJules #50 and Polyphony #139.
+That integration must preserve legacy preparation and retry identities. The
+fixture API does not enable it by declaring success.
+
 ## Install dependencies and start
 
 From the generated directory:
