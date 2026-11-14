@@ -44,7 +44,7 @@ SCHEMAS = {
     },
     "lifecycle": {
         "managed_workers": ("worker_id", "deployment_id", "repository", "slot_id", "generation",
-                            "spec", "runtime_id", "state", "reason", "draining",
+                            "spec", "destination_binding", "runtime_id", "state", "reason", "draining",
                             "termination_confirmed", "artifacts_captured"),
         "worker_operations": ("deployment_id", "repository", "request_key", "action",
                               "worker_id", "payload", "completed"),

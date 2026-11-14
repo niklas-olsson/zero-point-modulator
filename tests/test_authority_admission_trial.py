@@ -43,7 +43,8 @@ COMPANION_DDL = {
     """,
     "lifecycle": """
         CREATE TABLE managed_workers(worker_id TEXT PRIMARY KEY,deployment_id TEXT NOT NULL,repository TEXT NOT NULL,
-            slot_id TEXT NOT NULL,generation INTEGER NOT NULL,spec TEXT NOT NULL,runtime_id TEXT,state TEXT NOT NULL,
+            slot_id TEXT NOT NULL,generation INTEGER NOT NULL,spec TEXT NOT NULL,destination_binding TEXT,
+            runtime_id TEXT,state TEXT NOT NULL,
             reason TEXT NOT NULL,draining INTEGER NOT NULL DEFAULT 0,termination_confirmed INTEGER NOT NULL DEFAULT 0,
             artifacts_captured INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE worker_operations(deployment_id TEXT NOT NULL,repository TEXT NOT NULL,request_key TEXT NOT NULL,
@@ -210,6 +211,13 @@ class GeneratedAdmissionFixture(unittest.TestCase):
             CREATE TABLE workers AS SELECT worker_id,spec,profile_fingerprint,container_id,create_dispatched,
                 start_dispatched,start_confirmed,retired,receipt FROM retained_workers;
         """)
+        with self.assertRaises(AssertionError):
+            self.histories()
+
+    def test_prior_lifecycle_schema_cannot_satisfy_the_new_pinned_witness(self):
+        lifecycle = self.connections["lifecycle"]
+        lifecycle.execute("ALTER TABLE managed_workers DROP COLUMN destination_binding")
+        lifecycle.commit()
         with self.assertRaises(AssertionError):
             self.histories()
 

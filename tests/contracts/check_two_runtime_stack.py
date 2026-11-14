@@ -442,6 +442,7 @@ def only_worker(history, spec, worker_id):
     local, driver = lifecycle["managed_workers"][0], runtime["workers"][0]
     require(local["worker_id"] == driver["worker_id"] == worker_id
             and canonical(json.loads(local["spec"])) == canonical(spec)
+            and local["destination_binding"] is None
             and canonical(json.loads(driver["spec"])) == canonical(spec)
             and local["runtime_id"] == "docker:" + driver["container_id"],
             "runtime incarnation binding changed")

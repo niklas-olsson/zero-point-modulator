@@ -51,7 +51,8 @@ def idle_history():
     return {
         "lifecycle": {
             "managed_workers": [{"worker_id": WORKER, **SCOPE, "slot_id": "a", "generation": 1,
-                                 "spec": trial.canonical(SPEC), "runtime_id": "docker:" + CONTAINER,
+                                 "spec": trial.canonical(SPEC), "destination_binding": None,
+                                 "runtime_id": "docker:" + CONTAINER,
                                  "state": "ready", "reason": "", "draining": 0,
                                  "termination_confirmed": 0, "artifacts_captured": 0}],
             "worker_operations": [{**SCOPE, "request_key": SPEC["launch_key"], "action": "ensure", "worker_id": WORKER,
@@ -395,6 +396,9 @@ class JournalAndIdentityTests(unittest.TestCase):
         variants.append(changed)
         changed = idle_history()
         changed["runtime"]["workers"][0]["retired"] = 1
+        variants.append(changed)
+        changed = idle_history()
+        changed["lifecycle"]["managed_workers"][0]["destination_binding"] = "{}"
         variants.append(changed)
         changed = idle_history()
         changed["dispatcher"]["deliveries"] = claiming_history()["dispatcher"]["deliveries"]

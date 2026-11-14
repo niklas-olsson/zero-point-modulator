@@ -126,7 +126,8 @@ While the no-policy coordinator is held:
   Canonical records, artifacts and events remain empty. The readers use the
   generated paths, verify the pinned component schemas and read committed WAL
   state in SQLite read-only mode. Missing journals or unexpected schemas fail
-  the trial.
+  the trial. The pinned fresh lifecycle schema includes `destination_binding`;
+  the generated v1 installation does not configure the optional destination mode.
 - Retained deployment identity and runtime/model policy fingerprints remain
   unchanged. The entire Docker container and volume inventory matches the
   baseline taken before the first manager startup. Under the fixture lock,
