@@ -327,6 +327,7 @@ def run(args):
     bundle = root / "installation"
     configuration = {
         "schema_version": 1, "deployment_id": deployment,
+        "installation_admission": "zpm-installation-admission/v1",
         "binding": {"schema_version": 1, "repository": repository, "profile": profile, "desired_workers": 0},
         "max_workers": 3,
         "sources": {name: {"checkout": str(path), "revision": revisions[name]} for name, path in source_paths.items()},
@@ -390,6 +391,8 @@ def run(args):
         from check_openjules_installation_validation import qualify as qualify_native_validation
         native_validation = qualify_native_validation(
             bundle, args.openjules_checkout, root / "openjules-native-validation", profile_case="root")
+        from check_paired_installation_preflight import qualify as qualify_paired, retained_receipt
+        paired_validation = qualify_paired(bundle, root / "paired-native-validation", profile_case="root")
         checks.append("the pinned installed OpenJules validator accepts the sealed root configuration and refuses native and consumer binding mismatches before service startup")
         legacy_refusal = installed_legacy_refusal(bundle, args.openjules_checkout, processes, data)
         checks.append("the installed OpenJules legacy CLI explicitly refuses before services start, preserving retained state, its selector and the complete Docker inventory")
@@ -593,6 +596,8 @@ def run(args):
         report = {"passed": True, "schema_version": 1, "deployment_id": deployment, "image": image,
                   "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed",
                   "openjules_native_validation": native_validation,
+                  "paired_installation_preflight": paired_validation | {
+                      "original_receipt_retained_after_scene": retained_receipt(bundle, root / "paired-native-validation")},
                   "managed_installation_legacy_refusal": legacy_refusal,
                   "checks": checks, "canonical_task": first["task"]["id"], "candidate": candidate["id"],
                   "captured_artifacts": attempt["captured_artifacts"], "final_reserved": final_reserved,

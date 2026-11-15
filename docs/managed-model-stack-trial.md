@@ -23,7 +23,7 @@ The separate `managed-model-stack` CI job pins these revisions:
 | Component | Revision |
 | --- | --- |
 | OpenJules | `7135d0988dff050df63acb89f75562dafccacf79`, merged full destination runtime retaining approved managed public turns |
-| Keystone Polyphony | `6480e36355bf0d5de4e25a560d40e665fd76038c`, merged restricted public profile, authority and managed-task refusal |
+| Keystone Polyphony | `324ace275c4c62414439dc2eb620ab1f5177b4a9`, native installation validator with existing managed contracts retained |
 | ZPM | The checked-out workflow candidate, recorded in the report |
 
 All installation gates use this same candidate set. The changed combination is
@@ -31,6 +31,14 @@ unqualified until every required ZPM CI job passes on the exact candidate
 revision. Record the successful run and exact revisions in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3); local
 HTTP fixtures and historical component tests do not replace these Docker runs.
+
+The fresh recipe selects
+[paired native installation preflight](single-host-installation.md#paired-native-installation-preflight).
+Bootstrap, repeat and start validate both actual installed producers before
+services start, with no model-fixture request. The safe paired report retains
+the original receipt through task execution and restart. A changed-seal refusal
+is reported as input-custody evidence, separately from native-parser negatives
+and the later four deterministic task-model calls.
 
 Use clean sibling checkouts at these revisions, Python 3.11 or newer, Linux
 procfs and a local rootful Docker Engine. This slice requires the host and guest

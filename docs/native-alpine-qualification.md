@@ -1,7 +1,7 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: nine actual attempts failed; prospective attempt 10 is source-only
-and awaits independent review and fresh gates. Attempt 10 is NOT_RUN.**
+**Status: ten actual attempts failed; prospective attempt 11 is source-only
+and awaits independent review and fresh gates. Attempt 11 is NOT_RUN.**
 The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
 `SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
 records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
@@ -27,8 +27,12 @@ endpoint and transport phase were not retained. The
 [ninth outcome](native-alpine-evidence/attempt-9/outcome.md) failed the OCI
 `HOSTNAME` guard after two requests and 5,489 body bytes, with no completed
 artifacts or followed redirects and cleanup PASS. Its actual hostname is unknown;
-later redirect predicates were not evaluated. Python installation and interfaces
-remain unqualified. This
+later redirect predicates were not evaluated. The
+[tenth outcome](native-alpine-evidence/attempt-10/outcome.md) records all 173
+acquisitions, APK transaction and installed inventory PASS, with a Docker
+container-size observation deadline while awaiting response headers. Cleanup passed;
+the sampling location, owned stage and backend remain unobserved. Python
+installation and interfaces remain unqualified. This
 [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 fixture keeps the original inert compiler and adds a separate, explicitly gated
 native runner. It changes no installer, Python admission, operative integration
@@ -106,7 +110,7 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [prospective tenth plan](../tests/contracts/native-alpine/active-plan-10.json) binds the
+The [prospective eleventh plan](../tests/contracts/native-alpine/active-plan-11.json) binds the
 host/guest drivers, their local imports, the workflow, original plan/recipe,
 commands, authority and caps. The original `plan-v1.json` and inert checker retain
 their historical `active_trial_implemented: false` fields. They do not become
@@ -194,15 +198,30 @@ behavior, one-second request ceiling and all original resources and authority
 remain unchanged. Its actual run failed at the OCI hostname comparison before
 exercising the Docker diagnostic. The original summary remains unchanged.
 
-The prospective tenth plan adds one closed hostname-class diagnostic to that
+The unchanged [tenth plan](../tests/contracts/native-alpine/active-plan-10.json)
+added one closed hostname-class diagnostic to that
 existing OCI `HOSTNAME` refusal, using the already-read operand without a new
 property read or parse. Only `MISSING`, `HISTORICAL_CLOUDFLARE`,
 `HISTORICAL_DOCKER_R2`, `OTHER` or `UNAVAILABLE` may cross child-result and
 first-failure custody. Historical host literals classify a refusal; they do not
 expand the exact CloudFront-only allowlist. No raw target or arbitrary-target
 hash is retained. The other nine executing inputs, all nine historical plans,
-candidate/pins, requests, commands, authority, deadlines and caps remain unchanged.
-This source-only binding supplies neither a behavior fix nor native qualification.
+candidate/pins, requests, commands, authority, deadlines and caps remained unchanged.
+Its actual run passed acquisition through the existing CloudFront policy, then
+retained `CONTAINER_SIZE / RESPONSE_HEADERS` with `DOCKER_DEADLINE`. It supplied
+no historical-host classification and no permission to expand origins.
+
+The prospective eleventh plan adds fixed sampling location, exact owned-row
+stage intent and an explicitly prior daemon-driver class to that original
+Docker refusal. The [active-harness context contract](native-alpine-active-harness.md#container-size-sampling-context)
+defines the closed values, private exception association and original first-latch
+custody. No raw ID, path, argument, daemon body or exception text is exported.
+There is no additional request, retry, timing change, size-check exception,
+reservation reduction or authority change. The original failed evidence and all
+ten consumed plans remain unchanged. Alongside the runtime and workflow, plan11
+binds the independently delivered dependency source now on main. The native
+recipe has no paired-preflight opt-in, so its original import path remains in
+use. This binding supplies neither a behavior fix nor native qualification.
 
 Check active-plan source consistency without acquisition, Docker or candidate
 execution using an externally recorded exact hash:

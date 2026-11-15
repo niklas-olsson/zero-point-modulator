@@ -45,7 +45,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-10.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-11.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -178,6 +178,16 @@ _DOCKER_PHASES = frozenset({
     "RESPONSE_VALIDATE", "DECODE", "COMPLETE", "UNAVAILABLE",
 })
 _docker_observation_failures = weakref.WeakKeyDictionary()
+_DOCKER_SAMPLE_LOCATIONS = frozenset({
+    "COMMAND_POLL", "CREATE_POLL", "START_ATTACH_POLL", "COMMIT_POLL", "REMOVE_POLL",
+    "BASE_LOAD_POLL", "IMAGE_REMOVE_POLL",
+    "STAGE_BEFORE", "STAGE_WAIT", "STAGE_COMPLETE", "RECOVERY_SAMPLE", "SOURCE_CHECK",
+    "PREREQUISITES", "PRE_CREATE", "POST_CREATE", "PRE_BASE_LOAD", "POST_BASE",
+    "PRE_COMMIT", "CLEANUP", "FINALIZATION", "UNAVAILABLE",
+})
+_DOCKER_OWNED_STAGES = frozenset({"ASSEMBLY", "QUALIFICATION", "UNAVAILABLE"})
+_DOCKER_PRIOR_DRIVERS = frozenset({"OVERLAY2", "OVERLAYFS", "OTHER", "UNAVAILABLE"})
+_docker_sample_failures = weakref.WeakKeyDictionary()
 
 
 def _docker_endpoint(path):
@@ -234,6 +244,43 @@ def _docker_observation(error):
         return None if value is None else _safe_docker_observation({"endpoint": value[0], "phase": value[1]})
     except BaseException:
         return {"endpoint": "UNAVAILABLE", "phase": "UNAVAILABLE"}
+
+
+def _safe_docker_sample_context(value):
+    unavailable = dict.fromkeys(("location", "owned_stage", "prior_driver"), "UNAVAILABLE")
+    try:
+        if type(value) is not dict or set(value) != set(unavailable):
+            return unavailable
+        for key, allowed in (("location", _DOCKER_SAMPLE_LOCATIONS),
+                             ("owned_stage", _DOCKER_OWNED_STAGES), ("prior_driver", _DOCKER_PRIOR_DRIVERS)):
+            if type(value[key]) is not str or len(value[key]) > 32 or value[key] not in allowed:
+                return unavailable
+        return dict(value)
+    except BaseException:
+        return unavailable
+
+
+def _remember_docker_sample_context(error, value):
+    try:
+        observation = _docker_observation(error)
+        if (observation is not None and observation["endpoint"] == "CONTAINER_SIZE"
+                and error not in _docker_sample_failures):
+            _docker_sample_failures[error] = ("UNAVAILABLE",) * 3
+            checked = _safe_docker_sample_context(value)
+            _docker_sample_failures[error] = tuple(checked[key] for key in ("location", "owned_stage", "prior_driver"))
+    except BaseException:
+        pass  # Optional context cannot replace the original Docker refusal.
+
+
+def _docker_sample_context(error):
+    if type(error) is not Refused:
+        return None
+    try:
+        value = _docker_sample_failures.get(error)
+        return None if value is None else _safe_docker_sample_context(dict(zip(
+            ("location", "owned_stage", "prior_driver"), value)))
+    except BaseException:
+        return _safe_docker_sample_context(None)
 
 
 def _safe_oci_redirect_predicate(value):
@@ -371,7 +418,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-10"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-11"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -458,6 +505,7 @@ def report_bytes(report):
         hostname_class_present = type(report) is dict and "oci_redirect_hostname_class" in report
         hostname_class = report.get("oci_redirect_hostname_class") if hostname_class_present else None
         docker_observation = report.get("docker_observation") if type(report) is dict else None
+        docker_context = report.get("docker_sample_context") if type(report) is dict else None
         report = {key: report[key] for key in (
             "schema", "attempt", "plan_sha256", "harness_source_revision", "production_sources",
             "recipe_sha256", "native_checks", "first_failure", "cleanup_failures")}
@@ -476,6 +524,11 @@ def report_bytes(report):
                 report["docker_observation"] = _safe_docker_observation(docker_observation)
             except BaseException:
                 report["docker_observation"] = {"endpoint": "UNAVAILABLE", "phase": "UNAVAILABLE"}
+            if docker_context is not None and report["docker_observation"]["endpoint"] == "CONTAINER_SIZE":
+                try:
+                    report["docker_sample_context"] = _safe_docker_sample_context(docker_context)
+                except BaseException:
+                    report["docker_sample_context"] = dict.fromkeys(("location", "owned_stage", "prior_driver"), "UNAVAILABLE")
         report.update(status="FAILED", native_execution_qualified=False, truncated=True,
                       truncation_reason="REPORT_BOUND")
         report["cleanup_failures"] = report["cleanup_failures"][:32]
@@ -507,6 +560,11 @@ def public_summary(report):
             result["docker_observation"] = _safe_docker_observation(report["docker_observation"])
         except BaseException:
             result["docker_observation"] = {"endpoint": "UNAVAILABLE", "phase": "UNAVAILABLE"}
+        if "docker_sample_context" in report and result["docker_observation"]["endpoint"] == "CONTAINER_SIZE":
+            try:
+                result["docker_sample_context"] = _safe_docker_sample_context(report["docker_sample_context"])
+            except BaseException:
+                result["docker_sample_context"] = dict.fromkeys(("location", "owned_stage", "prior_driver"), "UNAVAILABLE")
     groups = {"environment": ("python", "kernel", "machine", "runner_os", "runner_version", "uid", "gid",
                                "engine_api", "git", "openssl", "docker_client", "docker_server", "native_interpreter"),
               "acquisition": ("requests", "body_bytes", "metadata_reserved_bytes", "reserved_body_bytes",
@@ -1219,7 +1277,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-10",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-11",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,
@@ -1246,6 +1304,7 @@ class Trial:
         self.command_count = 0
         self.direct_children = []
         self.base_observation = None
+        self._sample_location = self._prior_docker_driver = "UNAVAILABLE"
         for name in ("home", "tmp", "docker-config", "logs", "inputs", "work", "keys"):
             (root / name).mkdir(mode=0o700)
         for name in ("layers", "apks", "wheels"):
@@ -1279,6 +1338,12 @@ class Trial:
                 observation = _docker_observation(failure)
                 if observation is not None:
                     self.record["docker_observation"] = observation
+                    try:
+                        context = _docker_sample_context(failure)
+                        if context is not None:
+                            self.record["docker_sample_context"] = context
+                    except BaseException:
+                        pass
         self.record["status"] = "FAILED"
         self.record["native_execution_qualified"] = False
 
@@ -1369,8 +1434,21 @@ class Trial:
             if row["removed"]:
                 continue
             charge += row["reserved_bytes"]
-            info = docker_json("/containers/" + (row["id"] or row["name"]) + "/json?size=true",
-                               absent=True, deadline=self.observation_deadline())
+            try:
+                info = docker_json("/containers/" + (row["id"] or row["name"]) + "/json?size=true",
+                                   absent=True, deadline=self.observation_deadline())
+            except BaseException as error:
+                try:
+                    stage = row.get("stage")
+                    _remember_docker_sample_context(error, {
+                        "location": getattr(self, "_sample_location", "UNAVAILABLE"),
+                        "owned_stage": {"assembly": "ASSEMBLY", "qualification": "QUALIFICATION"}.get(stage, "UNAVAILABLE")
+                            if type(stage) is str else "UNAVAILABLE",
+                        "prior_driver": getattr(self, "_prior_docker_driver", "UNAVAILABLE"),
+                    })
+                except BaseException:
+                    pass
+                raise
             if info is None:
                 require(row["state"] in ("creating", "removing"), "CONTAINER_DISAPPEARED")
                 continue
@@ -1412,6 +1490,43 @@ class Trial:
                                         running=running and not self.cleaning, previous=row.get("phase_observation"))
         row["phase_observation"] = checked
         return checked
+
+    def sample_at(self, location):
+        """Label this existing call only; nested or failed samples restore it."""
+        restore = failed = False
+        try:
+            try:
+                previous = getattr(self, "_sample_location", "UNAVAILABLE")
+                restore = True
+                self._sample_location = location if type(location) is str and location in _DOCKER_SAMPLE_LOCATIONS else "UNAVAILABLE"
+            except Refused:
+                raise
+            except Exception:
+                pass
+            return self.sample()
+        except BaseException:
+            failed = True
+            raise
+        finally:
+            if restore:
+                try:
+                    self._sample_location = previous
+                except BaseException as error:
+                    if not failed and (isinstance(error, Refused) or not isinstance(error, Exception)):
+                        raise
+
+    def remember_prior_driver(self, daemon):
+        """Called only after existing daemon checks; no implementation inference."""
+        try:
+            driver = daemon.get("Driver") if type(daemon) is dict else None
+            value = "UNAVAILABLE"
+            if type(driver) is str and 0 < len(driver) <= 64:
+                value = {"overlay2": "OVERLAY2", "overlayfs": "OVERLAYFS"}.get(driver, "OTHER")
+            self._prior_docker_driver = value
+        except Refused:
+            raise
+        except Exception:
+            pass
 
     def sample(self):
         now = time.monotonic()
@@ -1464,7 +1579,7 @@ class Trial:
                     and value["artifacts_complete"] <= 173 and value["redirects"] <= 4,
                     "ACQUISITION_OBSERVED_BOUND")
 
-    def run(self, command, seconds=15, *, cwd=None, allowed=(0,)):
+    def run(self, command, seconds=15, *, cwd=None, allowed=(0,), sample_location="COMMAND_POLL"):
         end = self.end(seconds)
         self.command_count += 1
         path = self.root / "logs" / ("command-%03d.log" % self.command_count)
@@ -1489,7 +1604,7 @@ class Trial:
                         require(len(output) + len(block) <= CAPS["command_output_bytes"], "COMMAND_OUTPUT_BOUND")
                         output.extend(block)
                         log.write(block)
-                    self.sample()
+                    self.sample_at(sample_location)
                 process.wait(timeout=max(.01, end - time.monotonic()))
                 require(time.monotonic() < end, "COMMAND_DEADLINE")
                 require(process.returncode in allowed, "COMMAND_EXIT")
@@ -1540,7 +1655,7 @@ class Trial:
         done = False
         try:
             self.register_child(pid)
-            self.sample()
+            self.sample_at("STAGE_BEFORE")
             require(time.monotonic() < end, "STAGE_DEADLINE")
             os.write(writer, b"1")
             os.close(writer)
@@ -1551,10 +1666,10 @@ class Trial:
                     done = True
                     value = candidate.decode(candidate.read_bounded(result, 4096))
                     _check_child_result(name, value, status)
-                    self.sample()
+                    self.sample_at("STAGE_COMPLETE")
                     return
                 require(time.monotonic() < end, "STAGE_DEADLINE")
-                self.sample()
+                self.sample_at("STAGE_WAIT")
                 time.sleep(min(.25, max(0, end - time.monotonic())))
         finally:
             if writer is not None:
@@ -1575,7 +1690,7 @@ class Trial:
 
     def sample_if_possible(self):
         try:
-            self.sample()
+            self.sample_at("RECOVERY_SAMPLE")
         except Exception as error:
             self.fail(fixed_code(error, "RESOURCE_OBSERVATION"), failure=error)
 
@@ -1592,7 +1707,7 @@ class Trial:
             config = self.run(git + ["config", "--local", "--list", "-z"]).decode().lower()
             require(not any(word in config for word in ("extraheader", "credential.", "proxy", "includepath", "include.path", "includeif.")), "SOURCE_CREDENTIAL_CONFIGURATION")
             total += verify_source_files(root, service, source_tree_records(self.run(git + ["ls-tree", "-rz", "HEAD"])))
-            self.sample()
+            self.sample_at("SOURCE_CHECK")
         return total
 
     def prerequisites(self, revision):
@@ -1632,8 +1747,14 @@ class Trial:
         require(daemon.get("OSType") == "linux" and daemon.get("Architecture") in ("x86_64", "amd64"), "DOCKER_PLATFORM")
         require(daemon.get("MemoryLimit") is True and daemon.get("SwapLimit") is True and daemon.get("PidsLimit") is True, "DOCKER_LIMIT_SUPPORT")
         require(daemon.get("DefaultRuntime") == "runc", "DOCKER_RUNTIME")
+        try:
+            self.remember_prior_driver(daemon)
+        except Refused:
+            raise
+        except Exception:
+            pass
         require(harness_bytes + self.check_sources() <= CAPS["source_tracked_bytes"], "COMBINED_SOURCE_BOUND")
-        self.sample()
+        self.sample_at("PREREQUISITES")
 
     def create(self, image, stage):
         require(self.container is None, "CONTAINER_CONCURRENCY")
@@ -1653,7 +1774,7 @@ class Trial:
         self.journal["containers"].append(row)
         self.save_journal()  # Intent before the possibly partially successful create.
         authority = candidate.AUTHORITY[stage]
-        self.sample()  # Full prospective writable-layer charge before create.
+        self.sample_at("PRE_CREATE")  # Full prospective writable-layer charge before create.
         command = self.docker + ["create", "--name", name, "--hostname", name, "--label", LABEL + "=" + self.owner,
                                 "--network", "none", "--ipc", "private", "--security-opt", "no-new-privileges",
                                 "--cap-drop", "ALL", "--memory", str(CAPS["container_memory_bytes"]),
@@ -1670,7 +1791,7 @@ class Trial:
         for source, destination, writable in mounts:
             require("," not in source, "MOUNT_PATH")
             command += ["--mount", f"type=bind,source={source},target={destination},bind-propagation=rprivate" + ("" if writable else ",readonly")]
-        identity = self.run(command + [image, *COMMANDS[stage]]).decode().strip()
+        identity = self.run(command + [image, *COMMANDS[stage]], sample_location="CREATE_POLL").decode().strip()
         require(candidate.HEX.fullmatch(identity), "CONTAINER_CREATED_ID")
         require(row["id"] in (None, identity), "CONTAINER_CREATED_ID")
         row["id"] = identity
@@ -1680,7 +1801,7 @@ class Trial:
         info = docker_json("/containers/" + identity + "/json", deadline=self.work_deadline)
         assert_container(info, identity, name, image, stage, self.owner, mounts, os.getuid(), os.getgid(), expected_environment(self.documents))
         require(info.get("State", {}).get("Status") == "created", "CONTAINER_PRESTART")
-        self.sample()
+        self.sample_at("POST_CREATE")
         return identity
 
     def remove_container(self, row):
@@ -1701,7 +1822,7 @@ class Trial:
         row["id"] = info["Id"]
         row["state"] = "removing"
         self.save_journal()
-        self.run(self.docker + ["rm", "--force", row["id"]], seconds=10)
+        self.run(self.docker + ["rm", "--force", row["id"]], seconds=10, sample_location="REMOVE_POLL")
         require(docker_json("/containers/" + row["id"] + "/json", absent=True, deadline=self.observation_deadline()) is None, "CLEANUP_CONTAINER_SURVIVED")
         require(docker_json("/containers/" + row["name"] + "/json", absent=True, deadline=self.observation_deadline()) is None, "CLEANUP_CONTAINER_NAME_SURVIVED")
         row["removed"] = True
@@ -1746,14 +1867,14 @@ class Trial:
                 tags = info.get("RepoTags") or []
                 reference = row["tag"] if row["tag"] in tags else identity
                 require(reference != identity or not tags and not info.get("RepoDigests"), "CLEANUP_IMAGE_FOREIGN_REFERENCE")
-                self.run(self.docker + ["image", "rm", reference], seconds=10)
+                self.run(self.docker + ["image", "rm", reference], seconds=10, sample_location="IMAGE_REMOVE_POLL")
                 require(docker_json("/images/" + row["tag"] + "/json", absent=True, deadline=self.observation_deadline()) is None, "CLEANUP_TAG_SURVIVED")
                 # docker image rm of the last owned tag normally removes the
                 # image. Never force or remove another actor's new reference.
                 remaining = docker_json("/images/" + identity + "/json", absent=True, deadline=self.observation_deadline())
                 if remaining is not None:
                     require(not remaining.get("RepoTags") and not remaining.get("RepoDigests"), "CLEANUP_IMAGE_FOREIGN_REFERENCE")
-                    self.run(self.docker + ["image", "rm", identity], seconds=10)
+                    self.run(self.docker + ["image", "rm", identity], seconds=10, sample_location="IMAGE_REMOVE_POLL")
                     require(docker_json("/images/" + identity + "/json", absent=True, deadline=self.observation_deadline()) is None, "CLEANUP_IMAGE_SURVIVED")
                 row["removed"] = True
                 row["state"] = "absent"
@@ -1770,7 +1891,7 @@ class Trial:
                 first_cleanup_error = error
             self.record["cleanup_failures"].append(fixed_code(error, "CLEANUP_PROCESS_UNCONFIRMED"))
         try:
-            self.sample()
+            self.sample_at("CLEANUP")
         except Exception as error:
             code = fixed_code(error, "FINAL_RESOURCE_OBSERVATION")
             self.fail(code, failure=error)
@@ -2019,7 +2140,7 @@ def finish_trial(trial):
             trial.save()
             if exported:
                 atomic_private(trial.root / "summary.json", report_bytes(public_summary(trial.record)))
-            trial.sample()
+            trial.sample_at("FINALIZATION")
         except BaseException as error:
             trial.fail(fixed_code(error, "FINAL_RESOURCE_OR_REPORT_FAILURE"), failure=error)
             trial.record["native_execution_qualified"] = False
@@ -2068,8 +2189,8 @@ def qualify(trial):
                    "last_observed_bytes": None}
             trial.journal["image_references"].append(row)
             trial.save_journal()
-            trial.sample()
-            trial.run(trial.docker + ["load", "--input", str(trial.root / "base-image.tar")], seconds=60)
+            trial.sample_at("PRE_BASE_LOAD")
+            trial.run(trial.docker + ["load", "--input", str(trial.root / "base-image.tar")], seconds=60, sample_location="BASE_LOAD_POLL")
             row["state"], row["mutation_confirmed"] = "present", True
             trial.save_journal()
         else:
@@ -2077,7 +2198,7 @@ def qualify(trial):
         actual = docker_json("/images/" + base + "/json", deadline=trial.work_deadline)
         assert_base(actual, trial.documents)
         trial.record["native_checks"]["base_image_identity"] = "PASS"
-        trial.sample()
+        trial.sample_at("POST_BASE")
         trial.save()
         trial.control = {"attempt": trial.owner, "uid": os.getuid(), "gid": os.getgid(),
                    "work_deadline_ns": int(trial.work_deadline * 1_000_000_000), "fixture_image": base,
@@ -2086,7 +2207,7 @@ def qualify(trial):
             (trial.root / "work" / name).mkdir(mode=0o700)
         stage = "apk_transaction"
         assembly = trial.create(base, "assembly")
-        trial.run(trial.docker + ["start", "--attach", assembly], seconds=CAPS["apk_transaction_seconds"])
+        trial.run(trial.docker + ["start", "--attach", assembly], seconds=CAPS["apk_transaction_seconds"], sample_location="START_ATTACH_POLL")
         info = docker_json("/containers/" + assembly + "/json", deadline=trial.work_deadline)
         require(info["State"]["Status"] == "exited" and info["State"]["ExitCode"] == 0 and not info["State"]["OOMKilled"], "ASSEMBLY_EXIT")
         native_guest_result(trial, "assembly")
@@ -2097,8 +2218,8 @@ def qualify(trial):
                "last_observed_bytes": None}
         trial.journal["image_references"].append(row)
         trial.save_journal()
-        trial.sample()
-        image = trial.run(trial.docker + ["commit", "--pause=true", "--change", "LABEL " + LABEL + "=" + trial.owner, assembly, tag], seconds=60).decode().strip()
+        trial.sample_at("PRE_COMMIT")
+        image = trial.run(trial.docker + ["commit", "--pause=true", "--change", "LABEL " + LABEL + "=" + trial.owner, assembly, tag], seconds=60, sample_location="COMMIT_POLL").decode().strip()
         require(image.startswith("sha256:") and candidate.HEX.fullmatch(image[7:]), "ASSEMBLED_IMAGE_ID")
         require(row["id"] in (None, image), "ASSEMBLED_IMAGE_ID")
         row["id"] = image
@@ -2108,7 +2229,7 @@ def qualify(trial):
         trial.remove_container(trial.journal["containers"][-1])
         stage = "interpreter_identity"
         qualification = trial.create(image, "qualification")
-        trial.run(trial.docker + ["start", "--attach", qualification], seconds=trial.work_deadline - time.monotonic())
+        trial.run(trial.docker + ["start", "--attach", qualification], seconds=trial.work_deadline - time.monotonic(), sample_location="START_ATTACH_POLL")
         info = docker_json("/containers/" + qualification + "/json", deadline=trial.work_deadline)
         require(info["State"]["Status"] == "exited" and info["State"]["ExitCode"] == 0 and not info["State"]["OOMKilled"], "QUALIFICATION_EXIT")
         native_guest_result(trial, "qualification")

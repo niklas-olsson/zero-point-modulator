@@ -105,7 +105,7 @@ class PublicationExecutionWorkflowTests(unittest.TestCase):
         self.reject_changes([
             ("ref: ${{ github.sha }}", "ref: main"),
             ("ref: 7135d0988dff050df63acb89f75562dafccacf79", "ref: main"),
-            ("ref: 6480e36355bf0d5de4e25a560d40e665fd76038c", "ref: main"),
+            ("ref: 324ace275c4c62414439dc2eb620ab1f5177b4a9", "ref: main"),
             ("PYTHON_BASE=python:3.12-slim", "PYTHON_BASE=python:latest"),
             ("check_publication_stack.py execute", "check_publication_stack.py publish"),
             ("check_publication_stack.py execute", "check_publication_stack.py observe"),

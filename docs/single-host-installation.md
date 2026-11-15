@@ -596,7 +596,7 @@ which reuses the stopped managed bundle and must produce its own passing report.
 Those component and independent-peer results do not establish live-provider
 judgment or replace the managed root-and-child report.
 
-The current shared Polyphony pin is
+The preceding shared Polyphony pin is
 `6480e36355bf0d5de4e25a560d40e665fd76038c`, tree
 `3e8841f995df388b5d9c108ead1b677355c8ca07`, from
 [Polyphony #141](https://github.com/niklas-olsson/keystone-polyphony/pull/141).
@@ -606,12 +606,26 @@ grant implementation and service now use `delegated_grants` and
 `delegated_grant_service`; legacy imports, exception identities, v1 routes,
 capabilities and policy remain compatible.
 
+The newly selected ordinary Polyphony pin is
+`324ace275c4c62414439dc2eb620ab1f5177b4a9`, tree
+`16438ddb2c31718d33e1a46f59de2c4716c559bc`, from
+[Polyphony #144](https://github.com/niklas-olsson/keystone-polyphony/pull/144).
+It adds the native `managed-installation-v1` validator and validates current
+managed configuration before service state is created. Its canonical JSON
+contract digest is
+`9a5a5d649f9dbf0357f200954381ee3ac669d89e5efcf3ed8a558c2a2ed32c7e`.
+The OpenJules pin remains `7135d0988dff050df63acb89f75562dafccacf79`.
+Selecting these revisions does not transfer older installed evidence to this
+combination; fresh full workflow reports must establish qualification.
+
 All normal and manual checkouts, the publisher's source assertion and the
 historical-admission probe select this operative revision. The probe retains
 historical `473df5a0` as the negative revision and validates both source trees and
 imported bytes, including the new maintained modules and their absence on the
 historical source. It no longer assumes the compatibility wrapper contains the
-implementation or that current modules match older blobs. Existing canonical
+implementation or that current modules match older blobs. The current-only
+module set also binds the extracted native managed-configuration validator.
+Existing canonical
 scenes retain their assertions, while the
 separate attachment starts two independent installed public peers with exactly
 three deterministic provider requests and original signed remote receipt.
@@ -1163,8 +1177,14 @@ is available in `zpm.installation_admission`. It defines the private
 `zpm-installation-admission/v1` receipt and compares selected scope, base,
 authority profile digest and required protocol facts from producer examples.
 It does not replace native policy validators or inspect installed dependencies.
-Existing `prepare`, `verify`, bootstrap, service startup and operative component
-pins do not call this API. There is no new CLI or persisted configuration ledger.
+The fixture API remains data-only and cannot establish native validity or
+installed readiness. The opt-in production wrapper in
+`zpm.installation_preflight` reuses its receipt helpers and bounded producer-result
+and composition checks, while separately establishing producer source, exact
+input and execution custody. Offline preparation remains data-only; opted-in
+bootstrap, `preflight` and startup use the production path described
+[below](#paired-native-installation-preflight). Recipes omitting
+`installation_admission` retain their existing behavior.
 
 | Function | Inputs and result |
 | --- | --- |
@@ -1238,8 +1258,8 @@ retains the exact OpenJules artifact from merged producer revision
 vectors. Its SHA-256 is
 `1eaa70ae5ea2b28259c7f7f1884bb93335f7f51cd3dc1edbaf58710f9644573b`, calculated
 over **exact committed artifact bytes**, not canonicalized JSON. This explicit
-producer rule differs from the canonical JSON artifact encoding proposed by
-Polyphony [#139](https://github.com/niklas-olsson/keystone-polyphony/issues/139#issuecomment-6869132293).
+producer rule differs from the canonical JSON artifact encoding delivered in
+Polyphony [#144](https://github.com/niklas-olsson/keystone-polyphony/pull/144).
 Polyphony examples here are synthetic definition fixtures with synthetic
 digests, not outputs of a delivered native validator or static contract.
 
@@ -1249,14 +1269,12 @@ Run the pure examples and negative/no-effect checks with:
 python -m unittest tests.test_installation_admission -v
 ```
 
-Later integration must independently verify pinned producer source and contract
-bytes, explicitly bootstrap isolated interpreters, invoke their actual native
-commands against the retained selected inputs, and bind the outputs before any
-service/runtime state creation. Source/result fields supplied by a process are
-insufficient attestation. Paired native and affected installed task/capture/drain/
-restart evidence remains outstanding in #56, OpenJules #50 and Polyphony #139.
-That integration must preserve legacy preparation and retry identities. The
-fixture API does not enable it by declaring success.
+The separately selected production preflight below verifies pinned producer
+source and contract bytes, invokes the installed native commands and binds their
+outputs before service startup. Source/result fields supplied by a process are
+insufficient attestation. Its affected installed task/capture/drain/restart
+reports remain required under #56 and OpenJules #50. The fixture API retains its
+original limits and does not enable production admission by declaring success.
 
 ### Installed OpenJules validator qualification
 
@@ -1297,14 +1315,127 @@ credentials, selector and runtime/authority state, then reverifies the bundle
 before the original trial continues. Model and child scenes also check that the
 native calls made no request to their existing deterministic model fixture.
 
-This is actual single-producer command qualification when the affected hosted
-trials pass. Source unit tests alone do not establish that result. It introduces
-no production preflight, changes no component pin and does not promote the pure
-API's `offline-prepared` phase. Polyphony native validation and complete paired
-installation compatibility remain unperformed. These checks neither complete
-#56/OpenJules #50 nor replace KP #139 or its architecture-channel requirement.
-Installed task/capture/drain/restart evidence stays with each enclosing trial,
-distinct from the static-validation observations.
+This remains separately reported single-producer command qualification. The
+first delivery, [ZPM #71](https://github.com/niklas-olsson/zero-point-modulator/pull/71),
+passed both complete premerge workflows with OpenJules `7135d098` and Polyphony
+`6480e363`; those results retain that original tuple. The helper itself enables
+no production option and does not promote the pure API's `offline-prepared`
+phase. Installed task/capture/drain/restart evidence stays with each enclosing
+trial, distinct from the static-validation observations.
+
+### Paired native installation preflight
+
+A fresh schema-1 or schema-2 single-host recipe can explicitly select:
+
+```json
+"installation_admission": "zpm-installation-admission/v1"
+```
+
+Omission retains existing preparation, bootstrap and startup behavior. Unknown
+values, ambiguous JSON and schema-3 role recipes refuse this option. Enabling it
+is not an in-place upgrade of an existing bundle. The supported host remains
+Linux with Python 3.11 or newer; the selected interpreters and dependency mode
+must also satisfy the existing installer contract. The ordinary component set
+is the exact OpenJules/Polyphony tuple above. Frozen Alpine candidates and their
+original source pins remain separate qualification work.
+
+Preparation stays offline and creates a private opaque receipt UUID, declared
+scopes and hashes of the exact generated configuration, authority policy and
+credentials. These files join the existing bundle seal. They carry no claim of
+native validation. Explicit bootstrap installs the environments and runs the
+paired preflight; every subsequent start repeats it before the first authority,
+runtime or controller process. The existing manager lock covers these steps.
+To repeat validation without starting services, use:
+
+```sh
+python3 manage.py preflight
+```
+
+Before any sibling import, ZPM verifies sealed inputs, selected Git revisions,
+immutable Git blobs and static contract bytes, rejecting ignored import shadows.
+Git replacement refs cannot substitute a selected tree. Native commands run in
+the installed producer interpreters with isolated import paths, no inherited
+provider or owner credential, and a fresh bytecode-cache namespace. The runtime
+and authority retain ownership of configuration semantics and policy digests.
+ZPM uses the actual KP descriptor's `profile_digest`; it does not reconstruct
+authority policy or infer a capability from a stopped guest or attached console.
+
+Each producer process has a ten-second bound, output is bounded during reading
+to the contract's 8,000,000-byte receipt limit, and owned cleanup has a separate
+two-second bound. Import-origin responses are limited to 4 KiB. Git inspection
+has a 15-second per-command bound. One 90-second operation budget covers native
+subprocess deadlines and elapsed checks between bounded local reads; it is not
+an interruptible deadline for an arbitrary stalled filesystem syscall.
+
+For opted-in bundles, the SQLite read in `verify` and the capability check in
+`doctor` use short shared locks on the existing sealed selection file. Native
+preflight takes an exclusive lock and waits for existing observers within its
+original 90-second budget; expiry refuses admission. A doctor requested during
+preflight returns exit 3, `ready: false`, reason `installation preflight in progress` and
+`remote_access_checked: false`; run it again after admission finishes. This
+response makes no claim about producer validity. The coordination ends before
+service launch and leaves doctor available while the
+foreground manager runs. Uncoordinated journal changes, including WAL/SHM files,
+still refuse validation; no task-state mutation is exempted.
+
+The successful private `state/installation-admission.json` retains the original
+UUID, selected source/contract/input bindings, interpreter executable and
+configuration identity, bootstrap evidence and native receipts. It is immutable:
+repeated validation re-executes both producers and requires byte-identical
+receipt content. Changed inputs, sources, interpreter evidence or stale bootstrap
+markers refuse before producer probing. A first interrupted admission reuses its
+prepared UUID. A retained success status with a missing original receipt causes
+refusal and requires restoration; a status flag is never positive admission
+evidence. The separate private last-attempt status cannot replace the receipt.
+
+Preflight reports contain only the opaque receipt ID, fixed component statuses,
+compatibility and fixed error owner/code pairs. Success is
+`native-config-validated`; live capability checks, execution qualification and
+service startup remain false in that report. Private paths, hashes, tokens,
+native receipts and subprocess output stay in the bundle. Producer or state
+mutation during validation refuses publication of a success receipt. Later task
+execution, review, acceptance, provider availability and publication retain their
+existing independent gates.
+
+The root, sealed-root, model, baseline-child and schema-2 shared-service trials
+select this option. Their separate `paired_installation_preflight` report checks
+actual installed validation, repeat identity, a changed-seal start refusal before
+any service launch, and original receipt retention after the normal scene. A
+changed seal proves input custody, not a native-parser rejection. Model and child
+trials also require zero deterministic model-fixture calls during validation.
+
+The baseline-child job also prepares three new root-pair negative fixtures,
+changing the generated OpenJules repository, profile name or base through a
+controlled initial-generation seam before the first opaque UUID, input bindings
+and bundle seal exist. Original manifest intent, declared scopes and KP policy
+retain their selected values. Each fixture runs actual isolated bootstrap and
+audited startup. The repository mismatch must yield an invalid native OpenJules
+result and `producer_invalid`; KP native validation remains unperformed. Profile
+and base mismatches require two valid native results followed by `scope_mismatch`
+or `base_mismatch`. Each refusal occurs before service launch, retaining the
+original prepared UUID, sealed inputs and task state with no success receipt.
+The safe `paired_sibling_mismatches` report distinguishes producer rejection from
+consumer incompatibility and identifies the initial generation fault. No native
+output is mocked.
+
+The accepted negative evidence has distinct boundaries:
+
+| Case | Required evidence |
+| --- | --- |
+| Generated repository differs from selected scope | A fresh sealed fixture's genuine OpenJules validation is invalid; bootstrap/start refuse with KP validation unperformed. |
+| Sibling profile/base mismatch | Two native-valid fresh compositions refuse actual paired bootstrap and start. |
+| Foreign declared repository scope; wrong contract ID/digest | The installed OpenJules qualification invokes its genuine validator with each negative input and requires native refusal. |
+| Changed selected input bytes | Changed-seal start refuses before producer probing or service launch. |
+| Source/contract/input receipt correlation | The existing pure consumer fixtures reject changed bindings; real-Git working-byte/replacement and retained-identity regressions cover the production custody boundary. Positive installed preflight independently attests the current pinned source and static contracts. |
+
+The baseline-child trial prepares a separate explicit public-discussion composition
+only for negative admission. Both genuine producer validators must return valid;
+paired bootstrap and start must then refuse `required_peer_unvalidated`, retain
+the original prepared identity and create no success receipt or producer journal.
+The missing public-conversation peer stays unknown. This scene starts no public
+participant and cannot qualify its behavior. Existing public and cold-child
+execution scenes retain their omitted-option behavior. All affected full jobs
+must pass at the same candidate before the selected tuple is called qualified.
 
 ## Install dependencies and start
 

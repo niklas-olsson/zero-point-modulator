@@ -647,6 +647,17 @@ def check_completed(root, data, environment):
 
 
 def bootstrap(root, data, environment):
+    # The optional native admission path verifies producer source before imports
+    # and gives every producer import a fresh cache namespace. Omitted selection
+    # retains the existing sealed bootstrap commands and environment.
+    native_admission = data.get("installation_admission") == "zpm-installation-admission/v1"
+    if native_admission:
+        from . import installation_preflight
+        installation_preflight.guard(root, data)
+        environment = {key: value for key, value in environment.items()
+                       if key in {"PATH", "LANG", "LC_ALL", "LC_CTYPE", "SSL_CERT_FILE", "SSL_CERT_DIR"}}
+        environment.update(PYTHONNOUSERSITE="1", PYTHONUNBUFFERED="1", PYTHONDONTWRITEBYTECODE="1",
+                           PYTHONPYCACHEPREFIX=str(root / "environments" / (".installation-bytecode-" + os.urandom(16).hex())))
     plan, inventory = verify(data["dependency_plan"], data["sources"], root,
                              role=data["role"] if data["schema_version"] == 3 else None)
     if interpreter_identity() != plan["interpreter"]:
@@ -687,6 +698,8 @@ def bootstrap(root, data, environment):
         clean = {key: value for key, value in environment.items() if key in {"PATH", "LANG", "LC_ALL", "LC_CTYPE"}}
         clean.update(HOME=str(scratch / "home"), TMPDIR=str(scratch / "tmp"),
                      PIP_CONFIG_FILE=os.devnull, PYTHONNOUSERSITE="1", PYTHONUNBUFFERED="1")
+        if native_admission:
+            clean.update(PYTHONDONTWRITEBYTECODE="1", PYTHONPYCACHEPREFIX=str(scratch / "unused-bytecode"))
         wheels = scratch / "wheels"
         wheels.mkdir(mode=0o700)
         selected = plan["environments"][service]["wheels"]
@@ -725,11 +738,20 @@ def bootstrap(root, data, environment):
         # installed. The source path is supplied, not inherited from PYTHONPATH.
         modules = {"zpm": "zpm.cli", "openjules": "src.worker.managed_service", "polyphony": "src.liminal_bridge.coordinator_service"}
         probe = "import importlib,sys;sys.path.insert(0,sys.argv[1]) if sys.argv[1] else None;importlib.import_module(sys.argv[2]);print('service-imported')"
-        _run([str(python), "-I", "-c", probe, "" if service == "zpm" else data["sources"][service]["checkout"], modules[service]], scratch, clean, 60)
+        flags = ["-I"]
+        if native_admission:
+            installation_preflight.guard(root, data)
+            probe = "import importlib,sys;sys.path.append(sys.argv[1]) if sys.argv[1] else None;importlib.import_module(sys.argv[2]);print('service-imported')"
+            # -I ignores PYTHON* environment controls, so the isolated import
+            # requires explicit flags as well as the later raw context probe.
+            flags += ["-B", "-X", "pycache_prefix=" + str(scratch / "unused-bytecode")]
+        _run([str(python), *flags, "-c", probe, "" if service == "zpm" else data["sources"][service]["checkout"], modules[service]], scratch, clean, 60)
         installed = _installed(python, scratch, clean)
         _expected_set(installed, service, root, plan, inventory)
         if service == "openjules":
             installation_context.publish_selector(root)
+            if native_admission:
+                installation_preflight.guard(root, data)
             installation_context.probe(root, Path(data["sources"][service]["checkout"]), clean, require_complete=False)
         _publish(directory / "sealed-complete.json", {"schema_version": 1,
                  "plan_sha256": data["dependency_plan"]["sha256"], "source_revision": data["sources"][service]["revision"],

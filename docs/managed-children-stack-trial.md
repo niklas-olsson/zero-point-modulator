@@ -22,8 +22,27 @@ The separate `managed-children-stack` CI job uses these immutable revisions:
 | Component | Revision |
 | --- | --- |
 | OpenJules | `7135d0988dff050df63acb89f75562dafccacf79`, merged full destination runtime retaining approved managed public turns |
-| Keystone Polyphony | `6480e36355bf0d5de4e25a560d40e665fd76038c`, merged restricted public profile, authority and managed-task refusal |
+| Keystone Polyphony | `324ace275c4c62414439dc2eb620ab1f5177b4a9`, native installation validator with existing managed contracts retained |
 | ZPM | The checked-out workflow candidate, recorded in the report |
+
+Only the baseline-child recipe selects
+[paired native installation preflight](single-host-installation.md#paired-native-installation-preflight).
+It validates both installed producers before work, checks unchanged receipt reuse
+through the normal scene and requires no model-fixture call during validation.
+Three additional fresh root pairs change the generated OpenJules repository,
+profile or base before the first selection and seal. The repository case keeps
+the original scope declarations: actual OpenJules validation must be invalid,
+KP validation remains unperformed, and production refuses `producer_invalid`.
+Profile and base cases require both actual validators to be valid, followed by
+`scope_mismatch` or `base_mismatch`. Each bootstrap and audited start must refuse,
+retain the original fresh-fixture UUID and task state, and create no success receipt. Their safe
+`paired_sibling_mismatches` report is separate from the baseline task journey.
+A separate freshly prepared public composition must produce two valid native
+receipts but refuse paired bootstrap and start with `required_peer_unvalidated`,
+without starting a service or creating a success receipt. Its safe
+`unsupported_paired_installation` result proves that refusal, not public execution.
+The existing initial-outcome, public and cold execution variants omit the new
+option and retain their separate acceptance criteria.
 
 The paired initial-outcome changes are [OpenJules #16](https://github.com/niklas-olsson/OpenJules/pull/16)
 and [Polyphony #122](https://github.com/niklas-olsson/keystone-polyphony/pull/122).

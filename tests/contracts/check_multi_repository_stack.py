@@ -423,6 +423,7 @@ class SharedInstallation:
             })
         self.input_data = {
             "schema_version": 2, "deployment_id": self.deployment, "max_workers": 2,
+            "installation_admission": "zpm-installation-admission/v1",
             "sources": {name: {"checkout": str(path), "revision": revisions[name]} for name, path in source_paths.items()},
             "ports": ports, "repositories": entries,
         }
@@ -662,6 +663,8 @@ def run(args):
                                     {"polyphony": numbers[0], "openjules": numbers[1]})
         left, right = shared.members
         shared.bootstrap()
+        from check_paired_installation_preflight import qualify as qualify_paired, retained_receipt
+        paired_validation = qualify_paired(shared.bundle, root / "paired-native-validation", profile_case="multiple")
         shared.processes.start("installation", [sys.executable, str(shared.bundle / "manage.py"), "start"],
                                shared.bundle, shared.manager_environment)
         def doctor_ready():
@@ -936,6 +939,8 @@ def run(args):
         report = {
             "schema_version": 1, "passed": True, "topology": TOPOLOGY,
             "component_revisions": revisions, "image": image, "docker_engine_id": engine,
+            "paired_installation_preflight": paired_validation | {
+                "original_receipt_retained_after_scene": retained_receipt(shared.bundle, root / "paired-native-validation")},
             "harness_python": sys.version.split()[0], "host_platform": platform.platform(),
             "service_python_versions": shared.python_versions,
             "deployment_id": shared.deployment, "configured_max_workers": 2, "final_reserved": 0,

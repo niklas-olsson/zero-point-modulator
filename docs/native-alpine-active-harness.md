@@ -1,6 +1,6 @@
 # Native Alpine active-harness contract
 
-**Status: prospective attempt-10 source binding; native execution NOT_RUN.**
+**Status: prospective attempt-11 source binding; native execution NOT_RUN.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -26,9 +26,14 @@ mutations. Its exact request and transport phase remain unknown. The
 [ninth attempt](native-alpine-evidence/attempt-9/outcome.md) failed OCI `HOSTNAME`
 after two requests and 5,489 body bytes, with zero completed artifacts or followed
 redirects and cleanup PASS. Its actual hostname was not retained; later redirect
-predicates were not evaluated. The distinct tenth plan adds a closed hostname
-classification and new work/report identities, retaining every original allowed
-origin, authority/resource cap and deadline.
+predicates were not evaluated. The [tenth attempt](native-alpine-evidence/attempt-10/outcome.md)
+records artifact acquisitions, APK transaction and installed inventory PASS,
+with `DOCKER_DEADLINE` at `CONTAINER_SIZE / RESPONSE_HEADERS` and cleanup PASS.
+Its sampling location, owned stage and storage backend remain unknown.
+The distinct eleventh plan retains that missing fixed context and binds the
+separately delivered dependency source on main. All ten historical plans,
+candidate bytes, original allowed origins, authority/resource caps and deadlines
+remain unchanged. Attempt 11 is `NOT_RUN`.
 Independent review and fresh gates precede any separate native admission.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
@@ -70,7 +75,8 @@ or architecture-gated feature is part of this design.
 | `native-alpine/active-plan-7.json` | Historical seventh-attempt binding of the original plan/recipe, commands, source manifests and authority/resource limits. It and all six prior plans remain unchanged; it cannot admit the diagnostic source revision. |
 | `native-alpine/active-plan-8.json` | Historical eighth-attempt binding of the OCI diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
 | `native-alpine/active-plan-9.json` | Historical ninth-attempt binding of the Docker-observation diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
-| `native-alpine/active-plan-10.json` | Prospective binding of the closed OCI hostname-class diagnostic and distinct workflow/work/report identities. The other nine executing inputs, candidate, commands, authority and caps remain unchanged. Publishing this plan admits no native attempt. |
+| `native-alpine/active-plan-10.json` | Historical tenth-attempt binding of the closed OCI hostname-class diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
+| `native-alpine/active-plan-11.json` | Prospective binding of fixed Docker sampling context and distinct workflow/work/report identities. It also binds the delivered `zpm/dependencies.py` from main; the other eight executing inputs, candidate, commands, authority and caps remain unchanged. Publishing this plan admits no native attempt. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -361,6 +367,63 @@ no transport call, property read, retry, sleep or deadline renewal. The object
 fits within the existing 256-KiB report and fixed overflow projection. This is
 evidence retention for a future separately admitted operation, not a longer
 timeout, stronger host prerequisite or successful candidate trial.
+
+### Container-size sampling context
+
+Plan11 adds a separate optional `docker_sample_context` only when the existing
+owned-container size GET in `observe_mutations()` produces an original tagged
+Docker refusal. Its exact keys are `location`, `owned_stage` and `prior_driver`.
+The context is attached to that same exception before unwinding, then follows
+the original first-failure latch and bounded public/overflow projection. Later
+samples, cleanup failures, mutable exception attributes and returned copies
+cannot replace the original tuple. Optional diagnostic faults preserve the
+original refusal. No context is reconstructed for historical attempts.
+
+`location` identifies a fixed coordinator call site, not an inferred daemon
+operation. Its values are `COMMAND_POLL`, `CREATE_POLL`, `START_ATTACH_POLL`,
+`COMMIT_POLL`, `REMOVE_POLL`, `BASE_LOAD_POLL`, `IMAGE_REMOVE_POLL`, `STAGE_BEFORE`,
+`STAGE_WAIT`, `STAGE_COMPLETE`, `RECOVERY_SAMPLE`, `SOURCE_CHECK`, `PREREQUISITES`,
+`PRE_CREATE`, `POST_CREATE`, `PRE_BASE_LOAD`, `POST_BASE`, `PRE_COMMIT`, `CLEANUP`,
+`FINALIZATION` and `UNAVAILABLE`. Labels wrap the existing sample call and are
+restored after success, failure or nesting. Poll labels identify where sampling
+occurred; they do not prove that a child was still running at the failed GET.
+Before an original failure exists, refusals and control interruptions propagate
+through diagnostic setup and prior-driver capture. A control interruption during
+restoration after a successful sample also propagates. While an original failure
+is unwinding, a later optional restoration fault cannot replace that failure.
+
+`owned_stage` is `ASSEMBLY`, `QUALIFICATION` or `UNAVAILABLE`, taken from the
+exact row whose size is being inspected. It names the coordinator's recorded
+intent, including a pending create. It does not establish the guest's current
+running state, exit result or task outcome.
+
+`prior_driver` is `OVERLAY2`, `OVERLAYFS`, `OTHER` or `UNAVAILABLE`. It classifies
+only the exact `Driver` literal from the already received daemon `/info`
+response, after all existing platform, resource-limit and runtime checks pass.
+It is an earlier observation, not part of the failed response. The first two
+values recognize `overlay2` and `overlayfs`; they do not infer an external
+containerd version or a general backend implementation. No new request, raw
+driver string, daemon dictionary, identifier, path or argument is retained.
+
+The one-second GET limit, nested timer, 1,800-second total, size validation,
+512-MiB prospective writable-layer reservation, sampled storage cap and cleanup
+are unchanged. A previous driver or size observation never supplies a missing
+current response. No unavailable size becomes zero, and no live writer is
+treated as quiescent. Docker's pinned [overlay2 size path](https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/graphdriver/overlay2/overlay.go)
+can walk the writable directory; the [containerd snapshotter contract](https://github.com/containerd/containerd/blob/v2.0.4/core/snapshots/snapshotter.go)
+allows active-usage calculation time to depend on resource size. Neither proves
+the cause or backend of attempt 10. Its retained peak also excludes a completed
+pre-commit sample: the container and assembled-image reservations alone total
+1,124,937,728 bytes, above the recorded maximum of 919,893,261 bytes. A failure
+within that sample or earlier assembly sampling remains possible.
+APK PASS entries can be recovered from guest records after the failure and do
+not locate the failed sample or establish how far normal control flow reached.
+
+The integrated `zpm/dependencies.py` includes the separate paired-preflight
+opt-in delivered on main. This frozen native recipe omits that option, retaining
+its original dependency/import path. Plan11 binds the actual integrated source
+instead of reusing the consumed plan10 identity. This is source evidence only;
+native qualification still requires a separately admitted actual run.
 
 ## Observation and cleanup boundary
 

@@ -36,7 +36,7 @@ diagnostic remain in that source. This HTTP lifecycle job does not enable a
 child session or a public profile, start a discussion participant, or supply a
 restricted conversation service.
 Their common merged Polyphony pin is
-`6480e36355bf0d5de4e25a560d40e665fd76038c`;
+`324ace275c4c62414439dc2eb620ab1f5177b4a9`;
 this HTTP-only trial does not run Polyphony. Its merged ancestry includes
 [durable control replay](https://github.com/niklas-olsson/OpenJules/pull/15)
 after an accepted drain or stop encounters a busy runtime lock. The deterministic

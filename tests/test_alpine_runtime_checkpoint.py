@@ -28,6 +28,7 @@ class RuntimeCheckpointTests(unittest.TestCase):
             7: "d87dba65bad619979dd704a4e1035acfb5c7383ec6fe0c795cd34d9fc55a3973",
             8: "07788eb17025b3eb73fffc6da808b6512949325359ea1ba4a4218ddeed8644d2",
             9: "767dd8998d2e65448ce7ec9f63689c7665c280142da511da29059032127b6b8d",
+            10: "8ce3ef40b09add5f2371c026229d95f80c51d06e13e86bdfcc7d872650053440",
         }
         for number, reviewed in historical.items():
             path = candidate.ROOT / f"active-plan-{number}.json"
@@ -43,11 +44,11 @@ class RuntimeCheckpointTests(unittest.TestCase):
                 self.assertEqual(code, 2)
                 self.assertEqual(json.loads(output.getvalue())["failure"], "ACTIVE_PLAN_IDENTITY")
 
-    def test_prospective_binding_changes_only_two_executing_inputs(self):
-        old = json.loads((candidate.ROOT / "active-plan-9.json").read_bytes())
+    def test_prospective_binding_includes_diagnostic_and_delivered_dependency_source(self):
+        old = json.loads((candidate.ROOT / "active-plan-10.json").read_bytes())
         current = json.loads(runtime.ACTIVE_PLAN.read_bytes())
-        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-10.json")
-        self.assertEqual(current["attempt"], "native-alpine-10")
+        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-11.json")
+        self.assertEqual(current["attempt"], "native-alpine-11")
         self.assertEqual(set(current), set(old))
         for field in set(old) - {"attempt", "code"}:
             with self.subTest(field=field):
@@ -56,7 +57,26 @@ class RuntimeCheckpointTests(unittest.TestCase):
         self.assertEqual(len(current["code"]), 11)
         changed = {path for path in old["code"] if old["code"][path] != current["code"][path]}
         self.assertEqual(changed, {"tests/contracts/check_alpine_sealed_runtime.py",
-                                   ".github/workflows/native-alpine-candidate.yml"})
+                                   ".github/workflows/native-alpine-candidate.yml", "zpm/dependencies.py"})
+
+    def test_tenth_attempt_retains_original_failure_without_later_context(self):
+        root = runtime.REPO / "docs/native-alpine-evidence/attempt-10"
+        raw = (root / "summary.json").read_bytes()
+        self.assertEqual(len(raw), 2219)
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), "985a8538ced06dc827e9dd3505d55a67af0b9cf401c266b12b02385584183a4a")
+        original = json.loads(raw)
+        self.assertEqual(original["attempt"], "native-alpine-10")
+        self.assertEqual(original["first_failure"], "DOCKER_DEADLINE")
+        self.assertEqual(original["docker_observation"], {"endpoint": "CONTAINER_SIZE", "phase": "RESPONSE_HEADERS"})
+        self.assertNotIn("docker_sample_context", original)
+        self.assertNotIn("oci_redirect_hostname_class", original)
+        self.assertFalse(original["native_execution_qualified"])
+        self.assertEqual(original["acquisition"]["artifacts_complete"], 173)
+        self.assertEqual(original["cleanup_failures"], [])
+        custody = json.loads((root / "run.json").read_bytes())
+        self.assertEqual(custody["source"]["commit"], original["harness_source_revision"])
+        self.assertEqual(custody["source"]["plan_sha256"], original["plan_sha256"])
+        self.assertEqual(custody["outcome"]["particular_container_and_stage"], "not-identified")
 
     def test_ninth_attempt_evidence_keeps_original_bytes_and_unknown_target(self):
         root = runtime.REPO / "docs/native-alpine-evidence/attempt-9"
@@ -83,7 +103,7 @@ class RuntimeCheckpointTests(unittest.TestCase):
         self.assertIn('--work "$RUNNER_TEMP/' + attempt + '"', workflow)
         self.assertIn("name: " + attempt + "-summary-${{ github.run_id }}-${{ github.run_attempt }}", workflow)
         self.assertIn("path: ${{ runner.temp }}/" + attempt + "/summary.json", workflow)
-        self.assertNotIn("native-alpine-9", workflow)
+        self.assertNotIn("native-alpine-10", workflow)
         documents = {name: json.loads((candidate.ROOT / name).read_bytes()) for name in candidate.METADATA}
         reviewed = hashlib.sha256(runtime.ACTIVE_PLAN.read_bytes()).hexdigest()
         with tempfile.TemporaryDirectory() as temporary, \

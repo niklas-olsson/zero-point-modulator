@@ -358,16 +358,28 @@ no pending mutations. Its exact Docker request and transport phase were not
 retained. The [ninth attempt](docs/native-alpine-evidence/attempt-9/outcome.md)
 failed OCI `HOSTNAME`, with zero completed artifacts or followed redirects and
 cleanup PASS. Its actual hostname remains unknown; later redirect predicates
-were not evaluated. Python installation and interfaces remain unqualified.
-A prospective tenth plan adds only a closed hostname classification at that
-existing refusal, preserving every allowed origin, historical plan, candidate,
-authority, timeout and resource cap. It remains source-only; independent review
-and fresh gates precede a separate admission.
+were not evaluated. The [tenth attempt](docs/native-alpine-evidence/attempt-10/outcome.md)
+records all 173 acquisitions, APK transaction and installed inventory PASS, with
+`DOCKER_DEADLINE` at `CONTAINER_SIZE / RESPONSE_HEADERS`. Cleanup passed;
+the sampling location, owned stage and storage backend were not retained.
+Python installation and interfaces remain unqualified. A prospective eleventh
+plan retains only that missing fixed context and binds the separately delivered
+dependency source on main. Every historical plan, candidate, allowed origin,
+authority, timeout and resource cap remains unchanged. Plan11 is source-only;
+independent review and fresh gates precede a separate admission.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private
 receipt remains `offline-prepared`; fixture matches do not validate an installed
 producer, change bootstrap, or authorize execution.
+
+Single-host schemas 1 and 2 separately support an explicit
+[`installation_admission: "zpm-installation-admission/v1"` selection](docs/single-host-installation.md#paired-native-installation-preflight).
+Bootstrap and every start then run both installed native validators against
+sealed inputs before starting services. A repeated `manage.py preflight`
+preserves the original private receipt and checks current source, interpreter
+and input identity. Static compatibility does not grant task authority or
+qualify live providers; installed task evidence remains a separate gate.
 
 `zpm deployment prepare` and `verify` are offline. Preparation does not establish
 managed-runtime readiness or run an agent; the generated `doctor` checks actual
@@ -431,6 +443,7 @@ The table is navigation, not another protocol specification.
 | Installation, bootstrap and generated configuration | [deployment](zpm/deployment.py), [sealed dependencies](zpm/dependencies.py), [interpreter context](zpm/installation_context.py) | [Single-host installation](docs/single-host-installation.md) |
 | Role-local installation and original host identity | [role schema/rendering](zpm/deployment_roles.py), [service-set projection](zpm/installation_roles.py), [role commands](zpm/role_manager.py) | [Role-local installation](docs/role-installation.md) |
 | Offline installation receipt and contract examples | [pure admission data API](zpm/installation_admission.py), [attributed fixtures](tests/fixtures/installation-admission) | [Installation-admission contract fixtures](docs/single-host-installation.md#installation-admission-contract-fixtures); [#56](https://github.com/niklas-olsson/zero-point-modulator/issues/56) |
+| Explicit paired native installation preflight | [production preflight](zpm/installation_preflight.py), [installed qualification](tests/contracts/check_paired_installation_preflight.py) | [Paired native installation preflight](docs/single-host-installation.md#paired-native-installation-preflight) |
 | Installed trials and component pins | [trial harnesses](tests/contracts), [CI workflow](.github/workflows/ci.yml) | The corresponding trial guide above; [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3) for integrated acceptance |
 | Native Alpine sealed-bootstrap investigation | [inert source admission](tests/contracts/check_alpine_sealed_candidate.py), [explicit native runner](tests/contracts/check_alpine_sealed_runtime.py), [frozen public inputs and plans](tests/contracts/native-alpine) | [Native candidate, limits and retained outcomes](docs/native-alpine-qualification.md), [active-harness contract](docs/native-alpine-active-harness.md); [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63) |
 | Cold-session and idle observations | [operational measurements](tests/contracts/operational_measurement.py), [cold trial](tests/contracts/check_cold_children_stack.py) | [Cold-session measurements](docs/cold-session-measurements.md) |
