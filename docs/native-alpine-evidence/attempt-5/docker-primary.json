@@ -1,0 +1,110 @@
+{
+  "schema": "zpm-native-alpine-docker-primary/v1",
+  "source_only": true,
+  "api_version": "1.45",
+  "files": [
+    {
+      "repository": "docker/cli",
+      "version": "v28.0.4",
+      "commit": "b8034c0ed70494a90c133461d145cd072d920d7c",
+      "path": "cli/command/container/opts.go",
+      "git_blob": "badb1b2a6b8dc2028d1ec7ebb5b50f67b4fed618",
+      "bytes": 43737,
+      "sha256": "5152629b6638c0a307da1c24a9758b443d8c66b1eee35d38ec77ed6265d29109",
+      "url": "https://github.com/docker/cli/blob/b8034c0ed70494a90c133461d145cd072d920d7c/cli/command/container/opts.go"
+    },
+    {
+      "repository": "docker/cli",
+      "version": "v28.0.4",
+      "commit": "b8034c0ed70494a90c133461d145cd072d920d7c",
+      "path": "cli/command/container/create.go",
+      "git_blob": "b23f1963be8ecab90dca4b1a7f05b1e52c0a338f",
+      "bytes": 9616,
+      "sha256": "3b1bbe8928243e8a793c1f16fca77e74539a18113cf869826685fd284d67c837",
+      "url": "https://github.com/docker/cli/blob/b8034c0ed70494a90c133461d145cd072d920d7c/cli/command/container/create.go"
+    },
+    {
+      "repository": "docker/cli",
+      "version": "v28.0.4",
+      "commit": "b8034c0ed70494a90c133461d145cd072d920d7c",
+      "path": "vendor/github.com/docker/docker/client/container_create.go",
+      "git_blob": "9bb106f7763770fb896a510860bf842df1f73c33",
+      "bytes": 5801,
+      "sha256": "26f3cae093eaad416d9dc8944b847116432ef3ab5fd843663df6c249fd596912",
+      "url": "https://github.com/docker/cli/blob/b8034c0ed70494a90c133461d145cd072d920d7c/vendor/github.com/docker/docker/client/container_create.go"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "daemon/create.go",
+      "git_blob": "ba001204f1506f81f9b2693e9588d48802aa7ab8",
+      "bytes": 11635,
+      "sha256": "db8eceec944507198ace7526cc9cee94cc1691d828c8f8bd7bd1689ec502ab68",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/create.go"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "daemon/container.go",
+      "git_blob": "b4852413c468d20b3ff0716e14c1b6da32b402c9",
+      "bytes": 13120,
+      "sha256": "000298d7c95a1b693b10ebc0080142328356f0031d6ea3726aae2ffed5902c87",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/container.go"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "daemon/inspect.go",
+      "git_blob": "e8ed079996f907c10cd269e7c9800c8ac8d8e38d",
+      "bytes": 8667,
+      "sha256": "9bd06f8bef798a72fa3688cc3a4d6aad61a1fc2dc23c5d6513eaf0ca96d453b4",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/inspect.go"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "api/server/router/container/inspect.go",
+      "git_blob": "54581221293ee4f5998c29188f1a6d64ecc2167b",
+      "bytes": 1411,
+      "sha256": "f6152d9002f5dd8248bd21668252feddf642bbcc0b93f34b646da80e140877a9",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/api/server/router/container/inspect.go"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "api/server/router/container/container_routes.go",
+      "git_blob": "be56cb8677728e574a279e960bee93c67d9309a3",
+      "bytes": 38162,
+      "sha256": "d7a4eefb86790f7c3fc9de3cde37b52fa534ff4fa893aa24345fe6b0ee48096a",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/api/server/router/container/container_routes.go"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "runconfig/config.go",
+      "git_blob": "dfb7af341f2e105e07d9ef01f231e678b7ca127b",
+      "bytes": 2954,
+      "sha256": "03d5bf40f583f0f0676023b9807c0bb6924758b3f95430a389836d46f4189f34",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/runconfig/config.go"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "oci/caps/utils.go",
+      "git_blob": "1cdcf5b7b39981d0bf3f0f9fe6e0c82e95c46389",
+      "bytes": 3644,
+      "sha256": "d830943bb007e3391a8a3f296307a49904665ac2ee3328817d76d8233e868000",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/oci/caps/utils.go"
+    }
+  ],
+  "exact_vendored_client_matches_engine_file": true,
+  "actual_native5_inspect_payload": "not retained; unknown",
+  "scope": "Primary source proof for Docker CLI/Engine v28.0.4 and Engine API1.45. This is not a retained native inspect payload or binary-reproducibility attestation."
+}

@@ -1,0 +1,73 @@
+{
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "coordinator": "ChatGPT /root/zpm_investigation, coordinating /root",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Coordinator-derived custody metadata, not a native receipt. Original summary unchanged. Exact failed Docker endpoint, transport phase and daemon-side cause were not retained.",
+  "source": {
+    "commit": "bf9bfaf8f92d9069c7893c905c00912569d68c9a",
+    "tree": "abfd72e2496a5615124e22711628754c8eb53287",
+    "parents": [
+      "1abee085cb19e3c2248ee1038d68d18c87c54b66"
+    ],
+    "plan_file": "tests/contracts/native-alpine/active-plan-8.json",
+    "plan_bytes": 9262,
+    "plan_sha256": "07788eb17025b3eb73fffc6da808b6512949325359ea1ba4a4218ddeed8644d2"
+  },
+  "admission": {
+    "issue": 63,
+    "comment_id": 6894458964,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6894458964"
+  },
+  "workflow": {
+    "run_id": 43715051395,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/native-alpine/run/07788eb17025b3eb73fffc6da808b6512949325359ea1ba4a4218ddeed8644d2",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43715051395",
+    "source_job_id": 132814651712,
+    "source_job_conclusion": "success",
+    "native_job_id": 132814728236,
+    "native_job_conclusion": "failure",
+    "execution_exit_code": 1,
+    "summary_upload": "success"
+  },
+  "artifact": {
+    "id": 14162860038,
+    "name": "native-alpine-8-summary-43715051395-1",
+    "zip_bytes": 1332,
+    "zip_sha256": "dee0719756936ff5cb699c42b6ca951bcd83a8be0f8676b3523be3cd8b714ffb",
+    "github_digest": "sha256:dee0719756936ff5cb699c42b6ca951bcd83a8be0f8676b3523be3cd8b714ffb",
+    "expires_at": "2026-11-29T12:41:23Z",
+    "members": [
+      "summary.json"
+    ]
+  },
+  "summary": {
+    "bytes": 2140,
+    "sha256": "839c2bb9e08946776a45358280ed81de12c1eed6787289bcbda379ba4ccb4e15"
+  },
+  "decoded_utf8_log": {
+    "bytes": 44617,
+    "sha256": "1b4c13c0c034ebda33d7882dd59a0a13d78f8cc21fb2a7c2cba4ebde7db985de"
+  },
+  "outcome": {
+    "status": "FAILED",
+    "first_failure": "DOCKER_DEADLINE",
+    "failed_docker_endpoint": "not-retained",
+    "transport_phase": "not-retained",
+    "daemon_side_cause": "not-established",
+    "native_execution_qualified": false,
+    "owned_cleanup": "PASS",
+    "cleanup_failures": [],
+    "pending_mutation_reservations": 0
+  },
+  "fresh_verification": {
+    "live_run_job_artifact_metadata": true,
+    "github_artifact_digest_matches_retained_zip": true,
+    "sole_zip_member_matches_original_summary": true,
+    "all_three_coordinator_supplied_files_independently_hashed": true
+  },
+  "no_followup_activation": true
+}

@@ -1,0 +1,91 @@
+name: Check and explicitly observe one OCI destination
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/oci-destination-observation.yml'
+      - 'tests/contracts/check_oci_destination.py'
+      - 'tests/contracts/oci-destination/**'
+      - 'tests/test_oci_observer_adversarial.py'
+  push:
+    branches: ['qualification/oci-destination/**', 'qualification/native-alpine/plan/**']
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: false
+      - name: Check current synthetic transports and owned local fixture children
+        run: python3.12 -B -m unittest tests.test_oci_observer_adversarial -v
+      - name: Check out the consumed observer1 and native11 source separately
+        uses: actions/checkout@v4
+        with:
+          repository: niklas-olsson/zero-point-modulator
+          ref: 67e7d0dc6c3dd43e842d34e304f64bedfe414737
+          path: historical-oci-destination-1
+          persist-credentials: false
+          submodules: false
+      - name: Check original observer fixtures at the exact consumed source
+        working-directory: historical-oci-destination-1
+        run: |
+          test "$(git --no-replace-objects rev-parse HEAD)" = 67e7d0dc6c3dd43e842d34e304f64bedfe414737
+          python3.12 -B -m unittest tests.test_oci_observer_adversarial -v
+      - name: Check the consumed observer1 plan against its original source
+        working-directory: historical-oci-destination-1
+        run: |
+          python3.12 -I -B tests/contracts/check_oci_destination.py \
+            --check-plan --reviewed-plan-sha256 54844e18bbf22d75841b6bcbfd22e7d455c52f70e4743d9919bc23f145f0ca55
+      - name: Check the consumed native11 plan against its original source
+        working-directory: historical-oci-destination-1
+        run: |
+          python3.12 -I -B tests/contracts/check_alpine_sealed_runtime.py \
+            --check-plan --reviewed-plan-sha256 92c4d05be1388e058054d7bb45f90d9dcd4f272bb448db853a6f8819ee908645
+      - name: Check prospective native13 against current source
+        run: |
+          plan_sha=$(sha256sum tests/contracts/native-alpine/active-plan-13.json | cut -d ' ' -f 1)
+          python3.12 -I -B tests/contracts/check_alpine_sealed_runtime.py \
+            --check-plan --reviewed-plan-sha256 "$plan_sha"
+
+  observation:
+    name: One explicitly admitted registry-header observation
+    needs: source-only
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/qualification/oci-destination/run/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: false
+      - name: Observe only the immutable source and plan named by this ref
+        id: observe
+        shell: bash
+        run: |
+          operation_ref=${GITHUB_REF#refs/heads/qualification/oci-destination/run/}
+          plan_sha=${operation_ref%%/*}
+          set +e
+          /usr/bin/python3.12 -I -B tests/contracts/check_oci_destination.py \
+            --run --reviewed-plan-sha256 "$plan_sha" \
+            --work "$RUNNER_TEMP/oci-destination-1"
+          observation_exit=$?
+          set -e
+          case "$observation_exit" in
+            0) printf 'summary_created=true\n' >> "$GITHUB_OUTPUT"; exit 0 ;;
+            20) printf 'summary_created=true\n' >> "$GITHUB_OUTPUT"; exit 1 ;;
+            *) exit "$observation_exit" ;;
+          esac
+      - name: Retain only the bounded destination observation
+        if: always() && steps.observe.outputs.summary_created == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oci-destination-1-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/oci-destination-1/summary.json
+          if-no-files-found: warn
+          retention-days: 14

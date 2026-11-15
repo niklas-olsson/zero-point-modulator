@@ -1,0 +1,69 @@
+{
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "coordinator": "ChatGPT /root/assess_polyphony",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Coordinator-derived custody metadata, not a native receipt. The original summary remains FAILED and unchanged. The native stats payload, rejected field and exact before/after container states were not retained.",
+  "source": {
+    "commit": "897ad91299b8ffb6d3a9c37e6864688ff9495af4",
+    "tree": "69dc972c54bc2abc365e028005f1ce9bfc06707c",
+    "parents": [
+      "a4565d9bef9327e132dc4e811732cc16cc922a61"
+    ],
+    "plan_file": "tests/contracts/native-alpine/active-plan-6.json",
+    "plan_bytes": 8235,
+    "plan_sha256": "11907aa13d2300c092d69ff02cf7e1ce8c17aa38c414ec71bdd9b6ca284c55d6"
+  },
+  "workflow": {
+    "run_id": 43634727714,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/native-alpine/run/11907aa13d2300c092d69ff02cf7e1ce8c17aa38c414ec71bdd9b6ca284c55d6",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43634727714",
+    "source_job_id": 132568916847,
+    "source_job_conclusion": "success",
+    "native_job_id": 132568970651,
+    "native_job_conclusion": "failure",
+    "execution_exit_code": 1,
+    "summary_upload": "success"
+  },
+  "artifact": {
+    "id": 14129905988,
+    "name": "native-alpine-6-summary-43634727714-1",
+    "zip_bytes": 1327,
+    "zip_sha256": "8d4737bed352d9f7bba09217b5225116ad0c7d19f2bfa3ff80fc8612b1d06201",
+    "github_digest": "sha256:8d4737bed352d9f7bba09217b5225116ad0c7d19f2bfa3ff80fc8612b1d06201",
+    "expires_at": "2026-11-28T19:56:28Z",
+    "members": [
+      "summary.json"
+    ]
+  },
+  "summary": {
+    "bytes": 2133,
+    "sha256": "1d60b7dd00f323b644e8827a316d10dd536a2d1c9064434be1c9e048d89e706d"
+  },
+  "decoded_utf8_log": {
+    "bytes": 44616,
+    "sha256": "bc9616f5cc177102c8202b070f78529f3c4ae68559b2cd369f1d9f9359a6815d"
+  },
+  "outcome": {
+    "status": "FAILED",
+    "first_failure": "CONTAINER_STATS_MISSING",
+    "actual_stats_payload": "not-retained",
+    "rejected_field": "not-retained",
+    "before_and_after_container_states": "not-retained",
+    "exact_cause": "not-established-by-native-summary",
+    "native_execution_qualified": false,
+    "owned_cleanup": "PASS",
+    "cleanup_failures": [],
+    "zero_container_counters": "no-accepted-native-stats-sample-not-observed-zero"
+  },
+  "fresh_verification": {
+    "live_run_job_artifact_metadata": true,
+    "github_artifact_digest_matches_retained_zip": true,
+    "sole_zip_member_matches_original_summary": true,
+    "independent_root_copy_matches_all_three_files": true
+  },
+  "no_followup_activation": true
+}

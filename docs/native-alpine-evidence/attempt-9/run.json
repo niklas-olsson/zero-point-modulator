@@ -1,0 +1,73 @@
+{
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "coordinator": "ChatGPT /root/transition_integration, coordinating /root",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Coordinator-derived custody metadata, not a native receipt. Original summary unchanged. Actual redirect hostname and later short-circuited predicates were not retained.",
+  "source": {
+    "commit": "72931e1cb1e5ead9b3e35159126b5708798516d8",
+    "tree": "a789d5d3104e8d71ea46e326bc2ab75fca9ff77a",
+    "parents": [
+      "ec9e18af2122dc5a9b32c9fdeb86e95410b1ed7c",
+      "24a3df17d7fb4e3f47a17ef6847ee19562bbe80f"
+    ],
+    "plan_file": "tests/contracts/native-alpine/active-plan-9.json",
+    "plan_bytes": 9262,
+    "plan_sha256": "767dd8998d2e65448ce7ec9f63689c7665c280142da511da29059032127b6b8d"
+  },
+  "outcome_record": {
+    "issue": 63,
+    "comment_id": 6895375406,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6895375406"
+  },
+  "workflow": {
+    "run_id": 43720525897,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/native-alpine/run/767dd8998d2e65448ce7ec9f63689c7665c280142da511da29059032127b6b8d",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43720525897",
+    "source_job_id": 132831316097,
+    "source_job_conclusion": "success",
+    "native_job_id": 132831409416,
+    "native_job_conclusion": "failure",
+    "execution_exit_code": 1,
+    "summary_upload": "success"
+  },
+  "artifact": {
+    "id": 14164277491,
+    "name": "native-alpine-9-summary-43720525897-1",
+    "zip_bytes": 1285,
+    "zip_sha256": "67fe187a9e92457e0035b5b9b4778fc7f99b0b52c9fb6e2a7f153018b2cf609f",
+    "members": [
+      "summary.json"
+    ]
+  },
+  "summary": {
+    "bytes": 2069,
+    "sha256": "96a8b0551a36d042dcc1854a368742b885ad68f7795d82ee07b0cf2ae3cef418"
+  },
+  "decoded_utf8_log": {
+    "bytes": 44617,
+    "sha256": "1d55c5ffab782b566cfe0eda354691ac63660483bcd9148232385671be7a94a2"
+  },
+  "outcome": {
+    "status": "FAILED",
+    "first_failure": "OCI_REDIRECT_REFUSED",
+    "oci_redirect_predicate": "HOSTNAME",
+    "actual_redirect_hostname": "not-retained",
+    "later_redirect_predicates": "not-evaluated",
+    "cause": "not-established",
+    "native_execution_qualified": false,
+    "owned_cleanup": "PASS",
+    "cleanup_failures": [],
+    "pending_mutation_reservations": 0
+  },
+  "fresh_verification": {
+    "coordinator_supplied_original_files_independently_hashed": true,
+    "sole_zip_member_matches_original_summary": true,
+    "original_summary_source_and_plan_match_retained_source": true,
+    "decoded_log_confirms_exit_and_artifact_identity": true
+  },
+  "no_followup_activation": true
+}

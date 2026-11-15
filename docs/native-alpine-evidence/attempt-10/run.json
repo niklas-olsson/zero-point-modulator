@@ -1,0 +1,79 @@
+{
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "coordinator": "ChatGPT /root; independent evidence review /root/transition_integration",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Coordinator-derived custody metadata, not a native receipt. Original summary unchanged. The particular container, stage and daemon-side cause are not identified.",
+  "source": {
+    "commit": "6537476681fafcf1d35bd4c4a52a4241192b200f",
+    "tree": "51904abd2a09f9be2f8a5ef3582f8ae7a7517756",
+    "parents": [
+      "72931e1cb1e5ead9b3e35159126b5708798516d8"
+    ],
+    "plan_file": "tests/contracts/native-alpine/active-plan-10.json",
+    "plan_bytes": 9263,
+    "plan_sha256": "8ce3ef40b09add5f2371c026229d95f80c51d06e13e86bdfcc7d872650053440"
+  },
+  "admission_record": {
+    "issue": 63,
+    "comment_id": 6896141031,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6896141031"
+  },
+  "outcome_record": {
+    "issue": 63,
+    "comment_id": 6896214795,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6896214795"
+  },
+  "workflow": {
+    "run_id": 43724871728,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/native-alpine/run/8ce3ef40b09add5f2371c026229d95f80c51d06e13e86bdfcc7d872650053440",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43724871728",
+    "source_job_id": 132844521234,
+    "source_job_conclusion": "success",
+    "native_job_id": 132844576780,
+    "native_job_conclusion": "failure",
+    "execution_exit_code": 1,
+    "summary_upload": "success"
+  },
+  "artifact": {
+    "id": 14165108993,
+    "name": "native-alpine-10-summary-43724871728-1",
+    "zip_bytes": 1380,
+    "zip_sha256": "1218320970c8da2458bfd137693a39ac0079c50922801b149f9e417f63cad4d8",
+    "members": [
+      "summary.json"
+    ]
+  },
+  "summary": {
+    "bytes": 2219,
+    "sha256": "985a8538ced06dc827e9dd3505d55a67af0b9cf401c266b12b02385584183a4a"
+  },
+  "decoded_utf8_log": {
+    "bytes": 44622,
+    "sha256": "a1d06af2a222bd3bf7650b85553d49d6505b94d9cd0f855694e79e786c9bbc72"
+  },
+  "outcome": {
+    "status": "FAILED",
+    "first_failure": "DOCKER_DEADLINE",
+    "docker_observation": {
+      "endpoint": "CONTAINER_SIZE",
+      "phase": "RESPONSE_HEADERS"
+    },
+    "particular_container_and_stage": "not-identified",
+    "daemon_side_cause": "not-established",
+    "native_execution_qualified": false,
+    "owned_cleanup": "PASS",
+    "cleanup_failures": [],
+    "pending_mutation_reservations": 0
+  },
+  "fresh_verification": {
+    "original_files_independently_hashed_by_coordinator_and_reviewer": true,
+    "sole_zip_member_matches_original_summary": true,
+    "original_summary_source_and_plan_match_retained_source": true,
+    "decoded_log_confirms_exit_and_artifact_identity": true
+  },
+  "no_followup_activation": true
+}

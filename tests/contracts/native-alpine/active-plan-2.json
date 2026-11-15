@@ -1,0 +1,192 @@
+{
+  "attempt": "native-alpine-2",
+  "authority": {
+    "assembly": {
+      "cap_add": [
+        "CHOWN",
+        "DAC_OVERRIDE",
+        "FOWNER"
+      ],
+      "cap_drop": [
+        "ALL"
+      ],
+      "network": "none",
+      "no_new_privileges": true,
+      "read_only_root": false,
+      "uid": 0
+    },
+    "host_control_socket_mounted": false,
+    "host_devices_added": false,
+    "host_namespace_shared": false,
+    "loopback_remains_available": true,
+    "managed_task_started": false,
+    "model_or_provider_calls": false,
+    "mounts": {
+      "harness": "read-only",
+      "inputs": "read-only",
+      "owned_work": "read-write",
+      "sources": "read-only"
+    },
+    "qualification": {
+      "cap_add": [],
+      "cap_drop": [
+        "ALL"
+      ],
+      "gid": "invoking-nonzero-gid",
+      "network": "none",
+      "no_new_privileges": true,
+      "read_only_root": true,
+      "uid": "invoking-nonzero-uid"
+    },
+    "services_started": false
+  },
+  "caps": {
+    "acquisition_bytes": 536870912,
+    "acquisition_concurrency": 4,
+    "acquisition_requests": 180,
+    "acquisition_seconds": 600,
+    "aggregate_log_bytes": 16777216,
+    "all_probes_seconds": 120,
+    "apk_transaction_seconds": 300,
+    "artifact_archive_members": 100000,
+    "cleanup_reserve_seconds": 90,
+    "command_output_bytes": 1048576,
+    "container_cpus": 2,
+    "container_memory_and_swap_bytes": 2147483648,
+    "container_memory_bytes": 2147483648,
+    "container_pids": 128,
+    "host_rss_bytes": 1073741824,
+    "initial_bootstrap_seconds": 900,
+    "metadata_response_bytes": 1048576,
+    "minimum_host_available_bytes": 4294967296,
+    "owned_storage_bytes": 4294967296,
+    "probe_seconds": 15,
+    "repeat_bootstrap_seconds": 60,
+    "report_bytes": 262144,
+    "request_metadata_reserved_bytes": 65536,
+    "running_containers": 1,
+    "sample_interval_ms": 250,
+    "single_archive_decoded_bytes": 536870912,
+    "source_tracked_bytes": 134217728,
+    "wall_seconds": 1800
+  },
+  "code": {
+    ".github/workflows/native-alpine-candidate.yml": {
+      "bytes": 5181,
+      "sha256": "4870a903153eb341a94a1c7578eb094d59ecb61ae8a1c4f502773b8180da1a54"
+    },
+    "tests/__init__.py": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tests/contracts/alpine_sealed_guest.py": {
+      "bytes": 28913,
+      "sha256": "cbaf29a129c48f38ebe53ac8c07f3ddc02fa5b0ecfca59e19706b86db9067c07"
+    },
+    "tests/contracts/check_alpine_sealed_candidate.py": {
+      "bytes": 24092,
+      "sha256": "34d3df253950a88a31a51727d92acd9672d7bb7b0f16eea4b1452f0bb755f287"
+    },
+    "tests/contracts/check_alpine_sealed_runtime.py": {
+      "bytes": 97631,
+      "sha256": "28d547351ff6d62ab74a61aa7f9a3464ba0ad810f087799e25104ca9cbb5270c"
+    },
+    "tests/contracts/check_musl_preparation.py": {
+      "bytes": 42268,
+      "sha256": "17accad072093af9e7b252a9a94f05391673af86737c7eadd3dece72862930ff"
+    },
+    "zpm/__init__.py": {
+      "bytes": 102,
+      "sha256": "2e779846209841e4b86941f08d7984ab3fe2b79aff1ad4e63dbc5e88f5153a6a"
+    },
+    "zpm/dependencies.py": {
+      "bytes": 35740,
+      "sha256": "629a7485e250998408591b4a7cbb9031b3cdbd67b796441b9534173b74423340"
+    },
+    "zpm/installation_context.py": {
+      "bytes": 11549,
+      "sha256": "1cac80c123f6071306bcb78a767428cfd42bb3ec0636d55dc63d254ca73e0846"
+    },
+    "zpm/models.py": {
+      "bytes": 11931,
+      "sha256": "f28eecec64215a57523fde0e280b7b7a2fccce7b14dbb52419f1a40e98df2120"
+    }
+  },
+  "commands": {
+    "apk": [
+      "/sbin/apk",
+      "add",
+      "--no-network",
+      "--no-cache",
+      "--repositories-file",
+      "/dev/null"
+    ],
+    "assembly": [
+      "/usr/local/bin/python3.12",
+      "-I",
+      "-B",
+      "/harness/alpine_sealed_guest.py",
+      "assembly"
+    ],
+    "qualification": [
+      "/usr/local/bin/python3.12",
+      "-I",
+      "-B",
+      "/harness/alpine_sealed_guest.py",
+      "qualification"
+    ]
+  },
+  "original_plan_sha256": "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76",
+  "policy": {
+    "artifact_concurrency": 1,
+    "artifact_retries": 0,
+    "container_environment_overrides": {
+      "GIT_CONFIG_GLOBAL": "/dev/null",
+      "GIT_CONFIG_NOSYSTEM": "1",
+      "GIT_NO_REPLACE_OBJECTS": "1",
+      "GIT_TERMINAL_PROMPT": "0",
+      "HOME": "/work/home",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONNOUSERSITE": "1",
+      "TMPDIR": "/work/tmp"
+    },
+    "container_network": "none-with-loopback",
+    "docker_log_driver": "none",
+    "engine_api": "1.45",
+    "final_report_reservation_bytes": 1048576,
+    "mutation_storage_reservations": {
+      "assembled_image_bytes": 588066816,
+      "base_image_bytes": 51195904,
+      "container_writable_bytes": 536870912
+    },
+    "native_activation": "explicit-reviewed-plan-only",
+    "oci_redirects_per_layer": 1,
+    "opaque_daemon_caches_observed": false,
+    "physical_storage_quota": false,
+    "root_created_temporary_files": [
+      "work/assembly-phase.json.new",
+      "work/assembly-result.json.new"
+    ],
+    "setup_transport_in_artifact_budget": false,
+    "socket": "unix:///var/run/docker.sock",
+    "storage_observation": "sampled-logical-files-and-conservative-owned-image-sizes",
+    "token_requests": 1,
+    "transient_file_reservations": {
+      "acquisition-child.json.new": 262144,
+      "acquisition.json.new": 262144,
+      "artifact-verification-child.json.new": 262144,
+      "ownership.json.new": 262144,
+      "private-report.json.new": 262144,
+      "summary.json.new": 262144,
+      "work/assembly-phase.json.new": 262144,
+      "work/assembly-result.json.new": 262144,
+      "work/binding.json.new": 262144,
+      "work/control.json.new": 262144,
+      "work/dependency-plan.json.new": 262144,
+      "work/qualification-phase.json.new": 262144,
+      "work/qualification-result.json.new": 262144
+    }
+  },
+  "recipe_sha256": "e6b5c507ddc2f5b7bb3fe82db24f82d43f75c07b981477a5eb6690024b47878f",
+  "schema": "zpm-native-alpine-active-plan/v1"
+}

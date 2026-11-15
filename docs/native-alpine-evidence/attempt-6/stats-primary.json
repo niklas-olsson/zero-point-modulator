@@ -1,0 +1,117 @@
+{
+  "schema": "zpm-native-alpine-stats-primary/v1",
+  "source_only": true,
+  "files": [
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "daemon/stats.go",
+      "local_file": "daemon-stats.go",
+      "bytes": 3584,
+      "git_blob": "3a40a5f307b570e16a601dfdc46f2bc481ddc4e6",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/stats.go",
+      "sha256": "09566569be85866a6041e17e1fa51aeecfb2f599a9231e204bcc74c492744491"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "daemon/stats_unix.go",
+      "local_file": "daemon-stats_unix.go",
+      "bytes": 12221,
+      "git_blob": "265ca5a2c22e5a1a6dbe8087e88a9b380dc3f6c4",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/stats_unix.go",
+      "sha256": "7cf15a363c7105d22b5c0484c85df2354c83cf6266cb27dcdc6d7052cf870fce"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "api/types/container/stats.go",
+      "local_file": "api-container-stats.go",
+      "bytes": 6875,
+      "git_blob": "3bfeb4849f9182bfa2c53702cf3c1c55eff1749a",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/api/types/container/stats.go",
+      "sha256": "fc08f827e3541dab8c63162cd05f5cb042bd0fb70b7ee7c888478416d5c5c619"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "daemon/start.go",
+      "local_file": "daemon-start.go",
+      "bytes": 10953,
+      "git_blob": "a49118bb03e4802495218eee99d220f236fcb570",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/start.go",
+      "sha256": "e22340dd27c2960dfc39ab3c4790d7c176b4d72a574a2849061f6bac7ac7f0b5"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "api/server/router/container/container_routes.go",
+      "local_file": "api-container-routes.go",
+      "bytes": 38162,
+      "git_blob": "be56cb8677728e574a279e960bee93c67d9309a3",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/api/server/router/container/container_routes.go",
+      "sha256": "d7a4eefb86790f7c3fc9de3cde37b52fa534ff4fa893aa24345fe6b0ee48096a"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "container/state.go",
+      "local_file": "container-state.go",
+      "bytes": 12293,
+      "git_blob": "f6255a22e37f054be485a2dbf161dc2e405b0fb5",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/container/state.go",
+      "sha256": "8815f61df5b5a7940dff4772adb1cc449dd16eaeea8986cac1b9fe0c31c87223"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "container/container.go",
+      "local_file": "container-container.go",
+      "bytes": 28029,
+      "git_blob": "def863f5d10c0e1e30518d21d7b7c96d701dd56f",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/container/container.go",
+      "sha256": "4494ee36c1eb9bb8659abc06749a1885c8fa8966c6c533b97afe5bc71112a05c"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "daemon/container.go",
+      "git_blob": "b4852413c468d20b3ff0716e14c1b6da32b402c9",
+      "bytes": 13120,
+      "sha256": "000298d7c95a1b693b10ebc0080142328356f0031d6ea3726aae2ffed5902c87",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/container.go",
+      "local_file": "daemon-container.go"
+    },
+    {
+      "repository": "moby/moby",
+      "version": "v28.0.4",
+      "commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+      "path": "daemon/inspect.go",
+      "git_blob": "e8ed079996f907c10cd269e7c9800c8ac8d8e38d",
+      "bytes": 8667,
+      "sha256": "9bd06f8bef798a72fa3688cc3a4d6aad61a1fc2dc23c5d6513eaf0ca96d453b4",
+      "url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/daemon/inspect.go",
+      "local_file": "daemon-inspect.go"
+    },
+    {
+      "repository": "golang/go",
+      "version": "go1.23.6",
+      "path": "src/encoding/json/encode.go",
+      "local_file": "go-json-encode.go",
+      "bytes": 37130,
+      "git_blob": "7bee1a6805f4dc2d836a9afe1f8cb28b0930b325",
+      "sha256": "5d6860df35c39079513c2429edfe9336730cf47c1447a86d51069301f8530f31",
+      "url": "https://github.com/golang/go/blob/go1.23.6/src/encoding/json/encode.go",
+      "scope": "Supporting encoding/json omitempty semantics; actual Docker compiler version unobserved, not a native binary attestation."
+    }
+  ],
+  "runtime_payload": "native6 original stats response was not retained; unknown"
+}

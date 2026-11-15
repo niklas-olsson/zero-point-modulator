@@ -331,7 +331,55 @@ remains in [#51](https://github.com/niklas-olsson/zero-point-modulator/issues/51
 The [Alpine sealed-bootstrap candidate](docs/native-alpine-qualification.md)
 freezes one Alpine 3.24.4 / official CPython 3.12.16 input set for native
 qualification. Its source-only checker and synthetic archive fixtures do not
-acquire packages or run the candidate; native qualification remains NOT RUN.
+acquire packages or run the candidate. A separate code-bound runner and workflow
+require an explicitly reviewed exact plan before acquisition or native work.
+The [first native attempt](docs/native-alpine-evidence/attempt-1/outcome.md)
+failed at checkout-metadata admission. The [second attempt](docs/native-alpine-evidence/attempt-2/outcome.md)
+passed that boundary, then refused the anonymous token response's framing before
+reading a body or acquiring a candidate artifact. Both cleanup results passed;
+the [third attempt](docs/native-alpine-evidence/attempt-3/outcome.md) completed the
+token and four OCI redirects, then failed `INPUT_CHANGED` after 102 completed
+artifact acquisitions. The [fourth attempt](docs/native-alpine-evidence/attempt-4/outcome.md)
+completed all 173 acquisitions, then refused `STORAGE_OBSERVATION`. Both cleanup
+results passed. The [fifth attempt](docs/native-alpine-evidence/attempt-5/outcome.md)
+passed artifact bytes, APK trust and base-image identity, then failed
+`CONTAINER_CAPABILITIES` in assembly. Its cleanup result is `FAIL` with
+`CONTAINER_MUTATION_OUTCOME_UNKNOWN`; zero final pending reservations do not
+turn that into confirmed cleanup. The [sixth attempt](docs/native-alpine-evidence/attempt-6/outcome.md)
+passed the same three checks, then failed `CONTAINER_STATS_MISSING` during
+assembly, with cleanup PASS. The
+[seventh attempt](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43639051137)
+refused OCI acquisition after two requests and 5,489 body bytes, with zero
+artifacts or followed redirects and cleanup PASS. Its target and failed
+predicate remain unknown. The [eighth attempt](docs/native-alpine-evidence/attempt-8/outcome.md)
+passed acquisition, APK trust, base-image identity, the APK transaction and
+installed APK inventory, then failed `DOCKER_DEADLINE`, with cleanup PASS and
+no pending mutations. Its exact Docker request and transport phase were not
+retained. The [ninth attempt](docs/native-alpine-evidence/attempt-9/outcome.md)
+failed OCI `HOSTNAME`, with zero completed artifacts or followed redirects and
+cleanup PASS. Its actual hostname remains unknown; later redirect predicates
+were not evaluated. The [tenth attempt](docs/native-alpine-evidence/attempt-10/outcome.md)
+records all 173 acquisitions, APK transaction and installed inventory PASS, with
+`DOCKER_DEADLINE` at `CONTAINER_SIZE / RESPONSE_HEADERS`. Cleanup passed;
+the sampling location, owned stage and storage backend were not retained.
+The [eleventh attempt](docs/native-alpine-evidence/attempt-11/outcome.md) failed
+`OCI_REDIRECT_REFUSED / HOSTNAME / OTHER`, with zero completed artifacts or
+followed redirects and cleanup PASS. Its rejected destination remains unknown;
+the Docker sampling context was not reached. Python installation and interfaces
+remain unqualified. The separate [destination observation](docs/oci-destination-evidence/observation-1/outcome.md)
+later recorded the existing CloudFront hostname and path-prefix match without a
+follow or native work; it cannot identify native11's target or a routing cause.
+The [twelfth attempt](docs/native-alpine-evidence/attempt-12/outcome.md) passed
+all 173 acquisitions, APK transaction and installed inventory, then refused
+`STORAGE_OBSERVATION`, with cleanup PASS. Its coarse `interpreter_identity` host
+stage does not establish an interpreter mismatch or how far the guest progressed.
+The failed syscall, path and errno were not retained. The
+[thirteenth attempt](docs/native-alpine-evidence/attempt-13/outcome.md) failed with
+closed `ENTRY_LSTAT_MISSING / TRIAL / INSTALLATION_ENVIRONMENTS / ENOENT` context
+and cleanup PASS. Its exact entry, producer, cause and guest progress remain
+unknown. No behavioral accounting amendment or next native operation is admitted.
+Plans 1–13, observer plan1, candidate bytes, authority, timeouts and resource caps
+remain unchanged. Native installation and interfaces remain unqualified.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private
@@ -410,7 +458,7 @@ The table is navigation, not another protocol specification.
 | Offline installation receipt and contract examples | [pure admission data API](zpm/installation_admission.py), [attributed fixtures](tests/fixtures/installation-admission) | [Installation-admission contract fixtures](docs/single-host-installation.md#installation-admission-contract-fixtures); [#56](https://github.com/niklas-olsson/zero-point-modulator/issues/56) |
 | Explicit paired native installation preflight | [production preflight](zpm/installation_preflight.py), [installed qualification](tests/contracts/check_paired_installation_preflight.py) | [Paired native installation preflight](docs/single-host-installation.md#paired-native-installation-preflight) |
 | Installed trials and component pins | [trial harnesses](tests/contracts), [CI workflow](.github/workflows/ci.yml) | The corresponding trial guide above; [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3) for integrated acceptance |
-| Native Alpine sealed-bootstrap investigation | [source admission](tests/contracts/check_alpine_sealed_candidate.py), [frozen public inputs](tests/contracts/native-alpine) | [Native candidate, limits and pending execution](docs/native-alpine-qualification.md); [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63) |
+| Native Alpine sealed-bootstrap investigation | [inert source admission](tests/contracts/check_alpine_sealed_candidate.py), [explicit native runner](tests/contracts/check_alpine_sealed_runtime.py), [frozen public inputs and plans](tests/contracts/native-alpine) | [Native candidate, limits and retained outcomes](docs/native-alpine-qualification.md), [active-harness contract](docs/native-alpine-active-harness.md); [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63) |
 | Cold-session and idle observations | [operational measurements](tests/contracts/operational_measurement.py), [cold trial](tests/contracts/check_cold_children_stack.py) | [Cold-session measurements](docs/cold-session-measurements.md) |
 | Installed publication procedure and trial | [publication trial](tests/contracts/check_publication_stack.py), [execution-only workflow](.github/workflows/managed-publication-execution.yml), [full publication workflow](.github/workflows/managed-publication.yml) | [Publish a final child composition](docs/single-host-installation.md#publish-a-final-child-composition); OpenJules owns the publisher |
 

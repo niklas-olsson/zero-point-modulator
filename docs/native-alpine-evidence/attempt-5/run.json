@@ -1,0 +1,70 @@
+{
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "coordinator": "ChatGPT /root/assess_polyphony",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Coordinator-derived custody metadata, not a native receipt. The original summary remains FAILED and unchanged. The actual capability payload and failed call site were not retained.",
+  "source": {
+    "commit": "a4565d9bef9327e132dc4e811732cc16cc922a61",
+    "tree": "724ab13e9d6cb6b63b115cf4d0bb70a9a75c425b",
+    "parents": [
+      "7a94c09eba16c2fb6095077f3ac254a115ba19bb"
+    ],
+    "plan_file": "tests/contracts/native-alpine/active-plan-5.json",
+    "plan_bytes": 7591,
+    "plan_sha256": "017c6ffb7c0a15b8efbc3046da53e3978d45f9b3bb8bda1d264d579f638575cf"
+  },
+  "workflow": {
+    "run_id": 43630719147,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/native-alpine/run/017c6ffb7c0a15b8efbc3046da53e3978d45f9b3bb8bda1d264d579f638575cf",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43630719147",
+    "source_job_id": 132556466764,
+    "source_job_conclusion": "success",
+    "native_job_id": 132556566350,
+    "native_job_conclusion": "failure",
+    "execution_exit_code": 1,
+    "summary_upload": "success"
+  },
+  "artifact": {
+    "id": 14127713276,
+    "name": "native-alpine-5-summary-43630719147-1",
+    "zip_bytes": 1350,
+    "zip_sha256": "b7ef99678248df7963dcd131ec9d7431ff0c554d231b9d88700d1689f717ce4a",
+    "github_digest": "sha256:b7ef99678248df7963dcd131ec9d7431ff0c554d231b9d88700d1689f717ce4a",
+    "expires_at": "2026-11-28T19:12:10Z",
+    "members": [
+      "summary.json"
+    ]
+  },
+  "summary": {
+    "bytes": 2168,
+    "sha256": "b07450ad519b2c732344036f1d400f8c42f46cba1e84f0a93c1d46370e3c07fe"
+  },
+  "decoded_utf8_log": {
+    "bytes": 44624,
+    "sha256": "92c5fad83b59993a3d5383bb54d3f53af94e10ca8b6acdcffd49a26e7fa9f0fe"
+  },
+  "outcome": {
+    "status": "FAILED",
+    "first_failure": "CONTAINER_CAPABILITIES",
+    "actual_capability_payload": "not-retained",
+    "failed_call_site": "not-retained",
+    "exact_cause": "not-established-by-native-summary",
+    "native_execution_qualified": false,
+    "owned_cleanup": "FAIL",
+    "cleanup_failures": [
+      "CONTAINER_MUTATION_OUTCOME_UNKNOWN"
+    ],
+    "zero_pending_reservations_does_not_establish_cleanup": true
+  },
+  "fresh_verification": {
+    "live_run_job_artifact_metadata": true,
+    "github_artifact_digest_matches_retained_zip": true,
+    "sole_zip_member_matches_original_summary": true,
+    "independent_root_copy_matches_all_three_files": true
+  },
+  "no_followup_activation": true
+}

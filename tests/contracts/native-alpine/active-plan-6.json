@@ -1,0 +1,253 @@
+{
+  "attempt": "native-alpine-6",
+  "authority": {
+    "assembly": {
+      "cap_add": [
+        "CHOWN",
+        "DAC_OVERRIDE",
+        "FOWNER"
+      ],
+      "cap_drop": [
+        "ALL"
+      ],
+      "network": "none",
+      "no_new_privileges": true,
+      "read_only_root": false,
+      "uid": 0
+    },
+    "host_control_socket_mounted": false,
+    "host_devices_added": false,
+    "host_namespace_shared": false,
+    "loopback_remains_available": true,
+    "managed_task_started": false,
+    "model_or_provider_calls": false,
+    "mounts": {
+      "harness": "read-only",
+      "inputs": "read-only",
+      "owned_work": "read-write",
+      "sources": "read-only"
+    },
+    "qualification": {
+      "cap_add": [],
+      "cap_drop": [
+        "ALL"
+      ],
+      "gid": "invoking-nonzero-gid",
+      "network": "none",
+      "no_new_privileges": true,
+      "read_only_root": true,
+      "uid": "invoking-nonzero-uid"
+    },
+    "services_started": false
+  },
+  "caps": {
+    "acquisition_bytes": 536870912,
+    "acquisition_concurrency": 4,
+    "acquisition_requests": 180,
+    "acquisition_seconds": 600,
+    "aggregate_log_bytes": 16777216,
+    "all_probes_seconds": 120,
+    "apk_transaction_seconds": 300,
+    "artifact_archive_members": 100000,
+    "cleanup_reserve_seconds": 90,
+    "command_output_bytes": 1048576,
+    "container_cpus": 2,
+    "container_memory_and_swap_bytes": 2147483648,
+    "container_memory_bytes": 2147483648,
+    "container_pids": 128,
+    "host_rss_bytes": 1073741824,
+    "initial_bootstrap_seconds": 900,
+    "metadata_response_bytes": 1048576,
+    "minimum_host_available_bytes": 4294967296,
+    "owned_storage_bytes": 4294967296,
+    "probe_seconds": 15,
+    "repeat_bootstrap_seconds": 60,
+    "report_bytes": 262144,
+    "request_metadata_reserved_bytes": 65536,
+    "running_containers": 1,
+    "sample_interval_ms": 250,
+    "single_archive_decoded_bytes": 536870912,
+    "source_tracked_bytes": 134217728,
+    "wall_seconds": 1800
+  },
+  "code": {
+    ".github/workflows/native-alpine-candidate.yml": {
+      "bytes": 5270,
+      "sha256": "705a57e64ac669b616ac35824535ff9c85425f15f3d178c5b6a61d5a4643f4d9"
+    },
+    "tests/__init__.py": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tests/contracts/alpine_sealed_guest.py": {
+      "bytes": 28913,
+      "sha256": "cbaf29a129c48f38ebe53ac8c07f3ddc02fa5b0ecfca59e19706b86db9067c07"
+    },
+    "tests/contracts/check_alpine_sealed_candidate.py": {
+      "bytes": 24092,
+      "sha256": "34d3df253950a88a31a51727d92acd9672d7bb7b0f16eea4b1452f0bb755f287"
+    },
+    "tests/contracts/check_alpine_sealed_runtime.py": {
+      "bytes": 106274,
+      "sha256": "acd344a661a6220c0fa378663b76fd0a4746c0b7827eeefabc2302c4e96833f4"
+    },
+    "tests/contracts/check_musl_preparation.py": {
+      "bytes": 44218,
+      "sha256": "98712de675b5d3e67c509737c693abab0183252a5ae7a05fec0df2537ca932b9"
+    },
+    "zpm/__init__.py": {
+      "bytes": 102,
+      "sha256": "2e779846209841e4b86941f08d7984ab3fe2b79aff1ad4e63dbc5e88f5153a6a"
+    },
+    "zpm/dependencies.py": {
+      "bytes": 36758,
+      "sha256": "9f1938672b2f9d82ef777a13a3d6df095cfd879f4c1ecdbe68031225584d07af"
+    },
+    "zpm/installation_context.py": {
+      "bytes": 11549,
+      "sha256": "1cac80c123f6071306bcb78a767428cfd42bb3ec0636d55dc63d254ca73e0846"
+    },
+    "zpm/installation_roles.py": {
+      "bytes": 704,
+      "sha256": "ed4cba351dfd35a1b0c557587f5c775283d078a353856ca91ea8336db6dbb823"
+    },
+    "zpm/models.py": {
+      "bytes": 11931,
+      "sha256": "f28eecec64215a57523fde0e280b7b7a2fccce7b14dbb52419f1a40e98df2120"
+    }
+  },
+  "commands": {
+    "apk": [
+      "/sbin/apk",
+      "add",
+      "--no-network",
+      "--no-cache",
+      "--repositories-file",
+      "/dev/null"
+    ],
+    "assembly": [
+      "/usr/local/bin/python3.12",
+      "-I",
+      "-B",
+      "/harness/alpine_sealed_guest.py",
+      "assembly"
+    ],
+    "qualification": [
+      "/usr/local/bin/python3.12",
+      "-I",
+      "-B",
+      "/harness/alpine_sealed_guest.py",
+      "qualification"
+    ]
+  },
+  "original_plan_sha256": "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76",
+  "policy": {
+    "apk_signature_inputs": {
+      "accounting": "ordinary-linked-files-within-unchanged-owned-storage-cap",
+      "control_bound": "original-compressed-apk-byte-size",
+      "deadline": "original-artifact-verification-and-work-deadline",
+      "directories": 63,
+      "directory": "signature-<existing-apk-sha256>",
+      "directory_mode": "0700",
+      "exclusive_creation": true,
+      "file_mode": "0600",
+      "files": 126,
+      "maximum_combined_bytes": 78980231,
+      "maximum_signature_bytes_each": 1024,
+      "owner": "invoking-uid-and-gid",
+      "retention": "success-and-failure-until-attempt-directory-retirement",
+      "schema": "zpm-native-alpine-retained-signature-inputs/v1"
+    },
+    "artifact_concurrency": 1,
+    "artifact_response_framing": "exact-content-length-only",
+    "artifact_retries": 0,
+    "container_capability_inspection": {
+      "authority_and_cli_arguments": "unchanged",
+      "comparison": "exact-canonical-observation-without-input-normalization",
+      "empty_addition": "explicit-null-or-empty-list-only",
+      "expected": {
+        "assembly": {
+          "CapAdd": [
+            "CAP_CHOWN",
+            "CAP_DAC_OVERRIDE",
+            "CAP_FOWNER"
+          ],
+          "CapDrop": [
+            "ALL"
+          ]
+        },
+        "qualification": {
+          "CapAdd": [],
+          "CapDrop": [
+            "ALL"
+          ]
+        }
+      },
+      "schema": "zpm-native-alpine-capability-inspection/v1"
+    },
+    "container_environment_overrides": {
+      "GIT_CONFIG_GLOBAL": "/dev/null",
+      "GIT_CONFIG_NOSYSTEM": "1",
+      "GIT_NO_REPLACE_OBJECTS": "1",
+      "GIT_TERMINAL_PROMPT": "0",
+      "HOME": "/work/home",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONNOUSERSITE": "1",
+      "TMPDIR": "/work/tmp"
+    },
+    "container_network": "none-with-loopback",
+    "docker_log_driver": "none",
+    "engine_api": "1.45",
+    "final_report_reservation_bytes": 1048576,
+    "live_record_snapshot": {
+      "ctime_exception": "unchanged-inode-link-count-retirement-1-to-0-only",
+      "deadline": "original-work-or-cleanup-observation-deadline",
+      "mode": "0600",
+      "owner": "invoking-uid-and-gid",
+      "reads_per_snapshot": 1,
+      "records": {
+        "acquisition.json": 65536,
+        "work/assembly-phase.json": 8192,
+        "work/qualification-phase.json": 8192
+      },
+      "retries": 0,
+      "schema": "zpm-native-alpine-live-snapshot/v1"
+    },
+    "mutation_storage_reservations": {
+      "assembled_image_bytes": 588066816,
+      "base_image_bytes": 51195904,
+      "container_writable_bytes": 536870912
+    },
+    "native_activation": "explicit-reviewed-plan-only",
+    "oci_redirects_per_layer": 1,
+    "opaque_daemon_caches_observed": false,
+    "physical_storage_quota": false,
+    "response_metadata_scope": "headers-plus-token-chunk-framing",
+    "root_created_temporary_files": [
+      "work/assembly-phase.json.new",
+      "work/assembly-result.json.new"
+    ],
+    "setup_transport_in_artifact_budget": false,
+    "socket": "unix:///var/run/docker.sock",
+    "storage_observation": "sampled-logical-files-and-conservative-owned-image-sizes",
+    "token_requests": 1,
+    "token_response_framing": "content-length-or-bounded-bare-http11-chunked",
+    "transient_file_reservations": {
+      "acquisition-child.json.new": 262144,
+      "acquisition.json.new": 262144,
+      "artifact-verification-child.json.new": 262144,
+      "ownership.json.new": 262144,
+      "private-report.json.new": 262144,
+      "summary.json.new": 262144,
+      "work/assembly-phase.json.new": 262144,
+      "work/assembly-result.json.new": 262144,
+      "work/binding.json.new": 262144,
+      "work/control.json.new": 262144,
+      "work/dependency-plan.json.new": 262144,
+      "work/qualification-phase.json.new": 262144,
+      "work/qualification-result.json.new": 262144
+    }
+  },
+  "recipe_sha256": "e6b5c507ddc2f5b7bb3fe82db24f82d43f75c07b981477a5eb6690024b47878f",
+  "schema": "zpm-native-alpine-active-plan/v1"
+}
