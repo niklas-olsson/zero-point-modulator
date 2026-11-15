@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 import os
@@ -64,6 +65,7 @@ _CODES = {
     "deployment_mismatch", "scope_mismatch", "base_mismatch", "profile_digest_mismatch",
     "capabilities_mismatch", "required_peer_unvalidated", "required_capability_mismatch",
     "retained_receipt_mismatch", "receipt_unavailable", "installation_changed", "diagnostic_unavailable",
+    "operation_busy",
 }
 _PROBE = """import importlib,json,pathlib,sys
 sys.path.append(sys.argv[1])
@@ -145,6 +147,76 @@ class _Budget:
         remaining = self.deadline - time.monotonic()
         _require(remaining > 0, owner, "operation_timeout")
         return remaining
+
+
+@contextmanager
+def _coordination(root, *, exclusive, budget=None):
+    """Coordinate observers on the original sealed selection, never task state.
+
+    An ordinary doctor may already be writing its capability observations.
+    Admission waits within its original operation budget; a later observer
+    reports busy without opening the WAL-aware journal. No file is created.
+    """
+    descriptor = None
+    try:
+        try:
+            root = Path(root)
+            path = root / SELECTION
+            _require(root.is_absolute() and root.resolve(strict=True) == root
+                     and not root.stat().st_mode & 0o077 and path.resolve(strict=True) == path,
+                     "zpm", "input_unavailable")
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+            original = os.fstat(descriptor)
+            _require(stat.S_ISREG(original.st_mode) and original.st_nlink == 1
+                     and original.st_uid == os.geteuid() and not original.st_mode & 0o077
+                     and 0 < original.st_size <= admission.MAX_SELECTION_BYTES,
+                     "zpm", "input_unavailable")
+            raw = os.read(descriptor, admission.MAX_SELECTION_BYTES + 1)
+            _require(len(raw) == original.st_size, "zpm", "input_unavailable")
+            def identity(info):
+                return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_nlink,
+                        info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+            def custody():
+                try:
+                    _require(path.resolve(strict=True) == path
+                             and identity(os.fstat(descriptor)) == identity(original)
+                             and identity(path.lstat()) == identity(original), "zpm", "selection_mismatch")
+                    _require(os.pread(descriptor, admission.MAX_SELECTION_BYTES + 1, 0) == raw,
+                             "zpm", "selection_mismatch")
+                except PreflightError:
+                    raise
+                except (OSError, ValueError, RuntimeError):
+                    raise PreflightError("zpm", "selection_mismatch") from None
+            mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+            while True:
+                if budget is not None:
+                    budget.remaining()
+                try:
+                    fcntl.flock(descriptor, mode | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    _require(exclusive and budget is not None, "zpm", "operation_busy")
+                    time.sleep(min(0.05, budget.remaining()))
+            custody()
+        except PreflightError:
+            raise
+        except (OSError, ValueError, RuntimeError):
+            raise PreflightError("zpm", "input_unavailable") from None
+        yield custody
+        custody()
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+@contextmanager
+def observe(root: Path, data: dict):
+    """A short observer span; unrelated to the manager's lifetime lock."""
+    if not enabled(data):
+        yield
+        return
+    with _coordination(root, exclusive=False):
+        yield
 
 
 def _hash(raw):
@@ -659,22 +731,27 @@ def _status(root, report):
 
 def preflight(root: Path, data: dict) -> dict:
     with interruptible():
-        return _preflight(root, data)
+        _require(enabled(data), "zpm", "not_selected")
+        budget = _Budget()
+        with _coordination(root, exclusive=True, budget=budget) as custody:
+            return _preflight(root, data, budget=budget, custody=custody)
 
 
-def _preflight(root: Path, data: dict) -> dict:
+def _preflight(root: Path, data: dict, *, budget=None, custody=None) -> dict:
     """Fresh paired validation; callers hold the existing deployment lock.
 
     The first genuine KP descriptor supplies its producer-owned profile digest.
     Every later operation repeats both native commands and compares the whole
     newly established receipt with the original, without trusting stored flags.
     """
-    budget, receipt_id, states = _Budget(), None, {}
+    budget, receipt_id, states = budget or _Budget(), None, {}
     try:
         root = Path(root)
         _require(root.is_absolute() and root.resolve(strict=True) == root
                  and not root.stat().st_mode & 0o077, "zpm", "input_unavailable")
         selected, selected_raw, inputs, _, manifest_raw = _prepared(root, data)
+        if custody is not None:
+            custody()
         receipt_id = selected["receipt_id"]
         prior = _retained(root, selected, selected_raw)
         bootstrap = _bootstrap_evidence(root, data)
@@ -745,8 +822,12 @@ def _preflight(root: Path, data: dict) -> dict:
                     source_evidence=sources[service], interpreter=interpreters[service], import_probe=probes[service])
             raw_receipt = admission.encode(receipt)
             budget.remaining()
+            if custody is not None:
+                custody()
             _publish(root / RECEIPT, raw_receipt)
         report = _report(receipt_id, success=True)
+        if custody is not None:
+            custody()
         _status(root, report)
         budget.remaining()
         return report

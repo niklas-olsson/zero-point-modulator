@@ -1095,7 +1095,10 @@ def verify(directory: str | Path) -> dict:
     try:
         # Never use Store here: its constructor creates missing state. Read the
         # existing WAL-aware journal without initializing or re-enrolling it.
-        with closing(sqlite3.connect(journal.as_uri() + "?mode=ro", uri=True, timeout=1)) as database:
+        # A WAL-aware read may create/update SQLite companions. Coordinate it
+        # with opted-in preflight without holding the manager lifetime lock.
+        with installation_preflight.observe(root, data), \
+                closing(sqlite3.connect(journal.as_uri() + "?mode=ro", uri=True, timeout=1)) as database:
             column = "value_v2" if data["schema_version"] == 3 else "value"
             identity = database.execute("SELECT " + column + " FROM metadata WHERE key='deployment_id'").fetchone()
             enrolled = all(database.execute("SELECT 1 FROM bindings WHERE repository=?",
@@ -1299,10 +1302,13 @@ def _start_services(root: Path, data: dict, service_names: tuple[str, ...], *, b
 
 
 def _doctor(root: Path, data: dict) -> dict:
-    _installation_context(root, data)
-    command = _zpm_command(root, data, "check")
-    result = subprocess.run(command, cwd=data["sources"]["zpm"]["checkout"], env=_environment(root, "zpm", data),
-                            capture_output=True, text=True, timeout=45)
+    # The actual check persists capability observations in the ZPM journal.
+    # Serialize that short operation with admission, not the running services.
+    with installation_preflight.observe(root, data):
+        _installation_context(root, data)
+        command = _zpm_command(root, data, "check")
+        result = subprocess.run(command, cwd=data["sources"]["zpm"]["checkout"], env=_environment(root, "zpm", data),
+                                capture_output=True, text=True, timeout=45)
     if result.returncode:
         return {"ready": False, "reason": "scoped OpenJules capability check failed", "remote_access_checked": True}
     report = json.loads(result.stdout)
@@ -1342,6 +1348,10 @@ def manage(directory: str | Path, argv: list[str] | None = None) -> int:
         print(json.dumps(report, indent=2, sort_keys=True))
         return 3 if args.operation == "doctor" and not report["ready"] else 0
     except installation_preflight.PreflightError as exc:
+        if args.operation == "doctor" and exc.owner == "zpm" and exc.code == "operation_busy":
+            print(json.dumps({"ready": False, "reason": "installation preflight in progress",
+                              "remote_access_checked": False}, sort_keys=True))
+            return 3
         print(json.dumps(exc.report, sort_keys=True), file=sys.stderr)
         return 2
     except KeyboardInterrupt:

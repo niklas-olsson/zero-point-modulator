@@ -1361,6 +1361,17 @@ has a 15-second per-command bound. One 90-second operation budget covers native
 subprocess deadlines and elapsed checks between bounded local reads; it is not
 an interruptible deadline for an arbitrary stalled filesystem syscall.
 
+For opted-in bundles, the SQLite read in `verify` and the capability check in
+`doctor` use short shared locks on the existing sealed selection file. Native
+preflight takes an exclusive lock and waits for existing observers within its
+original 90-second budget; expiry refuses admission. A doctor requested during
+preflight returns exit 3, `ready: false`, reason `installation preflight in progress` and
+`remote_access_checked: false`; run it again after admission finishes. This
+response makes no claim about producer validity. The coordination ends before
+service launch and leaves doctor available while the
+foreground manager runs. Uncoordinated journal changes, including WAL/SHM files,
+still refuse validation; no task-state mutation is exempted.
+
 The successful private `state/installation-admission.json` retains the original
 UUID, selected source/contract/input bindings, interpreter executable and
 configuration identity, bootstrap evidence and native receipts. It is immutable:

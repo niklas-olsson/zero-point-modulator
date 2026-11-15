@@ -63,6 +63,20 @@ before service launch. The separate safe `paired_installation_preflight` result
 does not replace task/capture/recovery evidence or the OpenJules-only validator
 cases. Selection becomes qualification only when the complete affected jobs pass.
 
+The first paired candidate `fac7378a016aa6d6a543ac7c7dcc335cc42d0648`
+([head run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43722690029),
+[proposed-merge run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43722694403))
+passed native bootstrap in all five opted-in scenes, then refused startup with
+`installation_changed`. Those closed diagnostics do not identify the private
+changed path. Local reproduction showed that ordinary `verify` can create
+SQLite WAL/SHM files and `doctor` writes a retained capability observation,
+overlapping the trial's immediate startup/readiness polling. The correction
+coordinates those observers with admission and preserves state-mutation checks.
+Its regressions exercise actual SQLite, doctor subprocesses and scoped loopback
+HTTP, with explicitly synthetic native receipts. They establish the race and
+coordination behavior; complete corrected installed jobs still supply the
+qualification evidence.
+
 After this managed-service scene stops, the same CI job runs the separate
 [installed public-discussion trial](public-discussion-stack-trial.md) through
 the retained OpenJules and Polyphony interpreters. It installs the locked native
