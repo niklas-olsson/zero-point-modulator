@@ -1,8 +1,8 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: eleven actual attempts failed. Attempt 11 refused OCI acquisition at
-HOSTNAME / OTHER, with cleanup PASS. Prospective native12 response-custody source
-is selected; its native execution is NOT_RUN.**
+**Status: twelve actual attempts failed. Attempt 12 passed acquisition and APK
+checks, then refused STORAGE_OBSERVATION, with cleanup PASS. Its failed storage
+operation/path/errno and exact guest progress remain unknown.**
 The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
 `SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
 records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
@@ -115,18 +115,16 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [prospective twelfth plan](../tests/contracts/native-alpine/active-plan-12.json) binds the
-host/guest drivers, their local imports, the workflow, original plan/recipe,
-commands, authority and caps. The original `plan-v1.json` and inert checker retain
-their historical `active_trial_implemented: false` fields. They do not become
-native evidence merely because the separate runner exists. The
-[eleventh outcome](native-alpine-evidence/attempt-11/outcome.md) preserves the
-failed actual acquisition. Native12 corrects raw response ownership and preserves
-the original exception when closure also fails. It changes no acquisition
-policy or limit. Its source selection does not activate a native operation.
-Plans 1–11 and the consumed observer1 plan remain byte-identical; the
-[historical gates](native-alpine-active-harness.md#separate-destination-observation)
-check exact original source separately from the prospective current binding.
+The [consumed twelfth plan](../tests/contracts/native-alpine/active-plan-12.json) binds the
+host/guest drivers, their local imports, workflow, original plan/recipe, commands,
+authority and caps. The original `plan-v1.json` and inert checker retain their
+historical `active_trial_implemented: false` fields. Source checks cannot become
+native evidence. The [twelfth outcome](native-alpine-evidence/attempt-12/outcome.md)
+preserves the actual storage-observation failure and cleanup PASS. Its response-
+custody correction changed no acquisition policy or limit. Plans 1–12 and the
+consumed observer1 plan remain byte-identical; the historical gates check exact
+original source separately from current inert validation. No next native
+operation is admitted.
 
 The unchanged [first active plan](../tests/contracts/native-alpine/active-plan-1.json)
 belongs to its failed run at `11fe6e8312ce2f5cdb3e6f6f659be35e27ed70b6`.
@@ -359,20 +357,22 @@ include cleanup in its final verdict.
 
 ## Remaining qualification
 
-The frozen artifact identities remain complete. The latest actual native run
-refused OCI acquisition at `HOSTNAME / OTHER`; its unretained destination remains
-unknown. The separate [destination observation](oci-destination-evidence/observation-1/outcome.md)
-later recorded the existing CloudFront hostname and path-prefix match, with no
-redirect follow or native work. It does not identify the earlier target or a
-routing cause. The [selected native12 source correction](native-alpine-active-harness.md#finite-acquisition-and-image-assembly)
-preserves the current allowed route and every bound. Each later explicitly
-admitted response must satisfy those predicates; no permanent vendor routing
-guarantee is an added gate. Actual native12 execution still needs fresh required
-gates and a distinct exact admission.
+The frozen artifact identities remain complete. The [twelfth actual operation](native-alpine-evidence/attempt-12/outcome.md)
+passed acquisition, APK trust, base identity, APK transaction and installed APK
+inventory, then refused `STORAGE_OBSERVATION`. Owned cleanup passed. The report's
+`interpreter_identity` failure is a coarse host-stage label; it does not establish
+an interpreter mismatch or the absence of later guest activity. The failing
+storage operation, path and errno were not retained.
 
-All eleven failed outcomes remain retained. Attempts 8 and 10 contain real APK
-transaction and inventory PASS evidence, but no attempt passed all eleven native
-checks. Source fixtures and partial native results cannot qualify the candidate.
+The [selected diagnostic source correction](https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6898312803)
+will distinguish existing refusal branches using closed context without changing
+syscalls, reads, retries, accounting, allowances or guards. It does not activate a
+new operation. Any behavioral accounting amendment needs exact producer-path,
+ownership and bound evidence; missing entries cannot silently become zero bytes.
+
+All twelve failed outcomes remain retained. Attempts 8, 10 and 12 contain real
+APK transaction and inventory PASS evidence, but no attempt passed all eleven
+native checks. Source fixtures and partial results cannot qualify the candidate.
 
 The [active-harness contract](native-alpine-active-harness.md) records separate
 plan admission, finite host acquisition and custody,
