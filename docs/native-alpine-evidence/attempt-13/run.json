@@ -1,0 +1,86 @@
+{
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "coordinator": "ChatGPT /root; independently acquired original artifact and source/log evidence by /root/openjules_investigation",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Derived custody metadata, not a native receipt. Original summary unchanged. Closed context identifies an unreserved lstat ENOENT in the lexical installation-environments subtree. The exact entry, producer, cause and guest progress remain unknown; the coarse interpreter_identity host stage is not an interpreter-mismatch diagnosis.",
+  "source": {
+    "commit": "b74ca07a767b63c184b7f91685ba996490a2ce16",
+    "tree": "ddd0debf60c5b2eade54442845a35d4f71005db1",
+    "parents": [
+      "9b2a3a01b4501d3baa68757d344e107af92e5609"
+    ],
+    "plan_file": "tests/contracts/native-alpine/active-plan-13.json",
+    "plan_bytes": 9263,
+    "plan_sha256": "17a4668b9bc5ac22b345dd3d769ccfdf05797ae60e7500fac05ba1db5bfd1324"
+  },
+  "admission_record": {
+    "issue": 63,
+    "comment_id": 6898643009,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6898643009"
+  },
+  "outcome_record": {
+    "issue": 63,
+    "comment_id": 6898699990,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6898699990"
+  },
+  "workflow": {
+    "run_id": 43742961182,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/native-alpine/run/17a4668b9bc5ac22b345dd3d769ccfdf05797ae60e7500fac05ba1db5bfd1324",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43742961182",
+    "source_job_id": 132899932487,
+    "source_job_conclusion": "success",
+    "native_job_id": 132899994782,
+    "native_job_conclusion": "failure",
+    "execution_exit_code": 1,
+    "summary_upload": "success"
+  },
+  "artifact": {
+    "id": 14173541224,
+    "name": "native-alpine-13-summary-43742961182-1",
+    "zip_bytes": 1427,
+    "zip_sha256": "d011249ad175bc62dfac6274b93d564d5b6fab993392d844ff0ae38fe3208656",
+    "members": [
+      "summary.json"
+    ]
+  },
+  "summary": {
+    "bytes": 2282,
+    "sha256": "283b1016cb908c15c1848da2bacce7eb6175f33adad65645a158bb78265e0d9d"
+  },
+  "decoded_utf8_log": {
+    "bytes": 44622,
+    "sha256": "8d6d921e0d74fcb45c5cd077b103d210e0fd7692b1d0d4e504fabcaad6ca2c85"
+  },
+  "source_decoded_utf8_log": {
+    "bytes": 67039,
+    "sha256": "60c0aae3c1454fc25b6af3eb7b14e3c79a8e406d6b6bb626856af0e4a580ea61"
+  },
+  "outcome": {
+    "status": "FAILED",
+    "first_failure": "STORAGE_OBSERVATION",
+    "guest_progress_beyond_last_accepted_result": "unknown",
+    "native_execution_qualified": false,
+    "owned_cleanup": "PASS",
+    "cleanup_failures": [],
+    "pending_mutation_reservations": 0,
+    "storage_observation": {
+      "errno_class": "ENOENT",
+      "operation": "ENTRY_LSTAT_MISSING",
+      "root_role": "TRIAL",
+      "subtree": "INSTALLATION_ENVIRONMENTS"
+    },
+    "exact_entry_producer_and_cause": "not-retained; unknown"
+  },
+  "fresh_verification": {
+    "original_archive_and_summary_independently_acquired_and_hashed": true,
+    "sole_regular_zip_member_matches_original_summary": true,
+    "original_summary_source_and_plan_match_consumed_source": true,
+    "decoded_native_log_confirms_all_checkouts_exit_and_artifact_identity": true,
+    "decoded_source_log_confirms_212_tests_preflight_and_exact_admissions": true
+  },
+  "no_followup_activation": true
+}

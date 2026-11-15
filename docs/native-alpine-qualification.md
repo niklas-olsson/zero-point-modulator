@@ -1,10 +1,9 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: twelve actual attempts failed. Attempt 12 passed acquisition and APK
-checks, then refused STORAGE_OBSERVATION, with cleanup PASS. Its failed storage
-operation/path/errno and exact guest progress remain unknown.**
-Prospective native13 adds closed storage-error context in source only. Its native
-execution is `NOT_RUN`; no new operation is admitted.
+**Status: thirteen actual attempts failed. Attempt 13 passed acquisition and APK
+checks, then refused STORAGE_OBSERVATION with ENTRY_LSTAT_MISSING / TRIAL /
+INSTALLATION_ENVIRONMENTS / ENOENT context and cleanup PASS. The exact entry,
+producer, cause and guest progress remain unknown. No next operation is admitted.**
 The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
 `SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
 records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
@@ -117,14 +116,15 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [prospective thirteenth plan](../tests/contracts/native-alpine/active-plan-13.json) binds the
+The [consumed thirteenth plan](../tests/contracts/native-alpine/active-plan-13.json) binds the
 host/guest drivers, their local imports, workflow, original plan/recipe, commands,
 authority and caps. The original `plan-v1.json` and inert checker retain their
 historical `active_trial_implemented: false` fields. Source checks cannot become
 native evidence. The [twelfth outcome](native-alpine-evidence/attempt-12/outcome.md)
 preserves the actual storage-observation failure and cleanup PASS. Its response-
 custody correction changed no acquisition policy or limit. The new diagnostic
-changes no storage-accounting decision or allowance. Plans 1–12 and the
+changes no storage-accounting decision or allowance. The [thirteenth outcome](native-alpine-evidence/attempt-13/outcome.md)
+retains its actual missing-entry refusal and cleanup PASS. Plans 1–13 and the
 consumed observer1 plan remain byte-identical; the historical gates check exact
 original source separately from current inert validation. No next native
 operation is admitted.
@@ -376,7 +376,15 @@ does not establish producer identity or guest progress. Any behavioral accountin
 amendment needs exact producer-path, ownership and bound evidence; missing entries
 cannot silently become zero bytes.
 
-All twelve failed outcomes remain retained. Attempts 8, 10 and 12 contain real
+The [thirteenth actual operation](native-alpine-evidence/attempt-13/outcome.md)
+reports `ENTRY_LSTAT_MISSING / TRIAL / INSTALLATION_ENVIRONMENTS / ENOENT`, with
+cleanup PASS. Its exact entry and producer remain unknown. The lexical subtree
+does not establish the preparation-stage rename reproduced earlier. A sound
+accounting contract for the pinned environment producer remains under evaluation;
+static wheel sizes alone do not bound all build/import writes. No behavioral
+amendment or next operation follows from the diagnostic result.
+
+All thirteen failed outcomes remain retained. Attempts 8, 10, 12 and 13 contain real
 APK transaction and inventory PASS evidence, but no attempt passed all eleven
 native checks. Source fixtures and partial results cannot qualify the candidate.
 

@@ -373,11 +373,12 @@ The [twelfth attempt](docs/native-alpine-evidence/attempt-12/outcome.md) passed
 all 173 acquisitions, APK transaction and installed inventory, then refused
 `STORAGE_OBSERVATION`, with cleanup PASS. Its coarse `interpreter_identity` host
 stage does not establish an interpreter mismatch or how far the guest progressed.
-The failed syscall, path and errno were not retained. The prospective
-[native13 storage diagnostic](docs/native-alpine-active-harness.md#storage-observation-diagnostic)
-retains fixed context at the existing refusal branches. Its native execution is
-`NOT_RUN`; no next native operation is admitted.
-Plans 1–12, observer plan1, candidate bytes, authority, timeouts and resource caps
+The failed syscall, path and errno were not retained. The
+[thirteenth attempt](docs/native-alpine-evidence/attempt-13/outcome.md) failed with
+closed `ENTRY_LSTAT_MISSING / TRIAL / INSTALLATION_ENVIRONMENTS / ENOENT` context
+and cleanup PASS. Its exact entry, producer, cause and guest progress remain
+unknown. No behavioral accounting amendment or next native operation is admitted.
+Plans 1–13, observer plan1, candidate bytes, authority, timeouts and resource caps
 remain unchanged. Native installation and interfaces remain unqualified.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
