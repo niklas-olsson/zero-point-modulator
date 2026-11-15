@@ -1258,6 +1258,54 @@ restart evidence remains outstanding in #56, OpenJules #50 and Polyphony #139.
 That integration must preserve legacy preparation and retry identities. The
 fixture API does not enable it by declaring success.
 
+### Installed OpenJules validator qualification
+
+The root, sealed-root, model and baseline-child CI trials now call the existing
+OpenJules validator after their explicit bootstrap and before their first
+service start. This test-only slice uses the unchanged approved OpenJules pin
+`7135d0988dff050df63acb89f75562dafccacf79` and the generated schema-1 input.
+The [qualification helper](../tests/contracts/check_openjules_installation_validation.py)
+verifies the selected source/tree and working Git blobs, static contract,
+bootstrap receipt, managed interpreter selector and actual imported module
+location. Bootstrap installs OpenJules requirements without installing its
+`src` package, so this test-only launcher starts the approved interpreter with
+`-I -B`, appends the verified checkout after the standard and installed module
+paths, and uses a fixed `runpy` call to execute
+`src.worker.installation_validation` as `__main__` with its original supported
+CLI arguments. The probe uses the same isolated path ordering. Ignored checkout
+files cannot shadow standard-library imports. A fresh bytecode-cache prefix
+prevents reuse of old caches; `-B` prevents new cache writes.
+
+Each scene checks the generated scope/base/image and selected feature projection,
+an unchanged repeated receipt, and actual native refusal of a wrong contract ID
+or digest,
+unsupported configuration schema and foreign declared scope. The consumer's
+existing shape/correlation parser separately rejects changed source, contract,
+configuration, scope and native-receipt bindings. No policy semantics are copied
+into ZPM. The seven native Python processes per scene, including the import-origin probe, each
+have a ten-second deadline and two-second owned cleanup bound; stdout is bounded
+during reading to 4 KiB for the probe and the producer's 8,000,000-byte receipt
+limit for validation. Stderr is discarded.
+Local Git inspection uses the same bounded runner with a 15-second deadline and
+a 256 KiB output cap per command.
+
+Raw native receipts, selected input/configuration hashes and protected-file
+snapshots remain in the trial's private `openjules-native-validation` directory.
+Only fixed verdicts, case names and public producer/contract identities enter the
+existing safe trial report. The test checks unchanged sealed configuration,
+credentials, selector and runtime/authority state, then reverifies the bundle
+before the original trial continues. Model and child scenes also check that the
+native calls made no request to their existing deterministic model fixture.
+
+This is actual single-producer command qualification when the affected hosted
+trials pass. Source unit tests alone do not establish that result. It introduces
+no production preflight, changes no component pin and does not promote the pure
+API's `offline-prepared` phase. Polyphony native validation and complete paired
+installation compatibility remain unperformed. These checks neither complete
+#56/OpenJules #50 nor replace KP #139 or its architecture-channel requirement.
+Installed task/capture/drain/restart evidence stays with each enclosing trial,
+distinct from the static-validation observations.
+
 ## Install dependencies and start
 
 From the generated directory:

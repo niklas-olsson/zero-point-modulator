@@ -387,6 +387,10 @@ def run(args):
         require(bootstrapped == {name: (bundle / "environments" / name / "bootstrap-complete.json").read_bytes() for name in source_paths}, "repeated bootstrap replaced completed environments")
         require(selector_path(bundle).read_bytes() == original_context, "repeated bootstrap changed the managed installation context")
         checks.append("repeat preparation and bootstrap reuse the verified private bundle, credentials and completed environments")
+        from check_openjules_installation_validation import qualify as qualify_native_validation
+        native_validation = qualify_native_validation(
+            bundle, args.openjules_checkout, root / "openjules-native-validation", profile_case="root")
+        checks.append("the pinned installed OpenJules validator accepts the sealed root configuration and refuses native and consumer binding mismatches before service startup")
         legacy_refusal = installed_legacy_refusal(bundle, args.openjules_checkout, processes, data)
         checks.append("the installed OpenJules legacy CLI explicitly refuses before services start, preserving retained state, its selector and the complete Docker inventory")
         # Exercise the documented user-facing manager before the destructive
@@ -588,6 +592,7 @@ def run(args):
 
         report = {"passed": True, "schema_version": 1, "deployment_id": deployment, "image": image,
                   "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed",
+                  "openjules_native_validation": native_validation,
                   "managed_installation_legacy_refusal": legacy_refusal,
                   "checks": checks, "canonical_task": first["task"]["id"], "candidate": candidate["id"],
                   "captured_artifacts": attempt["captured_artifacts"], "final_reserved": final_reserved,
