@@ -8,7 +8,7 @@ separate interpreters and working directories for the two ``src`` packages.
 from __future__ import annotations
 
 import argparse
-from contextlib import closing, contextmanager
+from contextlib import closing, contextmanager, nullcontext
 import ctypes
 import errno
 import fcntl
@@ -29,7 +29,7 @@ import time
 from typing import Any
 from urllib.parse import urlsplit
 
-from . import dependencies, installation_context
+from . import dependencies, installation_context, installation_preflight
 from .installation_roles import services as installation_services
 from .models import Binding, ConfigurationError, ProviderConfig, identifier
 from .store import Store
@@ -154,14 +154,14 @@ def _model_policy(value: Any) -> dict:
 
 
 def _decode_configuration_json(raw: str) -> Any:
-    """Reject ambiguous public opt-ins without changing omitted JSON behavior."""
+    """Reject ambiguous explicit opt-ins without changing omitted JSON behavior."""
     duplicate = public = nonfinite = False
 
     def pairs(items):
         nonlocal duplicate, public
         value = {}
         for key, item in items:
-            public = public or key == "public_discussion"
+            public = public or key in {"public_discussion", "installation_admission"}
             duplicate = duplicate or key in value
             value[key] = item
         return value
@@ -446,6 +446,11 @@ def _child_policy(value: Any, runtime: dict, root_seconds: float, root_capabilit
 
 
 def parse_configuration(value: Any) -> dict:
+    if isinstance(value, dict) and "installation_admission" in value:
+        if value["installation_admission"] != installation_preflight.CONTRACT:
+            raise ConfigurationError("installation_admission requires zpm-installation-admission/v1")
+        if type(value.get("schema_version")) is not int or value["schema_version"] not in {1, 2}:
+            raise ConfigurationError("installation_admission supports only single-host schemas 1 and 2")
     if isinstance(value, dict) and type(value.get("schema_version")) is int and value["schema_version"] == 3:
         from .deployment_roles import parse_configuration as parse_role
         return parse_role(value)
@@ -457,7 +462,7 @@ def parse_configuration(value: Any) -> dict:
 
 def _parse_single_configuration(value: Any, *, validated_sources: dict | None = None) -> dict:
     required = {"schema_version", "deployment_id", "binding", "max_workers", "sources", "source", "image", "command", "policy"}
-    data = _object(value, required | {"ports", "runtime", "environment_refs", "model_policy", "child_policy", "dependency_plan"}, "deployment configuration", required)
+    data = _object(value, required | {"ports", "runtime", "environment_refs", "model_policy", "child_policy", "dependency_plan", "installation_admission"}, "deployment configuration", required)
     if type(data["schema_version"]) is not int or data["schema_version"] != 1:
         raise ConfigurationError("deployment schema_version must be 1")
     deployment = identifier(data["deployment_id"], "deployment_id")
@@ -546,6 +551,7 @@ def _parse_single_configuration(value: Any, *, validated_sources: dict | None = 
     return {"schema_version": 1, "deployment_id": deployment, "binding": binding.to_dict(), "max_workers": maximum,
             "sources": sources, "source": source, "image": image, "command": command, "ports": ports,
             "runtime": runtime, "environment_refs": environment, **model, **dependency,
+            **({"installation_admission": data["installation_admission"]} if "installation_admission" in data else {}),
             "policy": {"checks": checks, "reviewers": reviewers, "max_attempts": attempts,
                        "budget_seconds": budget, "attempt_seconds": seconds, "capabilities": capabilities}}
 
@@ -553,7 +559,7 @@ def _parse_single_configuration(value: Any, *, validated_sources: dict | None = 
 
 def _parse_multiple_configuration(value: Any) -> dict:
     required = {"schema_version", "deployment_id", "max_workers", "sources", "repositories"}
-    data = _object(value, required | {"ports", "dependency_plan"}, "multiple-repository deployment configuration", required)
+    data = _object(value, required | {"ports", "dependency_plan", "installation_admission"}, "multiple-repository deployment configuration", required)
     entries = data["repositories"]
     if not isinstance(entries, list) or not 2 <= len(entries) <= 100:
         raise ConfigurationError("schema 2 requires 2 to 100 repository entries")
@@ -582,6 +588,8 @@ def _parse_multiple_configuration(value: Any) -> dict:
             common = {name: single[name] for name in ("deployment_id", "max_workers", "sources", "ports")}
         normalized.append({name: single[name] for name in single if name in entry_fields})
     result = {"schema_version": 2, **common, "repositories": normalized}
+    if "installation_admission" in data:
+        result["installation_admission"] = data["installation_admission"]
     if "dependency_plan" in data:
         result["dependency_plan"] = dependencies.normalize_reference(data["dependency_plan"], result["sources"])
     keys = [_repository_key(entry["binding"]["repository"]) for entry in normalized]
@@ -946,6 +954,13 @@ ceiling with journalled capacity. Its ready flag does not prove target convergen
 
 
 def _finish_bundle(data: dict, root: Path, final: Path, readme: str) -> None:
+    installation_preflight.prepare(root, data)
+    if installation_preflight.enabled(data):
+        readme += "\nPaired native installation preflight is explicitly selected. Bootstrap runs it\n"
+        readme += "after dependency installation; start repeats it before starting any service.\n"
+        readme += "Use python3 manage.py preflight to repeat it without starting services.\n"
+        readme += "Keep its original private selection and receipt. Native configuration validity\n"
+        readme += "does not establish live credential authority, provider readiness or task execution.\n"
     if "dependency_plan" in data:
         if data["schema_version"] == 3:
             dependencies.seal(data["dependency_plan"], data["sources"], root, role=data["role"])
@@ -983,6 +998,8 @@ raise SystemExit(manage(root, sys.argv[1:]))
 
 def _prepared_report(root: Path, data: dict, *, reused: bool) -> dict:
     next_steps = ["python3 manage.py bootstrap", "python3 manage.py start", "python3 manage.py doctor"]
+    if installation_preflight.enabled(data):
+        next_steps.insert(1, "python3 manage.py preflight")
     scope = ({"repositories": [{"repository": entry["binding"]["repository"], "binding_file": _binding_file(entry)}
                                for entry in data["repositories"]]}
              if data["schema_version"] == 2 else {"repository": data["binding"]["repository"]})
@@ -1042,6 +1059,8 @@ def verify(directory: str | Path) -> dict:
     # Public scope bytes must enter through the bounded descriptor reader on
     # their first verification read, including any equivalent relative spelling.
     public_scopes = _verify_public_scope_files(root, data, files)
+    admission_files = (installation_preflight.verify_prepared(root, data)
+                       if installation_preflight.enabled(data) else {})
     for name, digest in files.items():
         relative = Path(name)
         if relative.is_absolute() or ".." in relative.parts or root / relative == manifest_path:
@@ -1049,6 +1068,10 @@ def verify(directory: str | Path) -> dict:
         if str(relative) in public_scopes:
             if digest != public_scopes[str(relative)]:
                 raise ConfigurationError("public discussion scope copy has an inconsistent integrity record")
+            continue
+        if str(relative) in admission_files:
+            if digest != admission_files[str(relative)]:
+                raise ConfigurationError("installation admission input has an inconsistent integrity record")
             continue
         path = root / relative
         if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077:
@@ -1092,6 +1115,14 @@ def _environment(root: Path, service: str, data: dict) -> dict[str, str]:
         "PATH", "LANG", "LC_ALL", "LC_CTYPE", "SSL_CERT_FILE", "SSL_CERT_DIR",
     }}
     result.update(PYTHONUNBUFFERED="1", PYTHONNOUSERSITE="1")
+    if installation_preflight.enabled(data):
+        # The pre-import source guard rejects root import shadows. Existing
+        # context/service -m commands must also avoid reading stale source pyc.
+        # venv's ensurepip can force compilation despite the no-write flag;
+        # bootstrap caches belong with dependency material, never task state.
+        cache_directory = "environments" if service == "bootstrap" else "state"
+        result.update(PYTHONDONTWRITEBYTECODE="1", PYTHONPYCACHEPREFIX=str(
+            root / cache_directory / (".installation-bytecode-" + secrets.token_hex(16))))
     if data["schema_version"] == 3:
         from .deployment_roles import private_object
         if (data["role"] == "controller-authority" and service == "zpm") or (data["role"] == "execution" and service == "openjules"):
@@ -1144,14 +1175,18 @@ def _command(root: Path, service: str, data: dict) -> list[str]:
 
 
 def _installation_context(root: Path, data: dict, *, require_complete: bool = True) -> None:
-    if require_complete and "dependency_plan" in data:
-        dependencies.check_completed(root, data, _environment(root, "bootstrap", data))
-    if "openjules" not in installation_services(data):
-        return
-    installation_context.probe(
-        root, Path(data["sources"]["openjules"]["checkout"]), _environment(root, "bootstrap", data),
-        require_complete=require_complete, revision=data["sources"]["openjules"]["revision"],
-    )
+    selected = installation_preflight.enabled(data)
+    with installation_preflight.interruptible() if selected else nullcontext():
+        if selected:
+            installation_preflight.guard(root, data)
+        if require_complete and "dependency_plan" in data:
+            dependencies.check_completed(root, data, _environment(root, "bootstrap", data))
+        if "openjules" not in installation_services(data):
+            return
+        installation_context.probe(
+            root, Path(data["sources"]["openjules"]["checkout"]), _environment(root, "bootstrap", data),
+            require_complete=require_complete, revision=data["sources"]["openjules"]["revision"],
+        )
 
 
 def _bootstrap_locked(root: Path, data: dict, lock_fd: int | None = None) -> dict:
@@ -1176,6 +1211,8 @@ def _bootstrap_locked(root: Path, data: dict, lock_fd: int | None = None) -> dic
         subprocess.run([sys.executable, "-m", "venv", str(env_root)], env=environment, check=True)
         python = str(env_root / "bin/python")
         install = [python, "-m", "pip", "install", "--disable-pip-version-check"]
+        if installation_preflight.enabled(data):
+            install.append("--no-compile")
         install += [str(checkout)] if service == "zpm" else ["-r", str(checkout / "requirements.txt")]
         subprocess.run(install, cwd=checkout, env=environment, check=True)
         resolved = subprocess.run([python, "-m", "pip", "freeze"], env=environment, check=True, capture_output=True, text=True)
@@ -1203,7 +1240,14 @@ def _manager_lock(root: Path):
 
 def _bootstrap(root: Path, data: dict) -> dict:
     with _manager_lock(root) as lock_fd:
-        return _bootstrap_locked(root, data, lock_fd)
+        selected = installation_preflight.enabled(data)
+        with installation_preflight.interruptible() if selected else nullcontext():
+            if selected:
+                installation_preflight.guard(root, data)
+            report = _bootstrap_locked(root, data, lock_fd)
+            if selected:
+                report["installation_admission"] = installation_preflight.preflight(root, data)
+            return report
 
 
 def _start(root: Path, data: dict) -> int:
@@ -1221,6 +1265,8 @@ def _start_services(root: Path, data: dict, service_names: tuple[str, ...], *, b
             _installation_context(root, data)
             if before_start is not None:
                 before_start()
+            if installation_preflight.enabled(data):
+                installation_preflight.preflight(root, data)
             for service in service_names:
                 processes.append(subprocess.Popen(_command(root, service, data), cwd=data["sources"][service]["checkout"],
                                                   env=_environment(root, service, data), start_new_session=True,
@@ -1275,7 +1321,7 @@ def manage(directory: str | Path, argv: list[str] | None = None) -> int:
         from .role_manager import manage as manage_role
         return manage_role(directory, argv)
     parser = argparse.ArgumentParser(description="Manage a prepared single-host ZPM deployment")
-    parser.add_argument("operation", choices=("verify", "bootstrap", "start", "doctor"))
+    parser.add_argument("operation", choices=("verify", "bootstrap", "preflight", "start", "doctor"))
     args = parser.parse_args(argv)
     try:
         report = verify(directory)
@@ -1285,10 +1331,21 @@ def manage(directory: str | Path, argv: list[str] | None = None) -> int:
             return _start(root, data)
         if args.operation == "bootstrap":
             report = _bootstrap(root, data)
+        elif args.operation == "preflight":
+            with _manager_lock(root):
+                if not installation_preflight.enabled(data):
+                    raise installation_preflight.PreflightError("zpm", "not_selected")
+                _installation_context(root, data)
+                report = installation_preflight.preflight(root, data)
         elif args.operation == "doctor":
             report = _doctor(root, data)
         print(json.dumps(report, indent=2, sort_keys=True))
         return 3 if args.operation == "doctor" and not report["ready"] else 0
+    except installation_preflight.PreflightError as exc:
+        print(json.dumps(exc.report, sort_keys=True), file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        return 130
     except ConfigurationError as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
         return 2
