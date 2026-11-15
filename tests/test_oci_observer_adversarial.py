@@ -87,7 +87,7 @@ class WireReply:
         self.response_reads = []
         self.body_start = None
 
-    def open(self):
+    def open(self, *, raw_response=False):
         if self.open_error is not None:
             raise self.open_error
         wire = (f"HTTP/1.1 {self.status} Fixture\r\n".encode("ascii")
@@ -122,7 +122,7 @@ class WireReply:
                 original_close()
                 self.close_hook()
             self.response.close = checked_close
-        if self.status >= 300:
+        if self.status >= 300 and not raw_response:
             raise urllib.error.HTTPError(
                 "https://registry-1.docker.io/fixture", self.status,
                 "private exception message", self.response.headers, self.response)
@@ -268,6 +268,81 @@ class ObservationFixture(unittest.TestCase):
 
 
 class RequestAndBodyTests(ObservationFixture):
+    def test_real_urllib_error_dispatch_keeps_malformed_redirect_responses_owned(self):
+        cases = [
+            (307, "https://[broken/p", "LOCATION_AUTHORITY", "REFUSED"),
+            (307, "http://" + HOSTNAME + "/p", "LOCATION_SCHEME", "REFUSED"),
+            (307, LOCATION, None, "OBSERVED"),
+            *((status, "https://[broken/p", None, "INCONCLUSIVE")
+              for status in (301, 302, 303, 308)),
+        ]
+        original_build = urllib.request.build_opener
+        for status, location, failure, expected in cases:
+            with self.subTest(status=status, location=location), tempfile.TemporaryDirectory(dir=self.work) as name:
+                token, blob = token_reply(), blob_reply(status, locations=(location,))
+                requests = []
+
+                class SyntheticHTTPS(urllib.request.HTTPSHandler):
+                    def https_open(self, request):
+                        index = len(requests)
+                        requests.append(request.full_url)
+                        expected = (observer.TOKEN_URL, observer.BLOB_URL)
+                        if index >= 2 or request.full_url != expected[index]:
+                            raise AssertionError("unexpected origin, follow or retry")
+                        response = (token, blob)[index].open(raw_response=True)
+                        response.url = request.full_url
+                        response.msg = response.reason
+                        return response
+
+                class NoHTTP(urllib.request.HTTPHandler):
+                    def http_open(self, request):
+                        raise AssertionError("no non-HTTPS request")
+
+                def build(*handlers):
+                    # Keep the production error/redirect handlers. Replace
+                    # only network transport, then run real urllib dispatch.
+                    handlers = [item for item in handlers
+                                if not isinstance(item, urllib.request.HTTPSHandler)]
+                    return original_build(*handlers, SyntheticHTTPS(), NoHTTP())
+
+                with patch.object(observer.urllib.request, "build_opener", side_effect=build):
+                    result = observer.observe(self.admission, Path(name), time.monotonic() + 20,
+                                              runtime=runtime)
+                self.assertEqual(requests, [observer.TOKEN_URL, observer.BLOB_URL])
+                self.assertEqual(result["first_failure"], failure)
+                self.assertEqual(result["status"], expected)
+                self.assertEqual(result["response_cleanup"], "CONFIRMED")
+                self.assert_no_blob_body(blob)
+                self.assert_private_values_absent(result)
+
+    def test_interrupted_second_response_transfer_closes_raw_response_without_claiming_custody(self):
+        token, blob = token_reply(), blob_reply()
+        original = runtime.Refused("REQUEST_DEADLINE")
+        original_own = observer._ClosingOpener._own
+        original_code = observer.failure_code
+        transfers, failures = [], []
+
+        def own(owner, response):
+            transfers.append(response)
+            if len(transfers) == 2:
+                raise original
+            return original_own(owner, response)
+
+        def code(error, *args):
+            failures.append(error)
+            return original_code(error, *args)
+
+        with patch.object(observer._ClosingOpener, "_own", autospec=True, side_effect=own), \
+                patch.object(observer, "failure_code", side_effect=code):
+            result = self.observe(SequenceOpener(token, blob))
+        self.assertEqual(result["first_failure"], "REQUEST_DEADLINE")
+        self.assertIs(failures[0], original)
+        self.assertEqual(result["response_cleanup"], "UNKNOWN")
+        self.assertEqual(result["counters"]["requests"], 2)
+        self.assertEqual(result["counters"]["body_bytes"], len(token.body))
+        self.assert_no_blob_body(blob)
+        self.assert_private_values_absent(result)
+
     def test_only_selected_token_and_blob_gets_with_no_follow_or_body_read(self):
         token, blob = token_reply(), blob_reply()
         opener = SequenceOpener(token, blob)
@@ -611,7 +686,6 @@ class OwnedChildTests(ObservationFixture):
                 facts = {
                     "environment_scrubbed": all(name not in os.environ for name in sensitive_names),
                     "proxies_disabled": isinstance(proxy, urllib.request.ProxyHandler) and proxy.proxies == {},
-                    "redirects_disabled": isinstance(redirect, runtime.NoRedirect),
                     "hostname_check": tls.context.check_hostname is True,
                     "certificate_check": tls.context.verify_mode == ssl.CERT_REQUIRED,
                     "keylog_disabled": tls.context.keylog_filename is None,
@@ -629,7 +703,7 @@ class OwnedChildTests(ObservationFixture):
         self.assertEqual(result["status"], "OBSERVED")
         self.assertEqual(result["owned_child_cleanup"], "CONFIRMED")
         facts = json.loads((work / "fixture-environment.json").read_bytes())
-        self.assertEqual(set(facts), {"environment_scrubbed", "proxies_disabled", "redirects_disabled",
+        self.assertEqual(set(facts), {"environment_scrubbed", "proxies_disabled",
                                     "hostname_check", "certificate_check", "keylog_disabled"})
         self.assertTrue(all(facts.values()))
         self.assertFalse((self.work / "private-override").exists())
