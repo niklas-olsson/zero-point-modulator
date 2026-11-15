@@ -3,6 +3,8 @@
 **Status: twelve actual attempts failed. Attempt 12 passed acquisition and APK
 checks, then refused STORAGE_OBSERVATION, with cleanup PASS. Its failed storage
 operation/path/errno and exact guest progress remain unknown.**
+Prospective native13 adds closed storage-error context in source only. Its native
+execution is `NOT_RUN`; no new operation is admitted.
 The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
 `SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
 records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
@@ -115,13 +117,14 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [consumed twelfth plan](../tests/contracts/native-alpine/active-plan-12.json) binds the
+The [prospective thirteenth plan](../tests/contracts/native-alpine/active-plan-13.json) binds the
 host/guest drivers, their local imports, workflow, original plan/recipe, commands,
 authority and caps. The original `plan-v1.json` and inert checker retain their
 historical `active_trial_implemented: false` fields. Source checks cannot become
 native evidence. The [twelfth outcome](native-alpine-evidence/attempt-12/outcome.md)
 preserves the actual storage-observation failure and cleanup PASS. Its response-
-custody correction changed no acquisition policy or limit. Plans 1–12 and the
+custody correction changed no acquisition policy or limit. The new diagnostic
+changes no storage-accounting decision or allowance. Plans 1–12 and the
 consumed observer1 plan remain byte-identical; the historical gates check exact
 original source separately from current inert validation. No next native
 operation is admitted.
@@ -365,10 +368,13 @@ an interpreter mismatch or the absence of later guest activity. The failing
 storage operation, path and errno were not retained.
 
 The [selected diagnostic source correction](https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6898312803)
-will distinguish existing refusal branches using closed context without changing
+distinguishes existing refusal branches using closed context without changing
 syscalls, reads, retries, accounting, allowances or guards. It does not activate a
-new operation. Any behavioral accounting amendment needs exact producer-path,
-ownership and bound evidence; missing entries cannot silently become zero bytes.
+new operation. The [field contract](native-alpine-active-harness.md#storage-observation-diagnostic)
+classifies only already-known lexical operands and fixed errno categories; it
+does not establish producer identity or guest progress. Any behavioral accounting
+amendment needs exact producer-path, ownership and bound evidence; missing entries
+cannot silently become zero bytes.
 
 All twelve failed outcomes remain retained. Attempts 8, 10 and 12 contain real
 APK transaction and inventory PASS evidence, but no attempt passed all eleven

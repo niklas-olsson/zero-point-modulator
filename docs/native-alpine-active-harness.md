@@ -2,7 +2,8 @@
 
 **Status: attempt 12 FAILED at STORAGE_OBSERVATION; cleanup PASS.
 The actual storage operation, path and errno were not retained. Native
-qualification has not passed; no next native operation is admitted.**
+qualification has not passed. Prospective native13 storage-context source is
+implemented; its native execution is NOT_RUN and no operation is admitted.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -54,8 +55,8 @@ The [twelfth attempt](native-alpine-evidence/attempt-12/outcome.md) completed al
 173 acquisitions and the APK checks, then refused `STORAGE_OBSERVATION`, with
 cleanup PASS. The host's coarse `interpreter_identity` label does not prove an
 interpreter mismatch or that later guest work never began. The failing storage
-operation, path and errno remain unknown. A separately selected source correction
-will retain fixed context without weakening accounting or admitting a new run.
+operation, path and errno remain unknown. The separately selected prospective13
+source retains fixed context without weakening accounting or admitting a new run.
 
 ## Subject and acceptance
 
@@ -94,6 +95,7 @@ or architecture-gated feature is part of this design.
 | `native-alpine/active-plan-10.json` | Historical tenth-attempt binding of the closed OCI hostname-class diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
 | `native-alpine/active-plan-11.json` | Consumed eleventh-attempt binding of fixed Docker sampling context and distinct workflow/work/report identities. It also binds the delivered `zpm/dependencies.py` from main; the other eight executing inputs, candidate, commands, authority and caps remain unchanged. Its [actual run failed during OCI acquisition](native-alpine-evidence/attempt-11/outcome.md); this plan admits no additional attempt. |
 | `native-alpine/active-plan-12.json` | Consumed binding of the response-custody correction and distinct native12 workflow/work/report identities. Only the runtime and native workflow change among the eleven executing inputs. Its [actual operation failed at storage observation](native-alpine-evidence/attempt-12/outcome.md), with cleanup PASS. All earlier plans, candidate, policy, commands, authority and caps remain unchanged; this plan admits no additional operation. |
+| `native-alpine/active-plan-13.json` | Prospective binding of closed storage-observation context and distinct native13 workflow/work/report identities. Only the runtime and native workflow change among the eleven executing inputs. Plans1–12, observer1, candidate, policy, commands, authority and caps remain unchanged. Native execution is `NOT_RUN`; no operation is admitted. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -175,10 +177,10 @@ fixtures, then checks out original source
 HEAD, reruns the original observer fixtures and admits the unchanged observer1
 plan `54844e18bbf22d75841b6bcbfd22e7d455c52f70e4743d9919bc23f145f0ca55` and native11
 plan `92c4d05be1388e058054d7bb45f90d9dcd4f272bb448db853a6f8819ee908645` against their
-original bytes. The separate current-tree native12 check is inert source
-validation; its original operation is now consumed and failed. These historical
-checks preserve evidence; they do not qualify changed source or reactivate a
-consumed operation.
+original bytes. The separate current-tree native13 check is inert source
+validation. Native12's original plan/source and failed result remain consumed.
+These historical checks preserve evidence; they do not qualify changed source or
+reactivate a consumed operation.
 
 ## Admission and source custody
 
@@ -187,6 +189,8 @@ required reviewed SHA-256, then admits its inherited immutable plan and catalog.
 A missing/mismatched hash refuses before creating a work/output directory,
 opening a network request or contacting Docker. A valid hash identifies reviewed
 bytes; it is not itself proof that an independent review occurred.
+The existing active-run guard also rejects an Actions `GITHUB_RUN_ATTEMPT` other
+than `1` before plan admission; a new source plan does not authorize a replay.
 
 Require one new private work directory, nonzero invoking UID/GID, Linux amd64,
 the existing host memory/storage prerequisites, and finite supported tool/API
@@ -363,7 +367,7 @@ runtime at `SOURCE_FILE_BOUND`, before the unchanged `ACTIVE_CODE_IDENTITY` hash
 check. The attempt-8 runner instead rejected those earlier attempt
 identities before reading their code inputs. Its new exact plan can pass the
 inert source check; its actual native result is retained separately. The current
-attempt-12 runner rejects all eleven earlier plan identities before their code
+attempt-13 runner rejects all twelve earlier plan identities before their code
 reads. Native execution still requires independent review, fresh required gates
 and a separate admission.
 
@@ -586,6 +590,41 @@ caches, or prove an instantaneous peak. The implementation review must keep
 that distinction explicit rather than claiming complete physical accounting.
 The 1-GiB host RSS, 4-GiB available-memory prerequisite, 2-GiB container memory
 and unchanged archive/output bounds remain separate stop limits.
+
+### Storage observation diagnostic
+
+The [selected source correction](https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6898312803)
+adds optional `storage_observation` only when `STORAGE_OBSERVATION` is the
+original first failure. It preserves the three existing refusal branches:
+
+| Field | Closed meaning |
+| --- | --- |
+| `operation` | `WALK_ENUMERATION`, `ENTRY_LSTAT_MISSING`, `ENTRY_LSTAT_ERROR`, or `UNAVAILABLE`. A missing entry is classified only after the unchanged reservation guard refuses. |
+| `root_role` | `TRIAL`, `HARNESS`, `ZPM_SOURCE`, `OPENJULES_SOURCE`, `POLYPHONY_SOURCE`, or `UNAVAILABLE`, from the already selected root operands. |
+| `subtree` | A fixed lexical class for trial inputs, work/staging/installation directories, host temporary files/logs, or source Git metadata/files. Unknown context is `UNAVAILABLE`. |
+| `errno_class` | `ENOENT`, `EACCES`, `EPERM`, `ENOTDIR`, `EIO`, `ELOOP`, `ESTALE`, `OTHER`, or `UNAVAILABLE`, from the built-in `OSError` field. No overridden exception accessor or formatting supplies the value. |
+
+Root/subtree labels classify already-known lexical operands. In particular,
+`PREPARATION_STAGE` matches the direct `work/.zpm-prepare-*` prefix. It establishes
+no producer identity, ownership proof, actual guest progress or accounting
+exception. The walk callback has no local entry operand, so its subtree stays
+`UNAVAILABLE`; it does not read an exception filename. Paths, filenames, hashes
+of arbitrary values and raw exception data are neither retained nor exported.
+
+An immutable private weak association binds the context to the original refusal.
+Only that first failure can carry it into the closed summary and bounded overflow
+fallback; later cleanup failures cannot replace it. Invalid or unavailable
+classification yields fixed unavailable values, and optional diagnostic failure
+cannot replace the original refusal. Control exceptions from the original walk
+or lstat operation still propagate unchanged.
+
+There is no new syscall, read, traversal, retry, exclusion, allowance or deadline.
+Known temporary slots keep their full reservations; a missing unreserved entry
+still refuses. The local fixture exercises an actual atomic directory rename
+between enumeration and lstat while the same retained bytes survive. This is a
+source-supported failure shape, not a diagnosis of native12 or native
+qualification. A behavioral accounting amendment still needs exact bounded
+producer and ownership evidence.
 
 Keep a synced ownership journal before each create/load/commit. Cleanup is only
 for these exact owned container IDs/names and image references. Preserve a
