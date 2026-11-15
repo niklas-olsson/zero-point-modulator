@@ -30,6 +30,7 @@ class RuntimeCheckpointTests(unittest.TestCase):
             9: "767dd8998d2e65448ce7ec9f63689c7665c280142da511da29059032127b6b8d",
             10: "8ce3ef40b09add5f2371c026229d95f80c51d06e13e86bdfcc7d872650053440",
             11: "92c4d05be1388e058054d7bb45f90d9dcd4f272bb448db853a6f8819ee908645",
+            12: "989ea9f36d1dabdca4cba44e92f10dd26c0d86d69f1d30deac870625b94f375e",
         }
         for number, reviewed in historical.items():
             path = candidate.ROOT / f"active-plan-{number}.json"
@@ -45,11 +46,11 @@ class RuntimeCheckpointTests(unittest.TestCase):
                 self.assertEqual(code, 2)
                 self.assertEqual(json.loads(output.getvalue())["failure"], "ACTIVE_PLAN_IDENTITY")
 
-    def test_prospective_binding_changes_only_response_custody_and_workflow(self):
-        old = json.loads((candidate.ROOT / "active-plan-11.json").read_bytes())
+    def test_prospective_binding_changes_only_storage_context_and_workflow(self):
+        old = json.loads((candidate.ROOT / "active-plan-12.json").read_bytes())
         current = json.loads(runtime.ACTIVE_PLAN.read_bytes())
-        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-12.json")
-        self.assertEqual(current["attempt"], "native-alpine-12")
+        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-13.json")
+        self.assertEqual(current["attempt"], "native-alpine-13")
         self.assertEqual(set(current), set(old))
         for field in set(old) - {"attempt", "code"}:
             with self.subTest(field=field):

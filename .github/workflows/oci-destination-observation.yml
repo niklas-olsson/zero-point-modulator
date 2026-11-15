@@ -47,9 +47,9 @@ jobs:
         run: |
           python3.12 -I -B tests/contracts/check_alpine_sealed_runtime.py \
             --check-plan --reviewed-plan-sha256 92c4d05be1388e058054d7bb45f90d9dcd4f272bb448db853a6f8819ee908645
-      - name: Check prospective native12 against current source
+      - name: Check prospective native13 against current source
         run: |
-          plan_sha=$(sha256sum tests/contracts/native-alpine/active-plan-12.json | cut -d ' ' -f 1)
+          plan_sha=$(sha256sum tests/contracts/native-alpine/active-plan-13.json | cut -d ' ' -f 1)
           python3.12 -I -B tests/contracts/check_alpine_sealed_runtime.py \
             --check-plan --reviewed-plan-sha256 "$plan_sha"
 

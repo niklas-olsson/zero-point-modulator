@@ -11,6 +11,7 @@ import argparse
 import base64
 import configparser
 from contextlib import contextmanager
+import errno
 import hashlib
 import http.client
 import io
@@ -45,7 +46,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-12.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-13.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -188,6 +189,102 @@ _DOCKER_SAMPLE_LOCATIONS = frozenset({
 _DOCKER_OWNED_STAGES = frozenset({"ASSEMBLY", "QUALIFICATION", "UNAVAILABLE"})
 _DOCKER_PRIOR_DRIVERS = frozenset({"OVERLAY2", "OVERLAYFS", "OTHER", "UNAVAILABLE"})
 _docker_sample_failures = weakref.WeakKeyDictionary()
+_STORAGE_OPERATIONS = frozenset({"WALK_ENUMERATION", "ENTRY_LSTAT_MISSING", "ENTRY_LSTAT_ERROR", "UNAVAILABLE"})
+_STORAGE_ROOT_ROLES = frozenset({"TRIAL", "HARNESS", "ZPM_SOURCE", "OPENJULES_SOURCE", "POLYPHONY_SOURCE", "UNAVAILABLE"})
+_STORAGE_SUBTREES = frozenset({
+    "INPUTS", "WORK_ROOT", "PREPARATION_STAGE", "INSTALLATION_ENVIRONMENTS", "INSTALLATION_STATE",
+    "INSTALLATION_CONFIG", "INSTALLATION_SECRETS", "INSTALLATION_OTHER", "WORK_TEMPORARY", "WORK_HOME",
+    "WORK_OTHER", "HOST_TEMPORARY", "HOST_LOGS", "TRIAL_OTHER", "SOURCE_GIT", "SOURCE_FILES", "UNAVAILABLE",
+})
+_STORAGE_ERRNOS = frozenset({"ENOENT", "EACCES", "EPERM", "ENOTDIR", "EIO", "ELOOP", "ESTALE", "OTHER", "UNAVAILABLE"})
+_STORAGE_FIELDS = ("operation", "root_role", "subtree", "errno_class")
+_storage_observation_failures = weakref.WeakKeyDictionary()
+
+
+def _safe_storage_observation(value):
+    unavailable = dict.fromkeys(_STORAGE_FIELDS, "UNAVAILABLE")
+    try:
+        if type(value) is not dict or set(value) != set(_STORAGE_FIELDS):
+            return unavailable
+        for key, allowed in (("operation", _STORAGE_OPERATIONS), ("root_role", _STORAGE_ROOT_ROLES),
+                             ("subtree", _STORAGE_SUBTREES), ("errno_class", _STORAGE_ERRNOS)):
+            if type(value[key]) is not str or len(value[key]) > 32 or value[key] not in allowed:
+                return unavailable
+        source_subtrees = {"SOURCE_GIT", "SOURCE_FILES", "UNAVAILABLE"}
+        if ((value["root_role"] == "UNAVAILABLE" and value["subtree"] != "UNAVAILABLE")
+                or (value["root_role"] == "TRIAL" and value["subtree"] in source_subtrees - {"UNAVAILABLE"})
+                or (value["root_role"] not in {"TRIAL", "UNAVAILABLE"} and value["subtree"] not in source_subtrees)
+                or (value["operation"] == "WALK_ENUMERATION" and value["subtree"] != "UNAVAILABLE")):
+            return unavailable
+        return dict(value)
+    except BaseException:
+        return unavailable
+
+
+def _storage_location(root, path, temporary_root, source_roots):
+    """Classify already-known lexical operands only; never resolve or read."""
+    if type(root) is not type(REPO):
+        return "UNAVAILABLE", "UNAVAILABLE"
+    role = "UNAVAILABLE"
+    if type(temporary_root) is type(REPO) and root == temporary_root:
+        role = "TRIAL"
+    elif root == REPO:
+        role = "HARNESS"
+    elif type(source_roots) is dict:
+        for service, label in (("zpm", "ZPM_SOURCE"), ("openjules", "OPENJULES_SOURCE"),
+                               ("polyphony", "POLYPHONY_SOURCE")):
+            selected = source_roots.get(service)
+            if type(selected) is type(REPO) and root == selected:
+                role = label
+                break
+    if role == "UNAVAILABLE" or type(path) is not type(REPO):
+        return role, "UNAVAILABLE"
+    parts = path.relative_to(root).parts
+    if not parts:
+        return role, "UNAVAILABLE"
+    if role != "TRIAL":
+        return role, "SOURCE_GIT" if parts[0] == ".git" else "SOURCE_FILES"
+    if parts[0] == "work":
+        if len(parts) == 1:
+            return role, "WORK_ROOT"
+        if parts[1].startswith(".zpm-prepare-"):
+            return role, "PREPARATION_STAGE"
+        if parts[1] == "installation":
+            return role, {"environments": "INSTALLATION_ENVIRONMENTS", "state": "INSTALLATION_STATE",
+                          "config": "INSTALLATION_CONFIG", "secrets": "INSTALLATION_SECRETS"}.get(
+                              parts[2] if len(parts) > 2 else None, "INSTALLATION_OTHER")
+        return role, {"tmp": "WORK_TEMPORARY", "home": "WORK_HOME"}.get(parts[1], "WORK_OTHER")
+    return role, {"inputs": "INPUTS", "tmp": "HOST_TEMPORARY", "logs": "HOST_LOGS"}.get(parts[0], "TRIAL_OTHER")
+
+
+def _remember_storage_observation(failure, operation, root, path, original, temporary_root, source_roots):
+    # This runs only after an original refusal exists. Optional metadata, even
+    # interrupted metadata, must neither replace it nor introduce another read.
+    try:
+        if (type(failure) is Refused and len(failure.args) == 1 and type(failure.args[0]) is str
+                and failure.args[0] == "STORAGE_OBSERVATION"
+                and failure not in _storage_observation_failures):
+            _storage_observation_failures[failure] = ("UNAVAILABLE",) * 4
+            role, subtree = _storage_location(root, path, temporary_root, source_roots)
+            number = OSError.errno.__get__(original, OSError)
+            errno_class = ({errno.ENOENT: "ENOENT", errno.EACCES: "EACCES", errno.EPERM: "EPERM",
+                            errno.ENOTDIR: "ENOTDIR", errno.EIO: "EIO", errno.ELOOP: "ELOOP",
+                            errno.ESTALE: "ESTALE"}.get(number, "OTHER") if type(number) is int else "UNAVAILABLE")
+            value = _safe_storage_observation({"operation": operation, "root_role": role,
+                                               "subtree": subtree, "errno_class": errno_class})
+            _storage_observation_failures[failure] = tuple(value[key] for key in _STORAGE_FIELDS)
+    except BaseException:
+        pass
+
+
+def _storage_observation(failure):
+    if type(failure) is not Refused:
+        return None
+    try:
+        value = _storage_observation_failures.get(failure)
+        return None if value is None else _safe_storage_observation(dict(zip(_STORAGE_FIELDS, value)))
+    except BaseException:
+        return dict.fromkeys(_STORAGE_FIELDS, "UNAVAILABLE")
 
 
 def _docker_endpoint(path):
@@ -418,7 +515,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-12"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-13"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -506,6 +603,7 @@ def report_bytes(report):
         hostname_class = report.get("oci_redirect_hostname_class") if hostname_class_present else None
         docker_observation = report.get("docker_observation") if type(report) is dict else None
         docker_context = report.get("docker_sample_context") if type(report) is dict else None
+        storage_observation = report.get("storage_observation") if type(report) is dict else None
         report = {key: report[key] for key in (
             "schema", "attempt", "plan_sha256", "harness_source_revision", "production_sources",
             "recipe_sha256", "native_checks", "first_failure", "cleanup_failures")}
@@ -529,6 +627,11 @@ def report_bytes(report):
                     report["docker_sample_context"] = _safe_docker_sample_context(docker_context)
                 except BaseException:
                     report["docker_sample_context"] = dict.fromkeys(("location", "owned_stage", "prior_driver"), "UNAVAILABLE")
+        if storage_observation is not None and report["first_failure"] == "STORAGE_OBSERVATION":
+            try:
+                report["storage_observation"] = _safe_storage_observation(storage_observation)
+            except BaseException:
+                report["storage_observation"] = dict.fromkeys(_STORAGE_FIELDS, "UNAVAILABLE")
         report.update(status="FAILED", native_execution_qualified=False, truncated=True,
                       truncation_reason="REPORT_BOUND")
         report["cleanup_failures"] = report["cleanup_failures"][:32]
@@ -565,6 +668,12 @@ def public_summary(report):
                 result["docker_sample_context"] = _safe_docker_sample_context(report["docker_sample_context"])
             except BaseException:
                 result["docker_sample_context"] = dict.fromkeys(("location", "owned_stage", "prior_driver"), "UNAVAILABLE")
+    if (type(report) is dict and type(result.get("first_failure")) is str
+            and result["first_failure"] == "STORAGE_OBSERVATION" and "storage_observation" in report):
+        try:
+            result["storage_observation"] = _safe_storage_observation(report["storage_observation"])
+        except BaseException:
+            result["storage_observation"] = dict.fromkeys(_STORAGE_FIELDS, "UNAVAILABLE")
     groups = {"environment": ("python", "kernel", "machine", "runner_os", "runner_version", "uid", "gid",
                                "engine_api", "git", "openssl", "docker_client", "docker_server", "native_interpreter"),
               "acquisition": ("requests", "body_bytes", "metadata_reserved_bytes", "reserved_body_bytes",
@@ -631,7 +740,7 @@ def reconcile_processes(snapshot, retained, root, sessions=()):
     return current, sum(snapshot[pid]["rss"] for pid in current)
 
 
-def logical_files(roots, *, temporary_root=None):
+def logical_files(roots, *, temporary_root=None, source_roots=None):
     """Regular linked bytes only; deliberately not physical/daemon accounting."""
     reservations = ({temporary_root / name: size for name, size in TRANSIENT_FILES.items()}
                     if temporary_root is not None else {})
@@ -639,17 +748,37 @@ def logical_files(roots, *, temporary_root=None):
     for root in roots:
         require(root.is_dir() and not root.is_symlink(), "STORAGE_ROOT")
         def unavailable(error):
-            raise Refused("STORAGE_OBSERVATION") from None
+            failure = Refused("STORAGE_OBSERVATION")
+            try:
+                _remember_storage_observation(failure, "WALK_ENUMERATION", root, None, error,
+                                              temporary_root, source_roots)
+            except BaseException:
+                pass
+            raise failure from None
         for directory, dirs, files in os.walk(root, followlinks=False, onerror=unavailable):
             for name in dirs + files:
                 path = Path(directory) / name
                 try:
                     info = os.lstat(path)
-                except FileNotFoundError:
-                    require(path in reservations, "STORAGE_OBSERVATION")
+                except FileNotFoundError as error:
+                    try:
+                        require(path in reservations, "STORAGE_OBSERVATION")
+                    except Refused as failure:
+                        try:
+                            _remember_storage_observation(failure, "ENTRY_LSTAT_MISSING", root, path, error,
+                                                          temporary_root, source_roots)
+                        except BaseException:
+                            pass
+                        raise
                     continue  # Its whole fixed reservation remains charged.
-                except OSError:
-                    raise Refused("STORAGE_OBSERVATION") from None
+                except OSError as error:
+                    failure = Refused("STORAGE_OBSERVATION")
+                    try:
+                        _remember_storage_observation(failure, "ENTRY_LSTAT_ERROR", root, path, error,
+                                                      temporary_root, source_roots)
+                    except BaseException:
+                        pass
+                    raise failure from None
                 if path in reservations:
                     permitted_owners = {os.getuid()}
                     if path.relative_to(temporary_root).as_posix() in FIXED_POLICY["root_created_temporary_files"]:
@@ -1308,7 +1437,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-12",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-13",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,
@@ -1375,6 +1504,13 @@ class Trial:
                             self.record["docker_sample_context"] = context
                     except BaseException:
                         pass
+            if type(code) is str and code == "STORAGE_OBSERVATION":
+                try:
+                    observation = _storage_observation(failure)
+                    if observation is not None:
+                        self.record["storage_observation"] = observation
+                except BaseException:
+                    pass
         self.record["status"] = "FAILED"
         self.record["native_execution_qualified"] = False
 
@@ -1575,7 +1711,8 @@ class Trial:
         resource["minimum_host_available_bytes"] = available if minimum is None else min(minimum, available)
         resource["pending_mutation_reservations"] = sum(row["reserved_bytes"] for group in ("containers", "image_references")
                     for row in self.journal[group] if not row["removed"])
-        logical = (logical_files([self.root, REPO, *self.sources.values()], temporary_root=self.root) + self.observe_mutations()
+        logical = (logical_files([self.root, REPO, *self.sources.values()], temporary_root=self.root,
+                                 source_roots=self.sources) + self.observe_mutations()
                    + FIXED_POLICY["final_report_reservation_bytes"])
         resource["command_output_bytes"] = guest.output_total(self.output_budget, self.observation_deadline(), os.getuid())
         require(resource["command_output_bytes"] <= CAPS["aggregate_log_bytes"], "AGGREGATE_OUTPUT_BOUND")
