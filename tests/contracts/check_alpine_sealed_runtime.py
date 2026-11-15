@@ -31,6 +31,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import weakref
 
 # The workflow uses the isolated script entry point, not an ambient package.
 if not __package__:
@@ -151,10 +152,83 @@ FIXED_POLICY["apk_signature_inputs"] = {
 }
 RUN_PREFIX = "refs/heads/qualification/native-alpine/run/"
 
+# Fixed, immutable diagnostic values only. The private weak association binds
+# a classification to the original guard's exception, not mutable attributes or
+# arbitrary exception text. One failed acquisition terminates the stage.
+_OCI_REDIRECT_PREDICATES = frozenset({
+    "LOCATION_CARDINALITY", "ORIGINAL_REGISTRY", "HTTPS_SCHEME", "HOSTNAME",
+    "PORT", "USERNAME", "PASSWORD", "FRAGMENT", "PATH_PREFIX", "URL_LENGTH",
+    "BACKSLASH", "PRINTABLE_ASCII", "UNAVAILABLE",
+})
+_oci_redirect_failures = weakref.WeakKeyDictionary()
+
+
+def _safe_oci_redirect_predicate(value):
+    try:
+        return value if type(value) is str and len(value) <= 32 and value in _OCI_REDIRECT_PREDICATES else "UNAVAILABLE"
+    except BaseException:
+        return "UNAVAILABLE"
+
+
+def _remember_oci_redirect_failure(error, predicate):
+    try:
+        if type(error) is Refused and error not in _oci_redirect_failures:
+            _oci_redirect_failures[error] = "UNAVAILABLE"
+            _oci_redirect_failures[error] = _safe_oci_redirect_predicate(predicate)
+    except BaseException:
+        # Optional diagnostic work cannot replace the original refusal.
+        pass
+
+
+def _oci_redirect_predicate(error):
+    if type(error) is not Refused:
+        return None
+    try:
+        value = _oci_redirect_failures.get(error)
+        return None if value is None else _safe_oci_redirect_predicate(value)
+    except BaseException:
+        return "UNAVAILABLE"
+
+
+def _require_oci_redirect(condition, predicate):
+    # Evaluation remains at the call site. Do not classify an operand failure
+    # or add a truth conversion for an unexpected non-boolean operand.
+    if type(condition) is not bool or condition:
+        require(condition, "OCI_REDIRECT_REFUSED")
+        return
+    try:
+        require(condition, "OCI_REDIRECT_REFUSED")
+    except Refused as error:
+        _remember_oci_redirect_failure(error, predicate)
+        raise
+
 
 def fixed_code(error, fallback="UNEXPECTED_FAILURE"):
     value = str(error) if isinstance(error, (Refused, guest.GuestRefused)) else ""
     return value if re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", value) else fallback
+
+
+def _child_failure_result(name, error):
+    result = {"status": "FAIL", "failure": fixed_code(error, "CHILD_FAILURE")}
+    if name == "acquisition" and result["failure"] == "OCI_REDIRECT_REFUSED":
+        predicate = _oci_redirect_predicate(error)
+        if predicate is not None:
+            result["oci_redirect_predicate"] = predicate
+    return result
+
+
+def _check_child_result(name, value, status):
+    child_status = value.get("status")
+    passing = child_status == "PASS" and os.waitstatus_to_exitcode(status) == 0
+    code = value.get("failure") if re.fullmatch(r"[A-Z0-9_]{1,64}", str(value.get("failure"))) else "CHILD_FAILURE"
+    try:
+        require(passing, code)
+    except Refused as error:
+        if (name == "acquisition" and type(value) is dict and type(code) is str
+                and code == "OCI_REDIRECT_REFUSED" and type(child_status) is str and child_status == "FAIL"
+                and "oci_redirect_predicate" in value):
+            _remember_oci_redirect_failure(error, value["oci_redirect_predicate"])
+        raise
 
 
 def reviewed_identity(explicit, run_ref):
@@ -259,9 +333,15 @@ def report_bytes(report):
         report["status"], report["native_execution_qualified"], report["truncated"] = "FAILED", False, True
         if report.get("first_failure") is None:
             report["first_failure"] = "REPORT_BOUND"
+        predicate = report.get("oci_redirect_predicate") if type(report) is dict else None
         report = {key: report[key] for key in (
             "schema", "attempt", "plan_sha256", "harness_source_revision", "production_sources",
             "recipe_sha256", "native_checks", "first_failure", "cleanup_failures")}
+        if predicate is not None and report["first_failure"] == "OCI_REDIRECT_REFUSED":
+            try:
+                report["oci_redirect_predicate"] = _safe_oci_redirect_predicate(predicate)
+            except BaseException:
+                report["oci_redirect_predicate"] = "UNAVAILABLE"
         report.update(status="FAILED", native_execution_qualified=False, truncated=True,
                       truncation_reason="REPORT_BOUND")
         report["cleanup_failures"] = report["cleanup_failures"][:32]
@@ -276,6 +356,12 @@ def public_summary(report):
              "recipe_sha256", "status", "first_failure", "native_checks", "native_execution_qualified",
              "cleanup_failures", "truncated", "elapsed_ms")
     result = {name: report[name] for name in names if name in report}
+    if (type(report) is dict and type(result.get("first_failure")) is str and result["first_failure"] == "OCI_REDIRECT_REFUSED"
+            and "oci_redirect_predicate" in report):
+        try:
+            result["oci_redirect_predicate"] = _safe_oci_redirect_predicate(report["oci_redirect_predicate"])
+        except BaseException:
+            result["oci_redirect_predicate"] = "UNAVAILABLE"
     groups = {"environment": ("python", "kernel", "machine", "runner_os", "runner_version", "uid", "gid",
                                "engine_api", "git", "openssl", "docker_client", "docker_server", "native_interpreter"),
               "acquisition": ("requests", "body_bytes", "metadata_reserved_bytes", "reserved_body_bytes",
@@ -577,11 +663,24 @@ class BoundedHTTPSHandler(urllib.request.HTTPSHandler):
 
 def redirect_url(url, original):
     parts = urllib.parse.urlsplit(url)
-    require(original.startswith(REGISTRY) and parts.scheme == "https" and
-            parts.hostname == "production.cloudfront.docker.com" and parts.port in (None, 443) and
-            not parts.username and not parts.password and not parts.fragment and
-            parts.path.startswith("/registry-v2/docker/registry/v2/blobs/sha256/"), "OCI_REDIRECT_REFUSED")
-    require(len(url) <= 16384 and "\\" not in url and all(33 <= ord(char) <= 126 for char in url), "OCI_REDIRECT_REFUSED")
+    predicate = "UNAVAILABLE"
+    def observed(name, value):
+        nonlocal predicate
+        predicate = name
+        return value  # No truth conversion, parsing or second property read.
+    components = (observed("ORIGINAL_REGISTRY", original.startswith(REGISTRY)) and
+                  observed("HTTPS_SCHEME", parts.scheme == "https") and
+                  observed("HOSTNAME", parts.hostname == "production.cloudfront.docker.com") and
+                  observed("PORT", parts.port in (None, 443)) and
+                  observed("USERNAME", not parts.username) and
+                  observed("PASSWORD", not parts.password) and
+                  observed("FRAGMENT", not parts.fragment) and
+                  observed("PATH_PREFIX", parts.path.startswith("/registry-v2/docker/registry/v2/blobs/sha256/")))
+    _require_oci_redirect(components, predicate)
+    text = (observed("URL_LENGTH", len(url) <= 16384) and
+            observed("BACKSLASH", "\\" not in url) and
+            observed("PRINTABLE_ASCII", all(33 <= ord(char) <= 126 for char in url)))
+    _require_oci_redirect(text, predicate)
     return url
 
 
@@ -634,7 +733,7 @@ class Acquisition:
                 self.header_observation(error.fp)
                 if redirected:
                     locations = error.headers.get_all("Location", [])
-                    require(len(locations) == 1, "OCI_REDIRECT_REFUSED")
+                    _require_oci_redirect(len(locations) == 1, "LOCATION_CARDINALITY")
                     location = redirect_url(locations[0], url)
             finally:
                 error.close()
@@ -993,9 +1092,13 @@ class Trial:
         require(end > time.monotonic(), "TOTAL_DEADLINE")
         return end
 
-    def fail(self, code):
+    def fail(self, code, *, failure=None):
         if self.record["first_failure"] is None:
             self.record["first_failure"] = code
+            if type(code) is str and code == "OCI_REDIRECT_REFUSED":
+                predicate = _oci_redirect_predicate(failure)
+                if predicate is not None:
+                    self.record["oci_redirect_predicate"] = predicate
         self.record["status"] = "FAILED"
         self.record["native_execution_qualified"] = False
 
@@ -1249,7 +1352,7 @@ class Trial:
                 os._exit(0)
             except BaseException as error:
                 try:
-                    atomic_private(result, encoded({"status": "FAIL", "failure": fixed_code(error, "CHILD_FAILURE")}) + b"\n")
+                    atomic_private(result, encoded(_child_failure_result(name, error)) + b"\n")
                 finally:
                     os._exit(1)
         os.close(reader)
@@ -1267,8 +1370,7 @@ class Trial:
                 if found:
                     done = True
                     value = candidate.decode(candidate.read_bounded(result, 4096))
-                    require(value.get("status") == "PASS" and os.waitstatus_to_exitcode(status) == 0,
-                            value.get("failure") if re.fullmatch(r"[A-Z0-9_]{1,64}", str(value.get("failure"))) else "CHILD_FAILURE")
+                    _check_child_result(name, value, status)
                     self.sample()
                     return
                 require(time.monotonic() < end, "STAGE_DEADLINE")
@@ -1824,7 +1926,7 @@ def qualify(trial):
         require(info["State"]["Status"] == "exited" and info["State"]["ExitCode"] == 0 and not info["State"]["OOMKilled"], "QUALIFICATION_EXIT")
         native_guest_result(trial, "qualification")
     except BaseException as error:
-        trial.fail(fixed_code(error))
+        trial.fail(fixed_code(error), failure=error)
         if trial.record["native_checks"][stage] == "NOT_RUN":
             trial.record["native_checks"][stage] = "FAIL"
         # On a failed native command, retain any completed real stage checks,

@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "record_kind": "independent-oci-refusal-diagnostic-source-review",
+  "reviewer": "ChatGPT /root/kp_ws_audit, session 7224fa679d88",
+  "reviewed_at_utc": "2026-11-15T02:50:48.862706+00:00",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "baseline_revision": "2c9f1edf3815b6e4a3c60d56ba1609fca3eaec62",
+  "baseline_tree": "6dfa5e1df10a36cf6f026d8fc2264344617eddcf",
+  "disposition": "SOURCE_APPROVED; required integrated source gates, exact plan review and any native admission remain separate and outstanding.",
+  "blocking_findings": [],
+  "reviewed_files": [
+    {
+      "path": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/source/tests/contracts/check_alpine_sealed_runtime.py",
+      "bytes": 113270,
+      "sha256": "479597e82853bdfae4e6163089fb60541c323aa3932528150526ac9419b9f1a6",
+      "git_blob": "17451170e16abf0c78db70e28d6c733032d38c51"
+    },
+    {
+      "path": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/source/tests/test_alpine_sealed_runtime.py",
+      "bytes": 108419,
+      "sha256": "debff3144076c8efcab78e165e130f36ebea2140c38468e7ff4bd547620064fc",
+      "git_blob": "4cc474359742b1eeb234b1f1efde7be5299dd485"
+    },
+    {
+      "path": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/source/docs/native-alpine-active-harness.md",
+      "bytes": 31832,
+      "sha256": "09f951774c542e9440fab0c02ce47ab30fc2665c75b8f18c63c206a78815350a",
+      "git_blob": "d12fa7ed07bfa402b0ec1e0bc5d6dd194c78525a"
+    }
+  ],
+  "author_initial_freeze": {
+    "path": "/workspace/scratch/7224fa679d88/zpm69-oci-diagnostic-author-freeze.json",
+    "bytes": 29418,
+    "sha256": "b93680fe3e3bd0dc868d7e925be39874dc8d66a530f9f3b437f60e00a8643488",
+    "git_blob": "26d38fc87961f5d424c8151451fab18b8dda30ef"
+  },
+  "author_guide_delta": {
+    "path": "/workspace/scratch/7224fa679d88/zpm69-oci-diagnostic-author-freeze-v2-delta.json",
+    "bytes": 2512,
+    "sha256": "1628ce920d98a72948a667717a071b3778b3132fae23513029582db677e12d24",
+    "git_blob": "6f43c3d3dae92b4f3257789b0120cbff7e01511f"
+  },
+  "source_custody": {
+    "isolated_copy": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/source",
+    "unchanged_baseline_leaves_verified": 168,
+    "baseline_runtime": {
+      "path": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/source/tests/contracts/check_alpine_sealed_runtime_baseline.py",
+      "bytes": 108808,
+      "sha256": "d34059deea6a9477c3f6ccc0adbe02ccbc87c90cdd29f75cbb061308e18beb48",
+      "git_blob": "db950001479f1203325bfacb08fab623bca2394a"
+    },
+    "only_product_paths_changed": 3,
+    "fixed_policy_caps_commands_registry_run_prefix_assignments": "AST-equal to baseline"
+  },
+  "source_findings": [
+    "The guard expressions preserve original operand, parse and property read order. The observed label returns the original operand without additional bool coercion, and non-boolean or operand/parser exceptions do not acquire guard classification.",
+    "Only an exact original Refused guard error is associated through a private weak map. Equal text, cloned errors or arbitrary attributes cannot fabricate that provenance. A previously retained predicate is immutable for that error.",
+    "Acquisition response closure, credential stripping, request/body reservations, redirect authority and follow-request counts are unchanged. New serialized values are a closed fixed predicate enum or UNAVAILABLE; no target, signed query, header, body or arbitrary exception text is added.",
+    "Parent child-result checks preserve original status/exit/code evaluation before the optional closed metadata is copied. The original refusal is rethrown; child dictionary mutation cannot change the retained parent predicate.",
+    "Public summary retains only the closed predicate when the original OCI code is already the trial first_failure. Unknown/malformed optional values do not coerce or traverse attacker-controlled values and fall back to UNAVAILABLE within the existing child/report bounds."
+  ],
+  "resolved_documentation_finding": {
+    "classification": "PRE-EXISTING_BASELINE_LIMITATION; no introduced runtime regression and not a native7 cause finding",
+    "observation": "In both baseline2c9f and corrected479597e8, a reaped child OCI_REDIRECT_REFUSED propagates through fork_stage finally. If sample_if_possible fails there, it can latch a later resource code before qualify catches the child error. Corrected child JSON and exact propagated Error retain HOSTNAME, while the trial summary follows its already-latched resource code and omits the predicate.",
+    "resolution": "Revised guide09f95177 explicitly limits later-error protection to an OCI refusal already latched as trial.first_failure and documents the existing alternative. Coordinator selected documentation only; no failure-order/latch change was introduced.",
+    "probe": {
+      "path": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/source/independent_cleanup_order_probe.py",
+      "bytes": 3410,
+      "sha256": "150d22c7924936b5aef27f0f9688f94ce8e6d59eefc2278fd434a282df26a83f",
+      "git_blob": "0a557d43b75d0368733c5a6c4b8e8b8e9fec7a67"
+    },
+    "result": {
+      "path": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/independent-cleanup-order-probe.json",
+      "bytes": 1288,
+      "sha256": "a8e402b362c7356a115cce44fb2bbf5da90fd9449b030aacd3500ec8896ae971",
+      "git_blob": "24b216a4e8a0735bc5ee8a673fe206d2e556fcb8"
+    },
+    "controlled_execution": "One original local fixture child per revision, both reaped; network creation patched to refusal; no Docker or registry transport."
+  },
+  "independent_validation": [
+    {
+      "command": "python -B -m unittest independent_oci_review_tests -v",
+      "tests": 6,
+      "passed": 6,
+      "skipped": 0,
+      "purpose": "Real URL parse/guard matrix; complete short-circuit and non-boolean conversion trace against exact baseline; actual invalid-port exception; weak identity/GC; child argument evaluation; hostile optional metadata",
+      "test": {
+        "path": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/source/independent_oci_review_tests.py",
+        "bytes": 6492,
+        "sha256": "b5bd83022d1be8ac14bf3f76117caa46be0994ffe733be60883e94d5f32fc776",
+        "git_blob": "80a180aa2057c3433f8395435af8736ed619632e"
+      },
+      "log": {
+        "path": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/independent-oci-review-tests.log",
+        "bytes": 1312,
+        "sha256": "2d1b6a0d62fcf58a0ddab39070bc922c6a7c88cb3a52896b418677fe60a52f01",
+        "git_blob": "3f5789411fccee95c8697929045c946f1947f9d5"
+      }
+    },
+    {
+      "command": "python -B -m unittest tests.test_alpine_sealed_runtime.OciRedirectDiagnosticTests -v",
+      "tests": 16,
+      "passed": 16,
+      "skipped": 0,
+      "purpose": "Independent run of author focused tests, including original locally owned fork/result/reap fixture",
+      "log": {
+        "path": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/independent-author-focused-tests.log",
+        "bytes": 3375,
+        "sha256": "6048140beebe79abea79b6e20a57076cba1963208c805b1bf59c89fda5fa7f4f",
+        "git_blob": "2b9e7ca790a9454c75b6dcf14bce99c2e24103fb"
+      }
+    },
+    {
+      "command": "python -B tests/contracts/check_alpine_sealed_runtime.py --check-plan --reviewed-plan-sha256 d87dba65bad619979dd704a4e1035acfb5c7383ec6fe0c795cd34d9fc55a3973",
+      "exit_code": 2,
+      "observed": "REFUSED SOURCE_FILE_BOUND",
+      "native_execution": "NOT_RUN",
+      "purpose": "Verify historical plan7 cannot admit the revised runtime; no source rebinding or new plan was produced",
+      "log": {
+        "path": "/workspace/scratch/7224fa679d88/zpm69-oci-independent-review/independent-historical-plan7-check.log",
+        "bytes": 54,
+        "sha256": "2b6be22db97a938d153e80137cb1c9444fe1b1b2b527fab4eb79156bcddab4cf",
+        "git_blob": "f37fe631acf89515ce1b7fdef34ff16338f8c313"
+      }
+    }
+  ],
+  "review_probe_setup_note": "The initial differential cleanup probe used an unapproved hardcoded Alpine registry path and incorrectly expected HOSTNAME rather than ORIGINAL_REGISTRY. The independent probe was corrected to use the frozen runtime.REGISTRY, then both-revision observations passed. The initial script/output are retained; no product source changed and the ordering observation itself was identical.",
+  "remaining_gates": [
+    "Actual tracked plan7 remains historical and refuses this changed source at SOURCE_FILE_BOUND, before the unchanged ACTIVE_CODE_IDENTITY check.",
+    "Author139-pass external local binding is inert source testing, not integrated acceptance or execution admission. This reviewer did not run or alter that binding.",
+    "Author full discovery793 remains NOT_GREEN: two stale-plan failures and one unchanged /proc children-file environment error. This review does not waive required CI or infer native success.",
+    "Shared source owner must adopt the exact source delta, produce separately reviewed future source/plan binding if selected, and obtain actual required final head/merge gates before any eligible delivery or native admission."
+  ],
+  "privacy_and_scope": "Reviewed source/test/guide delta is public-repository-safe and introduces no private repository references, credential values, policy/capability expansion or new network command. Native7 failed predicate and target remain UNKNOWN; no later trial is admitted by this review.",
+  "not_performed": [
+    "Product source edits",
+    "Plan generation or rebinding",
+    "Docker/registry/model/provider execution",
+    "Native qualification trial or retry",
+    "Remote source branch/comment/admission mutation"
+  ],
+  "environment": {
+    "python": "3.12.14",
+    "platform": "Linux source fixtures only"
+  }
+}

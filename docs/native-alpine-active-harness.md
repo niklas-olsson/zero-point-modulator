@@ -1,6 +1,6 @@
 # Native Alpine active-harness contract
 
-**Status: corrected attempt-7 source candidate for independent review.**
+**Status: refusal-diagnostic source candidate for independent review.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -15,9 +15,13 @@ Its actual payload remains unknown and cleanup explicitly failed with an
 unconfirmed create outcome. The [sixth attempt](native-alpine-evidence/attempt-6/outcome.md)
 passed artifact bytes, APK trust and base-image identity, then failed stats
 observation during assembly with cleanup PASS. Its actual response/state
-chronology remains unknown. Attempt 7 is unactivated and corrects the pinned
-one-shot response representation and failure classification, retaining every
-original authority/resource cap.
+chronology remains unknown. The
+[seventh attempt](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43639051137)
+refused acquisition with `OCI_REDIRECT_REFUSED` after two requests and 5,489 body
+bytes, with zero completed artifacts or redirects and cleanup PASS. Its target
+and failed predicate remain unknown. The source correction below adds a closed
+refusal diagnostic, retaining every original authority/resource cap. These
+edits do not admit another native attempt.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
 It changes only the ZPM qualification fixture. The original
@@ -55,7 +59,7 @@ or architecture-gated feature is part of this design.
 | Existing `check_alpine_sealed_candidate.py` | Retain the inert CLI, exact metadata admission and data-only archive helpers. No active flag is added to its command. |
 | New `check_alpine_sealed_runtime.py` | Explicit active entry point, plan admission, host process/resource guardian, bounded acquisition, Docker custody, stages, safe result reduction and cleanup. |
 | New `alpine_sealed_guest.py` | Fixed assembly-inventory and nonroot qualification commands. Use the original production APIs, separate owner interpreters and finite probe IDs. |
-| `native-alpine/active-plan-7.json` | Bind the original plan/recipe, distinct seventh attempt, exact commands, source manifests and unchanged authority/resource limits. All six prior plans remain unchanged historical evidence. |
+| `native-alpine/active-plan-7.json` | Historical seventh-attempt binding of the original plan/recipe, commands, source manifests and authority/resource limits. It and all six prior plans remain unchanged; it cannot admit the diagnostic source revision. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -182,6 +186,37 @@ authorization is confined to the exact `library/python` blob requests; the one
 allowed CloudFront redirect uses a fresh credential-free request. APK and wheel
 redirects, automatic retries, mutable tag pulls, index refreshes and resolution
 are refused. No signed-query or token value enters a report.
+
+An existing `OCI_REDIRECT_REFUSED` guard can retain one optional
+`oci_redirect_predicate` in the existing 4,096-byte acquisition-child result and
+256-KiB final summary. Its closed values are `LOCATION_CARDINALITY`,
+`ORIGINAL_REGISTRY`, `HTTPS_SCHEME`, `HOSTNAME`, `PORT`, `USERNAME`, `PASSWORD`,
+`FRAGMENT`, `PATH_PREFIX`, `URL_LENGTH`, `BACKSLASH`, `PRINTABLE_ASCII` and
+`UNAVAILABLE`. The value names the first failed predicate in the original
+short-circuit order. It does not record a redirect target, HTTP status, query,
+token, header, body or arbitrary exception text. There is no additional request,
+parse, property read, follow attempt or resource allowance.
+
+The diagnostic is attached privately to the exact original guard exception;
+parser and operand exceptions are not reclassified. A fixed value crosses the
+existing child result into the parent's original refusal. A mutable exception
+attribute or changed child dictionary cannot replace its privately retained
+first value. Optional projection failure yields `UNAVAILABLE` without replacing
+the refusal. Once the original OCI refusal is already latched as the trial's
+`first_failure`, later failures or cleanup errors cannot replace its diagnostic.
+Existing child finalization can instead latch another failure before the parent
+handles the original OCI refusal. In that case the child result retains its
+original OCI diagnostic, but the final summary follows the existing first-failure
+policy and omits it. This diagnostic does not change that ordering. Existing
+response closure, request accounting, credential stripping and redirect policy
+remain in force.
+
+This is a source diagnostic, not a qualified redirect change. Native attempt 7
+retains its original generic refusal; its failed predicate and target remain
+unknown. Historical plans 1 through 7 are unchanged. Plan 7 rejects this larger
+runtime at its existing `SOURCE_FILE_BOUND` check, before the unchanged
+`ACTIVE_CODE_IDENTITY` hash check. Any future native attempt requires a separately
+reviewed exact source binding and admission.
 
 Reverify each whole-file identity, every OCI diff ID and archive member bound,
 wheel metadata/native-member catalog, and each APK's control signature and

@@ -1596,5 +1596,291 @@ class TransportAndReportTests(Fixture):
         self.assertFalse(summary["native_execution_qualified"])
 
 
+class OciRedirectDiagnosticTests(Fixture):
+    """Original refusal custody, using in-memory transport and fixed metadata."""
+
+    origin = runtime.REGISTRY + "sha256:" + "a" * 64
+    target = "https://production.cloudfront.docker.com/registry-v2/docker/registry/v2/blobs/sha256/aa/data"
+    response = staticmethod(TransportAndReportTests.response)
+
+    def refused_target(self, target=None, original=None):
+        with self.assertRaisesRegex(candidate.Refused, "^OCI_REDIRECT_REFUSED$") as caught:
+            runtime.redirect_url(target or self.target, original or self.origin)
+        return caught.exception
+
+    def transport_refusal(self, locations):
+        requests = []
+        response = self.response(b"")
+        response.read = Mock(side_effect=AssertionError("redirect body must not be read"))
+        headers = Message()
+        for location in locations:
+            headers["Location"] = location
+        class Opener:
+            def open(inner, request, timeout):
+                requests.append(request)
+                if len(requests) != 1:
+                    raise AssertionError("no redirected request is admitted")
+                raise urllib.error.HTTPError(request.full_url, 307, "fixed fixture", headers, response)
+        directory = self.root / ("inputs-" + str(len(list(self.root.iterdir()))))
+        directory.mkdir()
+        acquisition = runtime.Acquisition(directory, time.monotonic() + 3, opener=Opener())
+        with patch.object(runtime.socket, "create_connection", side_effect=AssertionError("no network")), \
+                self.assertRaisesRegex(candidate.Refused, "^OCI_REDIRECT_REFUSED$") as caught:
+            acquisition.open(self.origin, 5, "sensitive-token", True)
+        self.assertTrue(response.closed)
+        response.read.assert_not_called()
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(acquisition.record, {
+            "requests": 1, "body_bytes": 0, "metadata_reserved_bytes": 65536,
+            "reserved_body_bytes": 5, "response_header_bytes": 80,
+            "response_framing_bytes": 0, "artifacts_complete": 0,
+            "redirects": 0, "origins": ["registry-1.docker.io"],
+        })
+        return caught.exception
+
+    def test_each_existing_target_predicate_has_one_closed_classification(self):
+        cases = [
+            ("ORIGINAL_REGISTRY", self.target, "https://unapproved.invalid/blobs/"),
+            ("HTTPS_SCHEME", self.target.replace("https:", "http:"), self.origin),
+            ("HOSTNAME", self.target.replace("production.cloudfront.docker.com", "unapproved.invalid"), self.origin),
+            ("PORT", self.target.replace(".com/", ".com:444/"), self.origin),
+            ("USERNAME", self.target.replace("https://", "https://sensitive-user@"), self.origin),
+            ("PASSWORD", self.target.replace("https://", "https://:sensitive-password@"), self.origin),
+            ("FRAGMENT", self.target + "#sensitive-fragment", self.origin),
+            ("PATH_PREFIX", "https://production.cloudfront.docker.com/other-path", self.origin),
+            ("URL_LENGTH", self.target + "?signed=" + "x" * 16384, self.origin),
+            ("BACKSLASH", self.target + "?signed=sensitive\\value", self.origin),
+            ("PRINTABLE_ASCII", self.target + "?signed=sensitive value", self.origin),
+            ("PRINTABLE_ASCII", self.target + "?signed=sensitive-\u00e9", self.origin),
+        ]
+        for expected, target, original in cases:
+            with self.subTest(predicate=expected):
+                error = self.refused_target(target, original)
+                self.assertEqual(runtime._oci_redirect_predicate(error), expected)
+                raw = runtime.encoded(runtime._child_failure_result("acquisition", error))
+                self.assertLess(len(raw), 4096)
+                for forbidden in (b"sensitive", b"signed", b"https:", b"unapproved.invalid"):
+                    self.assertNotIn(forbidden, raw)
+
+    def test_location_cardinality_preserves_close_and_all_original_accounting(self):
+        for locations in ([], [self.target, self.target + "?signed=sensitive"]):
+            with self.subTest(count=len(locations)):
+                error = self.transport_refusal(locations)
+                self.assertEqual(runtime._oci_redirect_predicate(error), "LOCATION_CARDINALITY")
+
+    def test_target_refusal_makes_no_follow_request_or_body_read(self):
+        error = self.transport_refusal([self.target.replace(".com/", ".com:444/") + "?signed=sensitive"])
+        self.assertEqual(runtime._oci_redirect_predicate(error), "PORT")
+        self.assertNotIn("sensitive", json.dumps(runtime._child_failure_result("acquisition", error)))
+
+    def test_allowed_redirect_and_credential_stripping_have_no_diagnostic(self):
+        requests = []
+        response = self.response()
+        class Opener:
+            def open(inner, request, timeout):
+                requests.append(request)
+                if len(requests) == 1:
+                    headers = Message()
+                    headers["Location"] = self.target + "?signed=sensitive"
+                    raise urllib.error.HTTPError(request.full_url, 307, "fixed fixture", headers, self.response(b""))
+                return response
+        directory = self.root / "inputs"
+        directory.mkdir()
+        acquisition = runtime.Acquisition(directory, time.monotonic() + 3, opener=Opener())
+        opened = acquisition.open(self.origin, 5, "sensitive-token", True)
+        self.assertEqual(acquisition.receive(opened, 5)[0], 5)
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[0].get_header("Authorization"), "Bearer sensitive-token")
+        self.assertIsNone(requests[1].get_header("Authorization"))
+        self.assertIsNone(requests[1].get_header("Cookie"))
+        self.assertEqual(acquisition.record["redirects"], 1)
+        self.assertEqual(acquisition.record["reserved_body_bytes"], 10)
+        self.assertNotIn("oci_redirect_predicate", acquisition.record)
+        self.assertNotIn("sensitive", json.dumps(acquisition.record))
+
+    def test_exact_original_assertion_error_is_rethrown(self):
+        original_require, errors = runtime.require, []
+        def observe(condition, code):
+            try:
+                return original_require(condition, code)
+            except candidate.Refused as error:
+                errors.append(error)
+                raise
+        with patch.object(runtime, "require", side_effect=observe):
+            error = self.refused_target(self.target + "#sensitive")
+        self.assertIs(error, errors[0])
+        self.assertEqual(runtime._oci_redirect_predicate(error), "FRAGMENT")
+
+    def test_parsed_properties_are_read_once_in_original_short_circuit_order(self):
+        reads = []
+        class Parts:
+            @property
+            def scheme(inner):
+                reads.append("scheme")
+                return "https"
+            @property
+            def hostname(inner):
+                reads.append("hostname")
+                if reads.count("hostname") > 1:
+                    raise AssertionError("second metadata read")
+                return "unapproved.invalid"
+            @property
+            def port(inner):
+                raise AssertionError("short-circuited metadata read")
+        with patch.object(runtime.urllib.parse, "urlsplit", return_value=Parts()) as parse:
+            error = self.refused_target()
+        parse.assert_called_once_with(self.target)
+        self.assertEqual(reads, ["scheme", "hostname"])
+        self.assertEqual(runtime._oci_redirect_predicate(error), "HOSTNAME")
+
+    def test_operand_and_parser_errors_are_not_marked_as_guard_failures(self):
+        for boundary in ("parse", "property"):
+            error = candidate.Refused("OCI_REDIRECT_REFUSED")
+            class Parts:
+                @property
+                def scheme(inner):
+                    raise error
+            with self.subTest(boundary=boundary), \
+                    patch.object(runtime.urllib.parse, "urlsplit", side_effect=error if boundary == "parse" else None,
+                                 return_value=Parts()), self.assertRaises(candidate.Refused) as caught:
+                runtime.redirect_url(self.target, self.origin)
+            self.assertIs(caught.exception, error)
+            self.assertIsNone(runtime._oci_redirect_predicate(error))
+            self.assertNotIn("oci_redirect_predicate", runtime._child_failure_result("acquisition", error))
+
+    def test_non_boolean_operand_keeps_original_conversion_and_error(self):
+        error, conversions = candidate.Refused("OCI_REDIRECT_REFUSED"), []
+        class Operand:
+            def __bool__(inner):
+                conversions.append(1)
+                raise error
+        with self.assertRaises(candidate.Refused) as caught:
+            runtime._require_oci_redirect(Operand(), "HOSTNAME")
+        self.assertIs(caught.exception, error)
+        self.assertEqual(conversions, [1])
+        self.assertIsNone(runtime._oci_redirect_predicate(error))
+
+    def test_forged_exception_attributes_cannot_create_diagnostic_provenance(self):
+        error = candidate.Refused("OCI_REDIRECT_REFUSED")
+        error.oci_redirect_predicate = "HOSTNAME"
+        error._oci_redirect_predicate = "PORT"
+        self.assertEqual(runtime._child_failure_result("acquisition", error),
+                         {"status": "FAIL", "failure": "OCI_REDIRECT_REFUSED"})
+        trial = self.trial()
+        trial.fail("OCI_REDIRECT_REFUSED", failure=error)
+        self.assertNotIn("oci_redirect_predicate", trial.record)
+
+    def test_projection_fault_keeps_original_error_and_unavailable_first_slot(self):
+        original_require, errors = runtime.require, []
+        def observe(condition, code):
+            try:
+                return original_require(condition, code)
+            except candidate.Refused as error:
+                errors.append(error)
+                raise
+        with patch.object(runtime, "require", side_effect=observe), \
+                patch.object(runtime, "_safe_oci_redirect_predicate", side_effect=RuntimeError("sensitive projection fault")):
+            error = self.refused_target(self.target + "#sensitive")
+            child = runtime._child_failure_result("acquisition", error)
+        self.assertIs(error, errors[0])
+        self.assertEqual(child["oci_redirect_predicate"], "UNAVAILABLE")
+        runtime._remember_oci_redirect_failure(error, "FRAGMENT")
+        self.assertEqual(runtime._oci_redirect_predicate(error), "UNAVAILABLE")
+        self.assertNotIn("sensitive", json.dumps(child))
+
+    def test_serialized_child_custody_freezes_value_before_source_record_mutation(self):
+        error = self.refused_target(self.target + "#sensitive")
+        wire = runtime.encoded(runtime._child_failure_result("acquisition", error))
+        value = candidate.decode(wire)
+        with self.assertRaisesRegex(candidate.Refused, "^OCI_REDIRECT_REFUSED$") as caught:
+            runtime._check_child_result("acquisition", value, 1 << 8)
+        parent_error = caught.exception
+        value["oci_redirect_predicate"] = "HOSTNAME"
+        runtime._remember_oci_redirect_failure(parent_error, "PORT")
+        trial = self.trial()
+        trial.fail(runtime.fixed_code(parent_error), failure=parent_error)
+        first = runtime.public_summary(trial.record)
+        first["oci_redirect_predicate"] = "PASSWORD"
+        self.assertEqual(runtime.public_summary(trial.record)["oci_redirect_predicate"], "FRAGMENT")
+        self.assertLess(len(runtime.report_bytes(runtime.public_summary(trial.record))), candidate.CAPS["report_bytes"])
+
+    def test_unrelated_stages_and_earlier_failures_do_not_acquire_this_diagnostic(self):
+        error = self.refused_target(self.target + "#sensitive")
+        self.assertNotIn("oci_redirect_predicate", runtime._child_failure_result("artifact-verification", error))
+        for status, failure, stage in (("PASS", "OCI_REDIRECT_REFUSED", "acquisition"),
+                                       ("FAIL", "OTHER_FAILURE", "acquisition"),
+                                       ("FAIL", "OCI_REDIRECT_REFUSED", "artifact-verification")):
+            value = {"status": status, "failure": failure, "oci_redirect_predicate": "HOSTNAME"}
+            with self.subTest(status=status, failure=failure, stage=stage), self.assertRaises(candidate.Refused) as caught:
+                runtime._check_child_result(stage, value, 1 << 8)
+            self.assertIsNone(runtime._oci_redirect_predicate(caught.exception))
+        trial = self.trial()
+        trial.fail("EARLIER_FAILURE")
+        trial.fail("OCI_REDIRECT_REFUSED", failure=error)
+        self.assertEqual(trial.record["first_failure"], "EARLIER_FAILURE")
+        self.assertNotIn("oci_redirect_predicate", runtime.public_summary(trial.record))
+
+    def test_malformed_or_oversized_child_metadata_is_unavailable_without_coercion(self):
+        class Hostile:
+            def __str__(inner):
+                raise AssertionError("diagnostic coercion")
+            def __eq__(inner, other):
+                raise AssertionError("diagnostic comparison")
+        for predicate in (Hostile(), {"body": "sensitive"}, "sensitive" * 10000, None):
+            value = {"status": "FAIL", "failure": "OCI_REDIRECT_REFUSED", "oci_redirect_predicate": predicate}
+            with self.assertRaisesRegex(candidate.Refused, "^OCI_REDIRECT_REFUSED$") as caught:
+                runtime._check_child_result("acquisition", value, 1 << 8)
+            self.assertEqual(runtime._oci_redirect_predicate(caught.exception), "UNAVAILABLE")
+            child = runtime._child_failure_result("acquisition", caught.exception)
+            self.assertLess(len(runtime.encoded(child)), 4096)
+            self.assertNotIn("sensitive", json.dumps(child))
+
+    def test_final_summary_preserves_original_refusal_through_cleanup_failure(self):
+        trial = self.trial()
+        error = self.refused_target(self.target + "#sensitive")
+        trial.fail("OCI_REDIRECT_REFUSED", failure=error)
+        trial.cleanup = Mock(side_effect=candidate.Refused("CLEANUP_UNCONFIRMED"))
+        trial.refresh_acquisition = Mock()
+        trial.sample = Mock()
+        self.assertEqual(runtime.finish_trial(trial), 1)
+        summary = json.loads((trial.root / "summary.json").read_bytes())
+        self.assertEqual(summary["first_failure"], "OCI_REDIRECT_REFUSED")
+        self.assertEqual(summary["oci_redirect_predicate"], "FRAGMENT")
+        self.assertIn("CLEANUP_UNCONFIRMED", summary["cleanup_failures"])
+        self.assertFalse(summary["native_execution_qualified"])
+        self.assertNotIn("sensitive", json.dumps(summary))
+
+    def test_public_projection_and_report_overflow_keep_only_closed_bounded_value(self):
+        trial = self.trial()
+        error = self.refused_target(self.target + "#sensitive")
+        trial.fail("OCI_REDIRECT_REFUSED", failure=error)
+        trial.record["ignored_private_data"] = "sensitive" * candidate.CAPS["report_bytes"]
+        result = json.loads(runtime.report_bytes(trial.record))
+        self.assertTrue(result["truncated"])
+        self.assertEqual(result["first_failure"], "OCI_REDIRECT_REFUSED")
+        self.assertEqual(result["oci_redirect_predicate"], "FRAGMENT")
+        self.assertNotIn("sensitive", json.dumps(result))
+        trial.record["oci_redirect_predicate"] = {"raw_url": "sensitive"}
+        self.assertEqual(runtime.public_summary(trial.record)["oci_redirect_predicate"], "UNAVAILABLE")
+
+    @unittest.skipUnless(hasattr(os, "pidfd_open") and hasattr(os, "fork"), "Linux owned-child fixture")
+    def test_original_fork_result_delivers_the_closed_refusal_without_native_transport(self):
+        trial = self.trial()
+        trial.sample = Mock()
+        try:
+            with self.assertRaisesRegex(candidate.Refused, "^OCI_REDIRECT_REFUSED$") as caught:
+                trial.fork_stage("acquisition", 2,
+                                 lambda end: runtime.redirect_url(self.target + "#sensitive", self.origin))
+            child = candidate.decode(candidate.read_bounded(trial.root / "acquisition-child.json", 4096))
+            self.assertEqual(child, {"status": "FAIL", "failure": "OCI_REDIRECT_REFUSED",
+                                     "oci_redirect_predicate": "FRAGMENT"})
+            trial.fail(runtime.fixed_code(caught.exception), failure=caught.exception)
+            self.assertEqual(runtime.public_summary(trial.record)["oci_redirect_predicate"], "FRAGMENT")
+            self.assertFalse(Path(f"/proc/{trial.direct_children[0]}").exists())
+        finally:
+            for fd in trial.pidfds.values():
+                os.close(fd)
+
+
 if __name__ == "__main__":
     unittest.main()
