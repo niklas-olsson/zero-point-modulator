@@ -22,11 +22,65 @@ from check_stack import Client, Processes, eventually, port, private_json, requi
 from check_authority_admission import stop_owned
 
 
+_RECOVERY_PHASE = "canonical readiness and lost original ensure reply"
+_RECOVERY_CHECKPOINTS = frozenset({
+    "READINESS", "EMPTY_CURSOR_RESET", "INITIAL_ENSURE", "SECOND_DESTINATION",
+    "ORIGINAL_SERVICE_STOP", "OUTAGE_RETENTION", "CONTROLLER_REOPEN",
+    "ADMISSION_CLOSE", "ORIGINAL_SERVICE_RESTART", "ORIGINAL_RECOVERY",
+})
+_ASSERTION_CODES = {
+    "deadline waiting for both destination readiness checks": "READINESS_TIMEOUT",
+    "deadline waiting for original destination recovery while closed": "RECOVERY_TIMEOUT",
+    "a trial service exited; inspect retained service logs": "SERVICE_EXITED",
+    "lost reply did not retain the original uncertain reservation": "UNCERTAIN_RESERVATION_MISMATCH",
+    "healthy second destination did not progress": "SECOND_DESTINATION_COUNT_MISMATCH",
+    "unavailable original destination released capacity": "OUTAGE_RESERVATION_MISMATCH",
+    "outage changed the original operation": "OUTAGE_IDENTITY_MISMATCH",
+    "restart recreated or rebound original capacity": "RECOVERY_STATE_MISMATCH",
+    "supported command exceeded its finite deadline": "COMMAND_TIMEOUT",
+    "supported command exceeded its output bound": "COMMAND_OUTPUT_LIMIT",
+    "supported host or controller command failed": "COMMAND_FAILED",
+}
+_MAX_ASSERTION_LENGTH = max(map(len, _ASSERTION_CODES))
+
+
+def _failure_classification(error):
+    """Project fixed categories without formatting or exporting exception data."""
+    kind = type(error)
+    if kind is AssertionError:
+        arguments = error.args
+        if len(arguments) == 1 and type(arguments[0]) is str and len(arguments[0]) <= _MAX_ASSERTION_LENGTH:
+            return "AssertionError", _ASSERTION_CODES.get(arguments[0], "ASSERTION")
+    for category, name, code in (
+        (AssertionError, "AssertionError", "ASSERTION"),
+        (subprocess.TimeoutExpired, "TimeoutExpired", "SUBPROCESS_TIMEOUT"),
+        (subprocess.SubprocessError, "SubprocessError", "SUBPROCESS_ERROR"),
+        (TimeoutError, "TimeoutError", "TIMEOUT"),
+        (OSError, "OSError", "OS_ERROR"),
+        (ValueError, "ValueError", "VALUE_ERROR"),
+        (LookupError, "LookupError", "LOOKUP_ERROR"),
+        (RuntimeError, "RuntimeError", "RUNTIME_ERROR"),
+        (KeyboardInterrupt, "KeyboardInterrupt", "INTERRUPTED"),
+        (SystemExit, "SystemExit", "SYSTEM_EXIT"),
+        (Exception, "Exception", "EXCEPTION"),
+        (BaseException, "BaseException", "CONTROL_EXIT"),
+    ):
+        if issubclass(kind, category):
+            return name, code
+    return "Unknown", "UNCLASSIFIED"
+
+
 class DestinationTrialFailure(AssertionError):
-    def __init__(self, phase, checks, error):
+    def __init__(self, phase, checks, error, *, subcheckpoint="NOT_APPLICABLE"):
         super().__init__("full destination trial failed during " + phase)
+        error_type, failure_code = _failure_classification(error)
+        if phase != _RECOVERY_PHASE:
+            subcheckpoint = "NOT_APPLICABLE"
+        elif type(subcheckpoint) is not str or subcheckpoint not in _RECOVERY_CHECKPOINTS:
+            subcheckpoint = "UNAVAILABLE"
         self.destination_diagnostic = {"phase": phase, "completed_checks": checks,
-                                       "error_type": type(error).__name__}
+                                       "error_type": error_type, "failure_code": failure_code,
+                                       "subcheckpoint": subcheckpoint}
 
 
 def run_contract(parent_root, installed_bundle, original_data, source_paths, revisions, image):
@@ -82,6 +136,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
     store = None
     checks = []
     phase = "full destination initialization and explicit public approval"
+    subcheckpoint = "NOT_APPLICABLE"
     failure = None
     injected = {"lost": False, "refuse": False}
 
@@ -225,29 +280,39 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
         controller = DestinationController(store, ObservedProvider)
         with patch.dict(os.environ, {"ZPM_DESTINATION_TRIAL_A": members["a"]["token"],
                 "ZPM_DESTINATION_TRIAL_B": members["b"]["token"], "no_proxy": "*", "NO_PROXY": "*"}):
-            phase = "canonical readiness and lost original ensure reply"
+            phase = _RECOVERY_PHASE
+            subcheckpoint = "READINESS"
             eventually(lambda: all(item["profiles"][0]["validation"]["ready"]
                                   for item in controller.check(4)["destinations"]),
                        processes, "both destination readiness checks", 30)
             # check uses the same persisted cursor. Reset only this empty trial
             # fixture's cursor so the declared lost-reply scene selects host a.
+            subcheckpoint = "EMPTY_CURSOR_RESET"
             destination_state.cursor(store, "")
+            subcheckpoint = "INITIAL_ENSURE"
             first = tick(3)
             require(first["reserved"] == 1 and store.workers()[0]["snapshot"]["state"] == "unknown",
                     "lost reply did not retain the original uncertain reservation")
             original_a = store.workers()[0]
             frozen = identity(original_a)
+            subcheckpoint = "SECOND_DESTINATION"
             tick(3)
             require(len(store.workers()) == 2, "healthy second destination did not progress")
+            subcheckpoint = "ORIGINAL_SERVICE_STOP"
             processes.stop("openjules-a", kill=True)
+            subcheckpoint = "OUTAGE_RETENTION"
             for _ in range(3):
                 require(tick(3)["reserved"] == 2, "unavailable original destination released capacity")
             require(identity(store.worker(original_a["launch_key"])) == frozen, "outage changed the original operation")
+            subcheckpoint = "CONTROLLER_REOPEN"
             store.close()
             store = Store(state_path, deployment, create=False)
             controller = DestinationController(store, ObservedProvider)
+            subcheckpoint = "ADMISSION_CLOSE"
             admin("a", "--close-admission")
+            subcheckpoint = "ORIGINAL_SERVICE_RESTART"
             start("a")
+            subcheckpoint = "ORIGINAL_RECOVERY"
             eventually(lambda: settled(2), processes, "original destination recovery while closed", 30)
             require(identity(store.worker(original_a["launch_key"])) == frozen and len(store.workers()) == 2,
                     "restart recreated or rebound original capacity")
@@ -351,7 +416,7 @@ def run_contract(parent_root, installed_bundle, original_data, source_paths, rev
             "not_proven": ["two independent hosts", "generated role-aware installation", "remote TLS deployment",
                            "live model inference", "browser execution", "independent semantic acceptance", "public distribution"]}
     except BaseException as error:
-        failure = DestinationTrialFailure(phase, list(checks), error)
+        failure = DestinationTrialFailure(phase, list(checks), error, subcheckpoint=subcheckpoint)
         raise failure from error
     finally:
         cleanup_failures = []

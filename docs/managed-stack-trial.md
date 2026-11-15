@@ -286,3 +286,14 @@ installed `check/reconcile --registry`. Its nested `full_destination_contract`
 report distinguishes injected source-controller phases from ordinary installed
 CLI phases. Both service processes share this one CI host and Docker Engine;
 this is not the actual two-host installation in #51. Model calls are zero.
+
+Failures in the readiness/lost-reply phase include a closed `subcheckpoint` and
+`failure_code`, alongside a fixed exception category. The checkpoint identifies
+the last entered substep, not its completion or the underlying cause; later
+phases report `NOT_APPLICABLE`. Known assertion messages select fixed codes,
+while unfamiliar failures retain a conservative category. The original exception
+remains the private cause; nested logs, exception strings and credentials are
+not exported. These fields address missing detail in
+[run 43735424529](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43735424529),
+whose original runtime cause remains unknown. They change no trial assertions,
+ordering, retries or limits.
