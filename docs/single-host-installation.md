@@ -1177,8 +1177,14 @@ is available in `zpm.installation_admission`. It defines the private
 `zpm-installation-admission/v1` receipt and compares selected scope, base,
 authority profile digest and required protocol facts from producer examples.
 It does not replace native policy validators or inspect installed dependencies.
-Existing `prepare`, `verify`, bootstrap, service startup and operative component
-pins do not call this API. There is no new CLI or persisted configuration ledger.
+The fixture API remains data-only and cannot establish native validity or
+installed readiness. The opt-in production wrapper in
+`zpm.installation_preflight` reuses its receipt helpers and bounded producer-result
+and composition checks, while separately establishing producer source, exact
+input and execution custody. Offline preparation remains data-only; opted-in
+bootstrap, `preflight` and startup use the production path described
+[below](#paired-native-installation-preflight). Recipes omitting
+`installation_admission` retain their existing behavior.
 
 | Function | Inputs and result |
 | --- | --- |
