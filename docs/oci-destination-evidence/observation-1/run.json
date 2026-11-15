@@ -1,0 +1,110 @@
+{
+  "schema": "zpm-oci-destination-run-custody/v1",
+  "coordinator": "ChatGPT /root; evidence record authored by /root/transition_integration",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Derived custody metadata, not an observation receipt or native qualification. The original closed summary is unchanged. This later response does not identify native11's rejected destination or establish a routing cause.",
+  "source": {
+    "commit": "67e7d0dc6c3dd43e842d34e304f64bedfe414737",
+    "tree": "7f71f49b7d07403cc0e05d9f549b95ddb5a4480e",
+    "parents": [
+      "ed998d12a81daab152e4b7711296604db2c2a779"
+    ],
+    "plan_file": "tests/contracts/oci-destination/observation-plan-1.json",
+    "plan_bytes": 3055,
+    "plan_sha256": "54844e18bbf22d75841b6bcbfd22e7d455c52f70e4743d9919bc23f145f0ca55"
+  },
+  "selection_record": {
+    "issue": 63,
+    "comment_id": 6897044327,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6897044327"
+  },
+  "admission_record": {
+    "issue": 63,
+    "comment_id": 6897635234,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6897635234"
+  },
+  "source_review_record": {
+    "pull_request": 69,
+    "comment_id": 6897629569,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/pull/69#issuecomment-6897629569"
+  },
+  "workflow": {
+    "run_id": 43735682057,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/oci-destination/run/54844e18bbf22d75841b6bcbfd22e7d455c52f70e4743d9919bc23f145f0ca55/67e7d0dc6c3dd43e842d34e304f64bedfe414737",
+    "path": ".github/workflows/oci-destination-observation.yml",
+    "status": "completed",
+    "conclusion": "success",
+    "started_at": "2026-11-15T16:28:42Z",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43735682057",
+    "source_job_id": 132877665246,
+    "source_job_conclusion": "success",
+    "observation_job_id": 132877706767,
+    "observation_job_conclusion": "success",
+    "execution_exit_code": 0,
+    "summary_upload": "success",
+    "scope": "Only this separate source/observation workflow; ordinary repository CI is independent."
+  },
+  "artifact": {
+    "id": 14170541779,
+    "name": "oci-destination-1-43735682057-1",
+    "zip_bytes": 850,
+    "zip_sha256": "1eac196df24ee8db4d2768467a86fcd84591dafc7f1bbe5a100c3397fd13c781",
+    "members": [
+      "summary.json"
+    ],
+    "archive_retained_in_repository": false
+  },
+  "summary": {
+    "bytes": 1356,
+    "sha256": "087487297d9e70935ca29f89fe3fca4b829c1f1295f59fb366b1eeaeb863aee5",
+    "retained_original_bytes": true
+  },
+  "observation_decoded_utf8_log": {
+    "bytes": 16881,
+    "sha256": "4dc51577ff3a0339043c2354afacbf9d3ccb45f2f658cd7a7a73b7712b1f953f",
+    "encoding": "UTF-8 including initial BOM",
+    "retained_in_repository": false
+  },
+  "source_decoded_utf8_log": {
+    "bytes": 23405,
+    "sha256": "c5f748b2be8cb37e814b38e69e17bdbd75807853dbbfe05db2c9dbba3e23b734",
+    "encoding": "UTF-8 including initial BOM",
+    "retained_in_repository": false
+  },
+  "observed_runner": {
+    "operating_system": "Ubuntu 24.04.5 LTS",
+    "image": "ubuntu-24.04",
+    "image_version": "20261111.370.1",
+    "cloud": "Azure",
+    "region": "eastus2",
+    "python_command": "/usr/bin/python3.12 -I -B",
+    "python_microversion": null,
+    "scope": "Observed job metadata only; no stable environment or Python microversion promise."
+  },
+  "outcome": {
+    "status": "OBSERVED",
+    "http_status": "REDIRECT_307",
+    "parsed_hostname": "production.cloudfront.docker.com",
+    "current_hostname_match": true,
+    "current_path_prefix_match": true,
+    "first_failure": null,
+    "response_cleanup": "CONFIRMED",
+    "owned_child_cleanup": "CONFIRMED",
+    "native_execution": "NOT_RUN",
+    "native11_rejected_destination": "not retained; unknown",
+    "routing_cause": "not established",
+    "native_qualification_changed": false
+  },
+  "verification": {
+    "coordinator_supplied_original_files_rehashed_by_evidence_author": true,
+    "sole_regular_zip_member_matches_original_summary": true,
+    "original_summary_matches_observation_log": true,
+    "both_job_logs_confirm_exact_source_checkout": true,
+    "source_job_passed_41_fixtures_and_both_exact_inert_admissions": true,
+    "artifact_digest_matches_metadata_and_upload_log": true
+  },
+  "consumed_operation": true,
+  "no_followup_activation": true
+}

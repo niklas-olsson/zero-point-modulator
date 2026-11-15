@@ -37,11 +37,12 @@ followed redirects and cleanup PASS. The actual destination remains unknown;
 the Docker sampling context was not reached. Its distinct plan added only that
 fixed context and bound the separately delivered dependency source on main.
 All eleven plans, candidate bytes, allowed origins, authority/resource caps and
-deadlines remain unchanged. The missing action is to establish the actual
-rejected destination and a supported, reviewed redirect contract for the pinned
-anonymous blob. A separate, prospective [destination observation](#separate-destination-observation)
-is selected to collect limited current metadata. No guessed origin expansion,
-blind native retry or additional native attempt is selected.
+deadlines remain unchanged. The separately admitted [destination observation](oci-destination-evidence/observation-1/outcome.md)
+later recorded HTTP 307, `production.cloudfront.docker.com`, both current
+hostname/path-prefix comparisons true and confirmed cleanup. It performed no
+native execution and does not identify native11's rejected destination or a
+routing cause. No origin expansion, observation repeat or additional native
+attempt is selected by this result.
 This [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 qualification fixture follows the inert catalog/compiler delivered in
 [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65). The original
@@ -96,11 +97,14 @@ patterns. Do not import sibling application modules in the host process.
 
 The [accepted observation scope](https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6897044327)
 adds `check_oci_destination.py`, `oci-destination/observation-plan-1.json` and a
-separate `oci-destination-observation.yml` workflow. It is prospective source,
-with observation `NOT_RUN`. It does not change any of the eleven consumed native
-inputs, existing plans, native workflow, candidate, allowed origins or caps.
-Its result belongs only to this new operation and cannot reconstruct the
-destination rejected in attempt 11 or qualify a native installation.
+separate `oci-destination-observation.yml` workflow. Its [actual observation](oci-destination-evidence/observation-1/outcome.md)
+completed as `OBSERVED` in run `43735682057`, attempt 1, at source
+`67e7d0dc6c3dd43e842d34e304f64bedfe414737` and plan
+`54844e18bbf22d75841b6bcbfd22e7d455c52f70e4743d9919bc23f145f0ca55`.
+The exact observation plan and ref are consumed. It changes none of the eleven
+consumed native inputs, existing plans, native workflow, candidate, allowed
+origins or caps. Its result belongs only to this operation and cannot reconstruct
+the destination rejected in attempt 11 or qualify a native installation.
 
 The selected Ubuntu 24.04/Python 3.12 job permits at most two sequential HTTPS
 requests: the existing anonymous token GET, then a GET of the exact first pinned
