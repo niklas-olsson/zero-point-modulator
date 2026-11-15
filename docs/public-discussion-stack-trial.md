@@ -17,7 +17,7 @@ actual generated forge proposal. Those criteria remain separate in
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 
 The candidate uses OpenJules `7135d0988dff050df63acb89f75562dafccacf79`
-and Polyphony `6480e36355bf0d5de4e25a560d40e665fd76038c` with the
+and Polyphony `324ace275c4c62414439dc2eb620ab1f5177b4a9` with the
 workflow's exact ZPM checkout. Those are merged components. Every changed
 installed set requires this scene's report and all required ZPM gates before
 promotion; component CI and historical reports retain their original scope.

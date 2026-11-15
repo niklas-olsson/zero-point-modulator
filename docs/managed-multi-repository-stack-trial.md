@@ -22,7 +22,7 @@ topology and observations below.
 | Component | Revision used by the job |
 | --- | --- |
 | OpenJules | `7135d0988dff050df63acb89f75562dafccacf79` |
-| Keystone Polyphony | `6480e36355bf0d5de4e25a560d40e665fd76038c`, merged restricted public profile, authority and managed-task refusal |
+| Keystone Polyphony | `324ace275c4c62414439dc2eb620ab1f5177b4a9`, native installation validator with existing managed contracts retained |
 | ZPM | The workflow's checked-out commit, recorded in the report |
 | Controlled image | The supplied immutable local image ID, recorded in the report |
 
@@ -32,6 +32,14 @@ merge status. A component test result does not qualify a different set.
 Installed service Python versions are recorded; dependency-resolution files
 remain in the private bundle. This is not a complete dependency lock or a
 reproducible-image-build claim.
+
+This schema-2 recipe explicitly selects
+[paired native installation preflight](single-host-installation.md#paired-native-installation-preflight).
+The actual installed native descriptors must bind both repositories before the
+shared services start. The separate safe paired report checks repeat identity,
+changed-seal startup refusal and original receipt retention after the existing
+capacity, capture and restart observations. Source fixtures alone do not qualify
+this new component set or the shared-service topology.
 
 The selected OpenJules runtime also supports the explicitly approved
 [managed root-and-child public scene](managed-children-stack-trial.md#managed-public-discussion-during-private-work).
@@ -96,7 +104,7 @@ claim-versus-drain regressions, actual Docker
 [versioned creation proof](https://github.com/niklas-olsson/OpenJules/pull/20),
 strict cleanup transport checks, explicit owned cleanup, child outcomes and
 durable replay. The positive Polyphony pin is the actual merged revision
-`6480e36355bf0d5de4e25a560d40e665fd76038c`, tree `3e8841f995df388b5d9c108ead1b677355c8ca07`.
+`324ace275c4c62414439dc2eb620ab1f5177b4a9`, tree `16438ddb2c31718d33e1a46f59de2c4716c559bc`.
 It retains the initial child outcomes and includes
 [Polyphony #133](https://github.com/niklas-olsson/keystone-polyphony/pull/133)'s
 managed-task refusal on legacy advisory and experimental paths, followed by

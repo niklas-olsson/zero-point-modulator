@@ -331,7 +331,7 @@ Missing live state refuses even if that checkpoint survives.
 
 The selected component set is OpenJules
 `7135d0988dff050df63acb89f75562dafccacf79`, Keystone Polyphony
-`6480e36355bf0d5de4e25a560d40e665fd76038c`, and the exact ZPM revision tested by
+`324ace275c4c62414439dc2eb620ab1f5177b4a9`, and the exact ZPM revision tested by
 the workflow. The earlier [#50 actual-main run](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43611590617)
 qualifies its installed full destination consumer; it does not qualify this new
 role generator by itself.

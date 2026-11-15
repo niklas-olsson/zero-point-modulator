@@ -30,8 +30,8 @@ CONTROLLER_REASON = RUNTIME_REASON
 DIAGNOSTIC = json.loads((Path(__file__).resolve().parents[1] / "fixtures/capability-diagnostic-v1.json").read_text())["diagnostic"]
 HISTORICAL_REVISION = "473df5a0406accfe5cb550877e7b28a602cb116c"
 HISTORICAL_TREE = "389ec80cb6a99edf2993d59e4540f6bdeaaa5f18"
-CURRENT_REVISION = "6480e36355bf0d5de4e25a560d40e665fd76038c"
-CURRENT_TREE = "3e8841f995df388b5d9c108ead1b677355c8ca07"
+CURRENT_REVISION = "324ace275c4c62414439dc2eb620ab1f5177b4a9"
+CURRENT_TREE = "16438ddb2c31718d33e1a46f59de2c4716c559bc"
 MODULES = (
     "src.liminal_bridge.coordinator_service",
     "src.liminal_bridge.managed_service",
@@ -44,6 +44,7 @@ CURRENT_ONLY_MODULES = (
     OUTCOME_MODULE,
     "src.core.collaboration.delegated_grants",
     "src.liminal_bridge.delegated_grant_service",
+    "src.liminal_bridge.managed_configuration",
 )
 CHILD_SCHEMA = {
     "workers": ("worker_id", "spec", "policy_digest", "context", "closed", "close_reason",

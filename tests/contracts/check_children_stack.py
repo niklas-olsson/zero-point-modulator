@@ -619,6 +619,7 @@ def run(args):
             measurements.start("prepare")
             prepare({
                 "schema_version": 1, "deployment_id": scope["deployment_id"],
+                **({"installation_admission": "zpm-installation-admission/v1"} if not initial_outcomes else {}),
                 "binding": {"schema_version": 1, "repository": scope["repository"], "profile": profile, "desired_workers": 0},
                 "max_workers": 1, "sources": {name: {"checkout": str(path), "revision": revisions[name]} for name, path in paths.items()},
                 "source": {"checkout": str(source), "revision": base}, "image": image,
@@ -697,11 +698,17 @@ def run(args):
             measurements.start("bootstrap")
             processes.run_once("bootstrap", manager + ["bootstrap"], bundle, clean_environment(), 900)
             measurements.stop("bootstrap")
-            native_validation = None
+            native_validation = paired_validation = unsupported_pair = sibling_mismatches = None
             if not initial_outcomes:
                 from check_openjules_installation_validation import qualify as qualify_native_validation
                 native_validation = qualify_native_validation(
                     bundle, args.openjules_checkout, root / "openjules-native-validation", profile_case="children")
+                from check_paired_installation_preflight import (
+                    qualify as qualify_paired, qualify_sibling_mismatches, qualify_unsupported_public, retained_receipt,
+                )
+                paired_validation = qualify_paired(bundle, root / "paired-native-validation", profile_case="children")
+                sibling_mismatches = qualify_sibling_mismatches(bundle, root / "paired-sibling-mismatches")
+                unsupported_pair = qualify_unsupported_public(bundle, root / "paired-unsupported-public")
                 require(not model.requests, "native configuration validation made a model request")
             if initial_outcomes:
                 historical_admission = qualify_historical_authority(
@@ -1092,6 +1099,10 @@ def run(args):
                                      "two-round live child conversation", "managed public conversation", "automatic root-agent process resumption"]}
             if native_validation is not None:
                 report["openjules_native_validation"] = native_validation
+                report["paired_installation_preflight"] = paired_validation | {
+                    "original_receipt_retained_after_scene": retained_receipt(bundle, root / "paired-native-validation")}
+                report["unsupported_paired_installation"] = unsupported_pair
+                report["paired_sibling_mismatches"] = sibling_mismatches
             if initial_outcomes:
                 report["initial_outcome_protocol"] = "initial-v1"
                 report["historical_authority_admission"] = historical_admission

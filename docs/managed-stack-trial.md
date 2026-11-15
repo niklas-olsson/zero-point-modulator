@@ -44,7 +44,7 @@ The CI job currently pins:
 | Component | Revision |
 | --- | --- |
 | OpenJules | `7135d0988dff050df63acb89f75562dafccacf79`, merged full destination runtime retaining approved managed public turns |
-| Keystone Polyphony | `6480e36355bf0d5de4e25a560d40e665fd76038c`, merged restricted public profile, authority and managed-task refusal |
+| Keystone Polyphony | `324ace275c4c62414439dc2eb620ab1f5177b4a9`, native installation validator with existing managed contracts retained |
 | ZPM | The workflow's checked-out candidate revision, recorded in the report |
 
 All installed-stack jobs use this same three-repository candidate set. The HTTP
@@ -54,6 +54,14 @@ Docker trials, must pass on the exact candidate revision. Qualification and CI e
 [ZPM #3](https://github.com/niklas-olsson/zero-point-modulator/issues/3).
 Update all component pins and trial guides together with the workflow, then
 rerun all integration gates.
+
+This root scene and its sealed-dependency variant select
+[paired native installation preflight](single-host-installation.md#paired-native-installation-preflight).
+Their actual bootstrap, repeat and start gates validate both installed producers,
+retain the original receipt through the scene, and refuse changed sealed input
+before service launch. The separate safe `paired_installation_preflight` result
+does not replace task/capture/recovery evidence or the OpenJules-only validator
+cases. Selection becomes qualification only when the complete affected jobs pass.
 
 After this managed-service scene stops, the same CI job runs the separate
 [installed public-discussion trial](public-discussion-stack-trial.md) through

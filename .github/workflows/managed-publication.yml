@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: niklas-olsson/keystone-polyphony
-          ref: 6480e36355bf0d5de4e25a560d40e665fd76038c
+          ref: 324ace275c4c62414439dc2eb620ab1f5177b4a9
           path: polyphony
           persist-credentials: false
       - uses: actions/setup-python@v5

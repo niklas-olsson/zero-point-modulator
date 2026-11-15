@@ -207,13 +207,13 @@ Model calls and child delegations are zero. Trial commands have finite deadlines
 and streaming output bounds. All service credentials and raw state remain
 private; only the bounded aggregate report is exported.
 
-The compatible component set is:
+The selected integration component set is:
 
 | Component | Qualification revision |
 | --- | --- |
 | ZPM | The exact workflow checkout; pull requests run GitHub's proposed merge revision. |
 | OpenJules | `7135d0988dff050df63acb89f75562dafccacf79`, merged full destination producer from [#64](https://github.com/niklas-olsson/OpenJules/pull/64). |
-| Keystone Polyphony | `6480e36355bf0d5de4e25a560d40e665fd76038c`, the unchanged canonical authority. |
+| Keystone Polyphony | `324ace275c4c62414439dc2eb620ab1f5177b4a9`, native installation validator with the existing canonical authority contract retained. |
 
 The producer's [actual-main checks](https://github.com/niklas-olsson/OpenJules/actions/runs/43609471106)
 passed at that exact revision. The consumer's native trial is a separate required
