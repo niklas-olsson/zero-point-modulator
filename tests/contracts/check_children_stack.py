@@ -697,6 +697,12 @@ def run(args):
             measurements.start("bootstrap")
             processes.run_once("bootstrap", manager + ["bootstrap"], bundle, clean_environment(), 900)
             measurements.stop("bootstrap")
+            native_validation = None
+            if not initial_outcomes:
+                from check_openjules_installation_validation import qualify as qualify_native_validation
+                native_validation = qualify_native_validation(
+                    bundle, args.openjules_checkout, root / "openjules-native-validation", profile_case="children")
+                require(not model.requests, "native configuration validation made a model request")
             if initial_outcomes:
                 historical_admission = qualify_historical_authority(
                     bundle, paths, args.historical_polyphony_checkout, scope, profile,
@@ -1084,6 +1090,8 @@ def run(args):
                       "not_proven": ["live provider compatibility", "model reasoning quality", "financial spend bound",
                                      "forced cancellation during active children", "independent semantic review", "forge publication", "merge authorization",
                                      "two-round live child conversation", "managed public conversation", "automatic root-agent process resumption"]}
+            if native_validation is not None:
+                report["openjules_native_validation"] = native_validation
             if initial_outcomes:
                 report["initial_outcome_protocol"] = "initial-v1"
                 report["historical_authority_admission"] = historical_admission
