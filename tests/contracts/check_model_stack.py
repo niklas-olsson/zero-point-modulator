@@ -192,6 +192,7 @@ def run(args):
             bundle = root / "installation"
             prepare({
                 "schema_version": 1, "deployment_id": scope["deployment_id"],
+                "installation_admission": "zpm-installation-admission/v1",
                 "binding": {"schema_version": 1, "repository": scope["repository"], "profile": profile, "desired_workers": 0},
                 "max_workers": 1, "sources": {name: {"checkout": str(path), "revision": revisions[name]} for name, path in paths.items()},
                 "source": {"checkout": str(source), "revision": base}, "image": image,
@@ -244,6 +245,8 @@ def run(args):
             from check_openjules_installation_validation import qualify as qualify_native_validation
             native_validation = qualify_native_validation(
                 bundle, args.openjules_checkout, root / "openjules-native-validation", profile_case="model")
+            from check_paired_installation_preflight import qualify as qualify_paired, retained_receipt
+            paired_validation = qualify_paired(bundle, root / "paired-native-validation", profile_case="model")
             require(not model.requests, "native configuration validation made a model request")
             preflight_inventory = docker_inventory()
             processes.start("installation", manager + ["start"], bundle, manager_environment)
@@ -336,6 +339,8 @@ def run(args):
             report = {"passed": True, "schema_version": 1, "deployment_id": scope["deployment_id"], "image": image,
                       "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed", "checks": checks,
                       "openjules_native_validation": native_validation,
+                      "paired_installation_preflight": paired_validation | {
+                          "original_receipt_retained_after_scene": retained_receipt(bundle, root / "paired-native-validation")},
                       "canonical_task": task, "candidate": candidate["id"], "captured_artifacts": attempt["captured_artifacts"],
                       "model_fixture_calls": len(model.requests), "final_reserved": plan()["reserved"],
                       "authority_admission": admission,

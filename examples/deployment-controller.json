@@ -9,7 +9,7 @@
     },
     "polyphony": {
       "checkout": "/absolute/checkouts/keystone-polyphony",
-      "revision": "6480e36355bf0d5de4e25a560d40e665fd76038c"
+      "revision": "324ace275c4c62414439dc2eb620ab1f5177b4a9"
     }
   },
   "binding": {
