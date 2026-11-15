@@ -351,12 +351,14 @@ assembly, with cleanup PASS. The
 [seventh attempt](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43639051137)
 refused OCI acquisition after two requests and 5,489 body bytes, with zero
 artifacts or followed redirects and cleanup PASS. Its target and failed
-predicate remain unknown. Candidate installation and interfaces remain
-unqualified. The previous corrections and historical evidence stay in place.
-A prospective eighth plan binds a closed refusal diagnostic and distinct
-attempt identities, preserving the candidate, authority, redirect policy and
-all caps. It remains source-only; independent review and fresh gates precede
-any separate native admission.
+predicate remain unknown. The [eighth attempt](docs/native-alpine-evidence/attempt-8/outcome.md)
+passed acquisition, APK trust, base-image identity, the APK transaction and
+installed APK inventory, then failed `DOCKER_DEADLINE`, with cleanup PASS and
+no pending mutations. Its exact Docker request and transport phase were not
+retained. Python installation and interfaces remain unqualified. A prospective
+ninth plan adds a closed Docker-observation diagnostic, preserving every
+historical plan, candidate, authority, timeout and resource cap. It remains
+source-only; independent review and fresh gates precede a separate admission.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private

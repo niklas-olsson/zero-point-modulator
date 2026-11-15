@@ -1,6 +1,6 @@
 # Native Alpine active-harness contract
 
-**Status: prospective attempt-8 source binding; native execution NOT_RUN.**
+**Status: prospective attempt-9 source binding; native execution NOT_RUN.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -19,9 +19,12 @@ chronology remains unknown. The
 [seventh attempt](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43639051137)
 refused acquisition with `OCI_REDIRECT_REFUSED` after two requests and 5,489 body
 bytes, with zero completed artifacts or redirects and cleanup PASS. Its target
-and failed predicate remain unknown. The source correction below adds a closed
-refusal diagnostic, retaining every original authority/resource cap. The
-distinct eighth plan binds that correction and new work/report identities.
+and failed predicate remain unknown. The [eighth attempt](native-alpine-evidence/attempt-8/outcome.md)
+passed acquisition, APK trust, base-image identity, APK transaction and installed
+APK inventory, then failed `DOCKER_DEADLINE`. Cleanup passed with zero pending
+mutations. Its exact request and transport phase remain unknown. The distinct
+ninth plan binds a closed Docker-observation diagnostic and new work/report
+identities, retaining every original authority/resource cap and deadline.
 Independent review and fresh gates precede any separate native admission.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
@@ -61,7 +64,8 @@ or architecture-gated feature is part of this design.
 | New `check_alpine_sealed_runtime.py` | Explicit active entry point, plan admission, host process/resource guardian, bounded acquisition, Docker custody, stages, safe result reduction and cleanup. |
 | New `alpine_sealed_guest.py` | Fixed assembly-inventory and nonroot qualification commands. Use the original production APIs, separate owner interpreters and finite probe IDs. |
 | `native-alpine/active-plan-7.json` | Historical seventh-attempt binding of the original plan/recipe, commands, source manifests and authority/resource limits. It and all six prior plans remain unchanged; it cannot admit the diagnostic source revision. |
-| `native-alpine/active-plan-8.json` | Prospective exact binding of the diagnostic runner and distinct workflow/work/report identities. The other nine executing inputs, candidate, commands, authority and caps remain unchanged. No native attempt is admitted by publishing this plan. |
+| `native-alpine/active-plan-8.json` | Historical eighth-attempt binding of the OCI diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
+| `native-alpine/active-plan-9.json` | Prospective binding of the Docker-observation diagnostic and distinct workflow/work/report identities. The other nine executing inputs, candidate, commands, authority and caps remain unchanged. Publishing this plan admits no native attempt. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -218,10 +222,12 @@ retains its original generic refusal; its failed predicate and target remain
 unknown. Historical plans 1 through 7 are unchanged. Against the diagnostic-only
 revision `1abee085cb19e3c2248ee1038d68d18c87c54b66`, plan 7 rejects the larger
 runtime at `SOURCE_FILE_BOUND`, before the unchanged `ACTIVE_CODE_IDENTITY` hash
-check. The prospective attempt-8 runner instead rejects those earlier attempt
+check. The attempt-8 runner instead rejected those earlier attempt
 identities before reading their code inputs. Its new exact plan can pass the
-inert source check; native execution still requires independent review, fresh
-required gates and a separate admission.
+inert source check; its actual native result is retained separately. The current
+attempt-9 runner rejects all eight historical plan identities before their code
+reads. Native execution still requires independent review, fresh required gates
+and a separate admission.
 
 Reverify each whole-file identity, every OCI diff ID and archive member bound,
 wheel metadata/native-member catalog, and each APK's control signature and
@@ -302,6 +308,39 @@ Require identical original configuration, private secret and selector bytes,
 all three sealed completion files and installed distribution sets. Retain these
 comparisons privately; exported evidence reports equality verdicts without
 credential-bearing values or digests.
+
+## Docker observation diagnostic
+
+An original `docker_json` refusal can retain one optional `docker_observation`
+object with exactly `endpoint` and `phase`. It applies to the unchanged
+`DOCKER_DEADLINE` code and the existing `DOCKER_OBSERVATION` conversion of
+`OSError` or HTTP protocol exceptions. This includes a socket timeout that races
+the absolute timer; neither error is reclassified. Unrelated errors remain
+unchanged and acquire no diagnostic.
+
+Endpoint values are `DAEMON_INFO`, `IMAGE_INSPECT`, `CONTAINER_INSPECT`,
+`CONTAINER_SIZE`, `CONTAINER_STATS` and `UNAVAILABLE`. Only the existing fixed
+path grammars are classified. Phase values are `BUDGET`, `REQUEST`,
+`RESPONSE_HEADERS`, `RESPONSE_BODY`, `RESPONSE_VALIDATE`, `DECODE`, `COMPLETE`
+and `UNAVAILABLE`. The phase states where the refusal surfaced. It does not
+identify the daemon-side cause; an earlier enclosing deadline can surface during
+a Docker GET. No raw path, container/image identity, socket address, query,
+headers, body or exception message enters the object.
+
+The immutable pair is associated privately with the exact original refusal.
+Mutable exception attributes, later calls and returned summary copies cannot
+replace it. Optional classification failure retains the refusal with a bounded
+unavailable pair. The existing first-latched ordering is unchanged: metadata is
+forwarded at the original latch points, including delayed cleanup latching.
+Later cleanup or sampling failures cannot overwrite an earlier failure's
+diagnostic, and no context is attached retroactively to attempt 8.
+
+The original timeout calculation, nested absolute timer, GET/read/close sequence,
+response-byte bound and unknown-outcome rules remain intact. Classification adds
+no transport call, property read, retry, sleep or deadline renewal. The object
+fits within the existing 256-KiB report and fixed overflow projection. This is
+evidence retention for a future separately admitted operation, not a longer
+timeout, stronger host prerequisite or successful candidate trial.
 
 ## Observation and cleanup boundary
 

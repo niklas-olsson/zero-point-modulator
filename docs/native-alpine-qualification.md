@@ -1,7 +1,7 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: seven actual attempts failed; prospective attempt 8 is source-only
-and awaits independent review and fresh gates. Native execution is NOT_RUN.**
+**Status: eight actual attempts failed; prospective attempt 9 is source-only
+and awaits independent review and fresh gates. Attempt 9 is NOT_RUN.**
 The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
 `SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
 records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
@@ -20,8 +20,11 @@ Its actual stats payload and state chronology remain unknown. The
 [seventh attempt](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43639051137)
 failed `OCI_REDIRECT_REFUSED` after two requests and 5,489 body bytes, with zero
 artifacts or followed redirects and cleanup PASS. Its target and failed
-predicate remain unknown; no installation or interface qualification is
-established. This
+predicate remain unknown. The [eighth outcome](native-alpine-evidence/attempt-8/outcome.md)
+passed the APK transaction and installed APK inventory, then failed
+`DOCKER_DEADLINE`, with cleanup PASS and zero pending mutations. Its exact Docker
+endpoint and transport phase were not retained. Python installation and
+interfaces remain unqualified. This
 [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 fixture keeps the original inert compiler and adds a separate, explicitly gated
 native runner. It changes no installer, Python admission, operative integration
@@ -99,7 +102,7 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [prospective eighth plan](../tests/contracts/native-alpine/active-plan-8.json) binds the
+The [prospective ninth plan](../tests/contracts/native-alpine/active-plan-9.json) binds the
 host/guest drivers, their local imports, the workflow, original plan/recipe,
 commands, authority and caps. The original `plan-v1.json` and inert checker retain
 their historical `active_trial_implemented: false` fields. They do not become
@@ -170,13 +173,21 @@ attempt/work/upload identity, unchanged caps and all six prior plans prevent a
 source correction from rewriting historical evidence. Its actual run failed
 during OCI acquisition before exercising the stats correction.
 
-The prospective eighth plan binds the reviewed, closed OCI refusal diagnostic
+The unchanged [eighth plan](../tests/contracts/native-alpine/active-plan-8.json)
+bound the reviewed, closed OCI refusal diagnostic
 and distinct runner/workflow/work/report identities. The other nine executing
 inputs, all seven historical plans, candidate/pins, commands, authority and
-resource limits remain unchanged. The
+resource limits remained unchanged. Its actual run passed all artifact and APK
+checks, then failed a Docker observation before Python qualification. The
 [active-harness contract](native-alpine-active-harness.md#finite-acquisition-and-image-assembly)
-describes the diagnostic and its existing first-failure limitation. This is a
-source binding, not another run, redirect-policy change or qualification.
+describes the OCI diagnostic and its existing first-failure limitation.
+
+The prospective ninth plan binds a closed Docker endpoint-family and phase
+diagnostic. It does not identify attempt 8's missing endpoint or change its
+failure. Existing error codes, first-latched ordering, request/response/close
+behavior, one-second request ceiling and all original resources and authority
+remain unchanged. All eight historical plans remain intact. This source-only
+binding is not a retry, timeout increase or completed qualification.
 
 Check active-plan source consistency without acquisition, Docker or candidate
 execution using an externally recorded exact hash:

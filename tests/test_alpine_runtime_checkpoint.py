@@ -26,6 +26,7 @@ class RuntimeCheckpointTests(unittest.TestCase):
             5: "017c6ffb7c0a15b8efbc3046da53e3978d45f9b3bb8bda1d264d579f638575cf",
             6: "11907aa13d2300c092d69ff02cf7e1ce8c17aa38c414ec71bdd9b6ca284c55d6",
             7: "d87dba65bad619979dd704a4e1035acfb5c7383ec6fe0c795cd34d9fc55a3973",
+            8: "07788eb17025b3eb73fffc6da808b6512949325359ea1ba4a4218ddeed8644d2",
         }
         for number, reviewed in historical.items():
             path = candidate.ROOT / f"active-plan-{number}.json"
@@ -42,10 +43,10 @@ class RuntimeCheckpointTests(unittest.TestCase):
                 self.assertEqual(json.loads(output.getvalue())["failure"], "ACTIVE_PLAN_IDENTITY")
 
     def test_prospective_binding_changes_only_two_executing_inputs(self):
-        old = json.loads((candidate.ROOT / "active-plan-7.json").read_bytes())
+        old = json.loads((candidate.ROOT / "active-plan-8.json").read_bytes())
         current = json.loads(runtime.ACTIVE_PLAN.read_bytes())
-        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-8.json")
-        self.assertEqual(current["attempt"], "native-alpine-8")
+        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-9.json")
+        self.assertEqual(current["attempt"], "native-alpine-9")
         self.assertEqual(set(current), set(old))
         for field in set(old) - {"attempt", "code"}:
             with self.subTest(field=field):
@@ -64,7 +65,7 @@ class RuntimeCheckpointTests(unittest.TestCase):
         self.assertIn('--work "$RUNNER_TEMP/' + attempt + '"', workflow)
         self.assertIn("name: " + attempt + "-summary-${{ github.run_id }}-${{ github.run_attempt }}", workflow)
         self.assertIn("path: ${{ runner.temp }}/" + attempt + "/summary.json", workflow)
-        self.assertNotIn("native-alpine-7", workflow)
+        self.assertNotIn("native-alpine-8", workflow)
         documents = {name: json.loads((candidate.ROOT / name).read_bytes()) for name in candidate.METADATA}
         reviewed = hashlib.sha256(runtime.ACTIVE_PLAN.read_bytes()).hexdigest()
         with tempfile.TemporaryDirectory() as temporary, \

@@ -1,5 +1,6 @@
 """Synthetic/fault checks only. No Docker, candidate acquisition or bootstrap."""
 import copy
+from contextlib import contextmanager
 from email.message import Message
 import hashlib
 import io
@@ -1880,6 +1881,308 @@ class OciRedirectDiagnosticTests(Fixture):
         finally:
             for fd in trial.pidfds.values():
                 os.close(fd)
+
+
+class DockerObservationDiagnosticTests(Fixture):
+    """Closed metadata at original Docker refusals; no daemon or network."""
+
+    identity = "a" * 64
+    owner = "zpm-alpine-" + "b" * 24
+
+    def exercise(self, path, *, phase=None, error=None, status=200, raw=b"{}",
+                 absent=False, close_error=None):
+        events = []
+        original_decode = candidate.decode
+
+        def observe(name):
+            events.append(name)
+            if name == phase:
+                raise error
+
+        class Response:
+            def read(inner, bound):
+                self.assertEqual(bound, 1048577)
+                observe("RESPONSE_BODY")
+                return raw
+
+            @property
+            def status(inner):
+                observe("RESPONSE_VALIDATE")
+                return status
+
+        class Connection:
+            def __init__(inner, host, timeout):
+                events.append(("CONNECTION", host, timeout))
+
+            def request(inner, method, target, headers):
+                events.append(("GET", method, target, headers))
+                observe("REQUEST")
+
+            def getresponse(inner):
+                observe("RESPONSE_HEADERS")
+                return Response()
+
+            def close(inner):
+                events.append("CLOSE")
+                if close_error is not None:
+                    raise close_error
+
+        @contextmanager
+        def timeout(deadline, code):
+            events.append(("TIMER", deadline, code))
+            if phase == "BUDGET":
+                raise error
+            yield
+            if phase == "COMPLETE":
+                raise error
+
+        def decode(value):
+            observe("DECODE")
+            return original_decode(value)
+
+        with patch.object(runtime, "UnixHTTP", Connection), \
+                patch.object(runtime, "absolute_timeout", timeout), \
+                patch.object(runtime.time, "monotonic", return_value=10) as clock, \
+                patch.object(candidate, "decode", side_effect=decode):
+            try:
+                value = runtime.docker_json(path, absent=absent, deadline=10.25)
+            except BaseException as caught:
+                return caught, None, events, clock.call_count
+        return None, value, events, clock.call_count
+
+    def refused(self, path=None, phase="RESPONSE_HEADERS", error=None):
+        path = path or "/containers/" + self.identity + "/json?size=true"
+        original = error if error is not None else candidate.Refused("DOCKER_DEADLINE")
+        caught, value, events, clock_calls = self.exercise(path, phase=phase, error=original)
+        self.assertIs(caught, original)
+        self.assertIsNone(value)
+        self.assertEqual(events.count("CLOSE"), 1)
+        self.assertEqual(clock_calls, 2)
+        self.assertIn(("CONNECTION", "localhost", .25), events)
+        self.assertIn(("TIMER", 10.25, "DOCKER_DEADLINE"), events)
+        requests = [item for item in events if type(item) is tuple and item[0] == "GET"]
+        self.assertEqual(requests, [] if phase == "BUDGET" else [
+            ("GET", "GET", "/v1.45" + path, {"Connection": "close"}),
+        ])
+        return caught
+
+    def test_each_original_endpoint_family_is_closed_and_never_exports_its_identity(self):
+        cases = [
+            ("/info", "DAEMON_INFO"),
+            ("/images/sha256:" + self.identity + "/json", "IMAGE_INSPECT"),
+            ("/images/" + self.owner + "/assembled:1/json", "IMAGE_INSPECT"),
+            ("/images/" + self.owner + "/base:1/json", "IMAGE_INSPECT"),
+            ("/containers/" + self.identity + "/json", "CONTAINER_INSPECT"),
+            ("/containers/" + self.owner + "-assembly/json", "CONTAINER_INSPECT"),
+            ("/containers/" + self.owner + "-qualification/json?size=true", "CONTAINER_SIZE"),
+            ("/containers/" + self.identity + "/json?size=true", "CONTAINER_SIZE"),
+            ("/containers/" + self.identity + "/stats?stream=false&one-shot=true", "CONTAINER_STATS"),
+            ("/containers/sensitive-name/json?token=sensitive", "UNAVAILABLE"),
+        ]
+        for path, endpoint in cases:
+            with self.subTest(endpoint=endpoint):
+                error = self.refused(path)
+                observation = runtime._docker_observation(error)
+                self.assertEqual(observation, {"endpoint": endpoint, "phase": "RESPONSE_HEADERS"})
+                raw = json.dumps(observation)
+                for forbidden in ("sensitive", self.identity, self.owner, "/", "socket"):
+                    self.assertNotIn(forbidden, raw)
+
+    def test_each_transport_phase_preserves_exact_original_refusal_and_request_budget(self):
+        for phase in ("BUDGET", "REQUEST", "RESPONSE_HEADERS", "RESPONSE_BODY",
+                      "RESPONSE_VALIDATE", "DECODE", "COMPLETE"):
+            with self.subTest(phase=phase):
+                error = self.refused(phase=phase)
+                self.assertEqual(runtime._docker_observation(error),
+                                 {"endpoint": "CONTAINER_SIZE", "phase": phase})
+
+    def test_expired_original_budget_refuses_before_constructing_a_connection(self):
+        errors = []
+        original_require = runtime.require
+
+        def require(value, code):
+            try:
+                original_require(value, code)
+            except candidate.Refused as error:
+                errors.append(error)
+                raise
+
+        with patch.object(runtime, "require", side_effect=require), \
+                patch.object(runtime.time, "monotonic", return_value=10), \
+                patch.object(runtime, "UnixHTTP", side_effect=AssertionError("no connection")), \
+                self.assertRaisesRegex(candidate.Refused, "^DOCKER_DEADLINE$") as caught:
+            runtime.docker_json("/info", deadline=10)
+        self.assertIs(caught.exception, errors[0])
+        self.assertEqual(runtime._docker_observation(caught.exception),
+                         {"endpoint": "DAEMON_INFO", "phase": "BUDGET"})
+
+    def test_existing_os_and_http_failures_keep_their_original_converted_code(self):
+        for original in (TimeoutError("sensitive timeout"), OSError("sensitive socket"),
+                         runtime.http.client.HTTPException("sensitive response")):
+            with self.subTest(error_type=type(original).__name__):
+                error, value, events, calls = self.exercise(
+                    "/info", phase="RESPONSE_HEADERS", error=original)
+                self.assertIs(type(error), candidate.Refused)
+                self.assertEqual(str(error), "DOCKER_OBSERVATION")
+                self.assertTrue(error.__suppress_context__)
+                self.assertIsNone(error.__cause__)
+                self.assertEqual(runtime._docker_observation(error),
+                                 {"endpoint": "DAEMON_INFO", "phase": "RESPONSE_HEADERS"})
+                self.assertEqual(events.count("REQUEST"), 1)
+                self.assertEqual(events.count("CLOSE"), 1)
+                self.assertEqual(calls, 2)
+                self.assertNotIn("sensitive", json.dumps(runtime._docker_observation(error)))
+
+    def test_unrelated_refusal_parser_exception_and_close_precedence_are_unchanged(self):
+        for original in (candidate.Refused("DOCKER_RESPONSE_BOUND"), ValueError("sensitive decode")):
+            error, _, events, _ = self.exercise("/info", phase="DECODE", error=original)
+            self.assertIs(error, original)
+            self.assertIsNone(runtime._docker_observation(error))
+            self.assertEqual(events.count("CLOSE"), 1)
+        original = candidate.Refused("DOCKER_DEADLINE")
+        closing = OSError("sensitive close")
+        error, _, events, _ = self.exercise("/info", phase="REQUEST", error=original, close_error=closing)
+        self.assertIs(error, closing)
+        self.assertIsNone(runtime._docker_observation(error))
+        self.assertEqual(events.count("CLOSE"), 1)
+
+    def test_success_and_absence_have_no_extra_reads_or_classification(self):
+        with patch.object(runtime, "_remember_docker_observation", side_effect=AssertionError("no diagnostic")):
+            for status, absent, expected in ((200, False, {"ok": True}), (404, True, None)):
+                error, value, events, calls = self.exercise("/info", status=status, absent=absent, raw=b'{"ok":true}')
+                self.assertIsNone(error)
+                self.assertEqual(value, expected)
+                self.assertEqual(events.count("REQUEST"), 1)
+                self.assertEqual(events.count("RESPONSE_HEADERS"), 1)
+                self.assertEqual(events.count("RESPONSE_BODY"), 1)
+                self.assertEqual(events.count("RESPONSE_VALIDATE"), 2 if status == 200 else 1)
+                self.assertEqual(events.count("DECODE"), 1 if status == 200 else 0)
+                self.assertEqual(events.count("CLOSE"), 1)
+                self.assertEqual(calls, 2)
+
+    def test_invalid_path_does_not_create_diagnostic_or_contact_transport(self):
+        with patch.object(runtime, "_remember_docker_observation", side_effect=AssertionError("unrelated refusal")), \
+                patch.object(runtime, "UnixHTTP", side_effect=AssertionError("no transport")), \
+                self.assertRaisesRegex(candidate.Refused, "^DOCKER_PATH$") as caught:
+            runtime.docker_json("/sensitive\n")
+        self.assertIsNone(runtime._docker_observation(caught.exception))
+
+    @unittest.skipUnless(hasattr(signal, "setitimer"), "Unix deadline fixture")
+    def test_real_absolute_timeout_keeps_outer_deadline_and_restores_timer_handler(self):
+        events = []
+        class Response:
+            def read(inner, size):
+                time.sleep(1)
+                return b"{}"
+        class Connection:
+            def __init__(inner, host, timeout):
+                events.append(("timeout", timeout))
+            def request(inner, *args, **kwargs):
+                events.append("request")
+            def getresponse(inner):
+                return Response()
+            def close(inner):
+                events.append("close")
+        previous_handler = signal.getsignal(signal.SIGALRM)
+        previous_timer = signal.getitimer(signal.ITIMER_REAL)
+        self.assertEqual(previous_timer, (0.0, 0.0))
+        before = time.monotonic()
+        with patch.object(runtime, "UnixHTTP", Connection), \
+                self.assertRaisesRegex(candidate.Refused, "^DOCKER_DEADLINE$") as caught:
+            with runtime.absolute_timeout(before + .03, "OUTER_ORIGINAL_DEADLINE"):
+                runtime.docker_json("/info", deadline=before + 10)
+        self.assertLess(time.monotonic() - before, .5)
+        self.assertEqual(events, [("timeout", 1.0), "request", "close"])
+        self.assertEqual(signal.getsignal(signal.SIGALRM), previous_handler)
+        self.assertEqual(signal.getitimer(signal.ITIMER_REAL), previous_timer)
+        self.assertEqual(runtime._docker_observation(caught.exception),
+                         {"endpoint": "DAEMON_INFO", "phase": "RESPONSE_BODY"})
+
+    def test_projection_failure_retains_original_error_and_freezes_unavailable(self):
+        with patch.object(runtime, "_safe_docker_observation", side_effect=RuntimeError("sensitive projection")):
+            error = self.refused("/info")
+            self.assertEqual(runtime._docker_observation(error),
+                             {"endpoint": "UNAVAILABLE", "phase": "UNAVAILABLE"})
+        runtime._remember_docker_observation(error, "/info", "REQUEST")
+        self.assertEqual(runtime._docker_observation(error),
+                         {"endpoint": "UNAVAILABLE", "phase": "UNAVAILABLE"})
+
+    def test_mutable_attributes_copies_and_later_failures_cannot_replace_original_binding(self):
+        error = self.refused("/info")
+        error.docker_observation = {"endpoint": "CONTAINER_SIZE", "phase": "DECODE"}
+        observed = runtime._docker_observation(error)
+        observed["endpoint"] = "CONTAINER_STATS"
+        runtime._remember_docker_observation(error, "/containers/" + self.identity + "/json", "REQUEST")
+        trial = self.trial()
+        trial.fail("DOCKER_DEADLINE", failure=error)
+        public = runtime.public_summary(trial.record)
+        public["docker_observation"]["phase"] = "COMPLETE"
+        trial.fail("DOCKER_DEADLINE", failure=self.refused(phase="DECODE"))
+        self.assertEqual(runtime.public_summary(trial.record)["docker_observation"],
+                         {"endpoint": "DAEMON_INFO", "phase": "RESPONSE_HEADERS"})
+
+    def test_unbound_errors_and_prior_failure_never_acquire_later_metadata(self):
+        forged = candidate.Refused("DOCKER_DEADLINE")
+        forged.docker_observation = {"endpoint": "DAEMON_INFO", "phase": "REQUEST"}
+        self.assertIsNone(runtime._docker_observation(forged))
+        trial = self.trial()
+        trial.fail("ORIGINAL_WORKLOAD_FAILURE")
+        trial.fail("DOCKER_DEADLINE", failure=self.refused())
+        self.assertEqual(trial.record["first_failure"], "ORIGINAL_WORKLOAD_FAILURE")
+        self.assertNotIn("docker_observation", runtime.public_summary(trial.record))
+
+    def test_existing_sample_and_delayed_cleanup_latches_receive_original_metadata(self):
+        error = self.refused("/info")
+        trial = self.trial()
+        trial.sample = Mock(side_effect=error)
+        trial.sample_if_possible()
+        self.assertEqual(trial.record["docker_observation"],
+                         {"endpoint": "DAEMON_INFO", "phase": "RESPONSE_HEADERS"})
+        trial.record["first_failure"] = None
+        del trial.record["docker_observation"]
+        trial.journal["containers"] = [{"fixture": "owned"}]
+        trial.remove_container = Mock(side_effect=error)
+        trial.cleanup_processes = Mock()
+        def final_sample():
+            self.assertIsNone(trial.record["first_failure"])
+        trial.sample = final_sample
+        trial.cleanup()
+        self.assertEqual(trial.record["first_failure"], "DOCKER_DEADLINE")
+        self.assertEqual(trial.record["cleanup_failures"], ["DOCKER_DEADLINE"])
+        self.assertEqual(trial.record["docker_observation"],
+                         {"endpoint": "DAEMON_INFO", "phase": "RESPONSE_HEADERS"})
+
+    def test_finalization_keeps_first_observation_and_records_cleanup_failure(self):
+        trial = self.trial()
+        error = self.refused("/info")
+        trial.fail("DOCKER_DEADLINE", failure=error)
+        trial.cleanup = Mock(side_effect=self.refused(phase="REQUEST"))
+        trial.refresh_acquisition = Mock()
+        trial.sample = Mock()
+        self.assertEqual(runtime.finish_trial(trial), 1)
+        summary = json.loads((trial.root / "summary.json").read_bytes())
+        self.assertEqual(summary["first_failure"], "DOCKER_DEADLINE")
+        self.assertEqual(summary["cleanup_failures"], ["DOCKER_DEADLINE"])
+        self.assertEqual(summary["docker_observation"],
+                         {"endpoint": "DAEMON_INFO", "phase": "RESPONSE_HEADERS"})
+        self.assertFalse(summary["native_execution_qualified"])
+
+    def test_public_projection_and_overflow_keep_only_closed_bounded_metadata(self):
+        trial = self.trial()
+        trial.fail("DOCKER_DEADLINE", failure=self.refused("/info"))
+        trial.record["ignored_private_data"] = "sensitive" * candidate.CAPS["report_bytes"]
+        summary = json.loads(runtime.report_bytes(trial.record))
+        self.assertTrue(summary["truncated"])
+        self.assertEqual(summary["first_failure"], "DOCKER_DEADLINE")
+        self.assertEqual(summary["docker_observation"],
+                         {"endpoint": "DAEMON_INFO", "phase": "RESPONSE_HEADERS"})
+        self.assertNotIn("sensitive", json.dumps(summary))
+        for value in ({"endpoint": "/sensitive", "phase": "REQUEST"},
+                      {"endpoint": "DAEMON_INFO", "phase": "REQUEST", "raw": "sensitive"},
+                      {"endpoint": "DAEMON_INFO", "phase": "sensitive" * 10000}, None, True):
+            trial.record["docker_observation"] = value
+            self.assertEqual(runtime.public_summary(trial.record)["docker_observation"],
+                             {"endpoint": "UNAVAILABLE", "phase": "UNAVAILABLE"})
 
 
 if __name__ == "__main__":

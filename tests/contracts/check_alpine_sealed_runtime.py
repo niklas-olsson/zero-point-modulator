@@ -45,7 +45,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-8.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-9.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -162,6 +162,75 @@ _OCI_REDIRECT_PREDICATES = frozenset({
 })
 _oci_redirect_failures = weakref.WeakKeyDictionary()
 
+# Diagnostic metadata only. Neither the path nor exception text is retained.
+# The phase identifies where the existing refusal surfaced, not its cause.
+_DOCKER_FAILURE_CODES = frozenset({"DOCKER_DEADLINE", "DOCKER_OBSERVATION"})
+_DOCKER_ENDPOINTS = frozenset({
+    "DAEMON_INFO", "IMAGE_INSPECT", "CONTAINER_INSPECT", "CONTAINER_SIZE",
+    "CONTAINER_STATS", "UNAVAILABLE",
+})
+_DOCKER_PHASES = frozenset({
+    "BUDGET", "REQUEST", "RESPONSE_HEADERS", "RESPONSE_BODY",
+    "RESPONSE_VALIDATE", "DECODE", "COMPLETE", "UNAVAILABLE",
+})
+_docker_observation_failures = weakref.WeakKeyDictionary()
+
+
+def _docker_endpoint(path):
+    if type(path) is not str or len(path) > 256:
+        return "UNAVAILABLE"
+    if path == "/info":
+        return "DAEMON_INFO"
+    image = r"(?:sha256:[0-9a-f]{64}|zpm-alpine-[0-9a-f]{24}/(?:base|assembled):1)"
+    container = r"(?:[0-9a-f]{64}|zpm-alpine-[0-9a-f]{24}-(?:assembly|qualification))"
+    for endpoint, pattern in (
+        ("IMAGE_INSPECT", r"/images/" + image + r"/json"),
+        ("CONTAINER_INSPECT", r"/containers/" + container + r"/json"),
+        ("CONTAINER_SIZE", r"/containers/" + container + r"/json\?size=true"),
+        ("CONTAINER_STATS", r"/containers/[0-9a-f]{64}/stats\?stream=false&one-shot=true"),
+    ):
+        if re.fullmatch(pattern, path):
+            return endpoint
+    return "UNAVAILABLE"
+
+
+def _safe_docker_observation(value):
+    unavailable = {"endpoint": "UNAVAILABLE", "phase": "UNAVAILABLE"}
+    try:
+        if type(value) is not dict or set(value) != {"endpoint", "phase"}:
+            return unavailable
+        if (type(value["endpoint"]) is not str or len(value["endpoint"]) > 32
+                or value["endpoint"] not in _DOCKER_ENDPOINTS
+                or type(value["phase"]) is not str or len(value["phase"]) > 32
+                or value["phase"] not in _DOCKER_PHASES):
+            return unavailable
+        return {"endpoint": value["endpoint"], "phase": value["phase"]}
+    except BaseException:
+        return unavailable
+
+
+def _remember_docker_observation(error, path, phase):
+    try:
+        if (type(error) is Refused and len(error.args) == 1
+                and type(error.args[0]) is str and error.args[0] in _DOCKER_FAILURE_CODES
+                and error not in _docker_observation_failures):
+            _docker_observation_failures[error] = ("UNAVAILABLE", "UNAVAILABLE")
+            value = _safe_docker_observation({"endpoint": _docker_endpoint(path), "phase": phase})
+            _docker_observation_failures[error] = (value["endpoint"], value["phase"])
+    except BaseException:
+        # Optional classification cannot replace the refusal or renew a deadline.
+        pass
+
+
+def _docker_observation(error):
+    if type(error) is not Refused:
+        return None
+    try:
+        value = _docker_observation_failures.get(error)
+        return None if value is None else _safe_docker_observation({"endpoint": value[0], "phase": value[1]})
+    except BaseException:
+        return {"endpoint": "UNAVAILABLE", "phase": "UNAVAILABLE"}
+
 
 def _safe_oci_redirect_predicate(value):
     try:
@@ -250,7 +319,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-8"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-9"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -334,6 +403,7 @@ def report_bytes(report):
         if report.get("first_failure") is None:
             report["first_failure"] = "REPORT_BOUND"
         predicate = report.get("oci_redirect_predicate") if type(report) is dict else None
+        docker_observation = report.get("docker_observation") if type(report) is dict else None
         report = {key: report[key] for key in (
             "schema", "attempt", "plan_sha256", "harness_source_revision", "production_sources",
             "recipe_sha256", "native_checks", "first_failure", "cleanup_failures")}
@@ -342,6 +412,11 @@ def report_bytes(report):
                 report["oci_redirect_predicate"] = _safe_oci_redirect_predicate(predicate)
             except BaseException:
                 report["oci_redirect_predicate"] = "UNAVAILABLE"
+        if docker_observation is not None and report["first_failure"] in _DOCKER_FAILURE_CODES:
+            try:
+                report["docker_observation"] = _safe_docker_observation(docker_observation)
+            except BaseException:
+                report["docker_observation"] = {"endpoint": "UNAVAILABLE", "phase": "UNAVAILABLE"}
         report.update(status="FAILED", native_execution_qualified=False, truncated=True,
                       truncation_reason="REPORT_BOUND")
         report["cleanup_failures"] = report["cleanup_failures"][:32]
@@ -362,6 +437,12 @@ def public_summary(report):
             result["oci_redirect_predicate"] = _safe_oci_redirect_predicate(report["oci_redirect_predicate"])
         except BaseException:
             result["oci_redirect_predicate"] = "UNAVAILABLE"
+    if (type(report) is dict and type(result.get("first_failure")) is str
+            and result["first_failure"] in _DOCKER_FAILURE_CODES and "docker_observation" in report):
+        try:
+            result["docker_observation"] = _safe_docker_observation(report["docker_observation"])
+        except BaseException:
+            result["docker_observation"] = {"endpoint": "UNAVAILABLE", "phase": "UNAVAILABLE"}
     groups = {"environment": ("python", "kernel", "machine", "runner_os", "runner_version", "uid", "gid",
                                "engine_api", "git", "openssl", "docker_client", "docker_server", "native_interpreter"),
               "acquisition": ("requests", "body_bytes", "metadata_reserved_bytes", "reserved_body_bytes",
@@ -899,21 +980,39 @@ def absolute_timeout(deadline, code):
 
 def docker_json(path, *, absent=False, deadline=None):
     require(path.startswith("/") and "\r" not in path and "\n" not in path, "DOCKER_PATH")
-    seconds = min(1.0, (deadline - time.monotonic()) if deadline is not None else 1.0)
-    require(seconds > 0, "DOCKER_DEADLINE")
+    phase = "BUDGET"
+    try:
+        seconds = min(1.0, (deadline - time.monotonic()) if deadline is not None else 1.0)
+        require(seconds > 0, "DOCKER_DEADLINE")
+    except Refused as error:
+        _remember_docker_observation(error, path, phase)
+        raise
     connection = UnixHTTP("localhost", timeout=seconds)
     try:
         with absolute_timeout(time.monotonic() + seconds, "DOCKER_DEADLINE"):
+            phase = "REQUEST"
             connection.request("GET", "/v" + API + path, headers={"Connection": "close"})
+            phase = "RESPONSE_HEADERS"
             response = connection.getresponse()
+            phase = "RESPONSE_BODY"
             raw = response.read(1048577)
+            phase = "RESPONSE_VALIDATE"
             require(len(raw) <= 1048576, "DOCKER_RESPONSE_BOUND")
             if response.status == 404 and absent:
+                phase = "COMPLETE"
                 return None
             require(response.status == 200, "DOCKER_RESPONSE_STATUS")
-            return candidate.decode(raw)
+            phase = "DECODE"
+            value = candidate.decode(raw)
+            phase = "COMPLETE"
+            return value
+    except Refused as error:
+        _remember_docker_observation(error, path, phase)
+        raise
     except (OSError, http.client.HTTPException):
-        raise Refused("DOCKER_OBSERVATION") from None
+        error = Refused("DOCKER_OBSERVATION")
+        _remember_docker_observation(error, path, phase)
+        raise error from None
     finally:
         connection.close()
 
@@ -1047,7 +1146,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-8",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-9",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,
@@ -1099,6 +1198,10 @@ class Trial:
                 predicate = _oci_redirect_predicate(failure)
                 if predicate is not None:
                     self.record["oci_redirect_predicate"] = predicate
+            if type(code) is str and code in _DOCKER_FAILURE_CODES:
+                observation = _docker_observation(failure)
+                if observation is not None:
+                    self.record["docker_observation"] = observation
         self.record["status"] = "FAILED"
         self.record["native_execution_qualified"] = False
 
@@ -1397,7 +1500,7 @@ class Trial:
         try:
             self.sample()
         except Exception as error:
-            self.fail(fixed_code(error, "RESOURCE_OBSERVATION"))
+            self.fail(fixed_code(error, "RESOURCE_OBSERVATION"), failure=error)
 
     def check_sources(self):
         total = 0
@@ -1534,12 +1637,15 @@ class Trial:
     def cleanup(self):
         self.cleaning = True
         self.cleanup_deadline = min(self.deadline, time.monotonic() + CAPS["cleanup_reserve_seconds"])
+        first_cleanup_error = None
         if self.alarm_owned and self.cleanup_deadline > time.monotonic():
             signal.setitimer(signal.ITIMER_REAL, self.cleanup_deadline - time.monotonic())
         for row in reversed(self.journal["containers"]):
             try:
                 self.remove_container(row)
             except Exception as error:
+                if not self.record["cleanup_failures"]:
+                    first_cleanup_error = error
                 self.record["cleanup_failures"].append(fixed_code(error, "CLEANUP_CONTAINER_UNCONFIRMED"))
         for row in reversed(self.journal["image_references"]):
             try:
@@ -1577,20 +1683,24 @@ class Trial:
                 self.save_journal()
                 require(row["mutation_confirmed"], "IMAGE_MUTATION_OUTCOME_UNKNOWN")
             except Exception as error:
+                if not self.record["cleanup_failures"]:
+                    first_cleanup_error = error
                 self.record["cleanup_failures"].append(fixed_code(error, "CLEANUP_IMAGE_UNCONFIRMED"))
         try:
             self.cleanup_processes()
         except Exception as error:
+            if not self.record["cleanup_failures"]:
+                first_cleanup_error = error
             self.record["cleanup_failures"].append(fixed_code(error, "CLEANUP_PROCESS_UNCONFIRMED"))
         try:
             self.sample()
         except Exception as error:
             code = fixed_code(error, "FINAL_RESOURCE_OBSERVATION")
-            self.fail(code)
+            self.fail(code, failure=error)
             self.record["cleanup_failures"].append(code)
         self.record["native_checks"]["owned_cleanup"] = "FAIL" if self.record["cleanup_failures"] else "PASS"
         if self.record["cleanup_failures"]:
-            self.fail(self.record["cleanup_failures"][0])
+            self.fail(self.record["cleanup_failures"][0], failure=first_cleanup_error)
 
     def cleanup_processes(self):
         # Reconcile once more so known children remain owned after reparenting.
@@ -1813,13 +1923,13 @@ def finish_trial(trial):
         trial.cleanup()
     except BaseException as error:
         code = fixed_code(error, "CLEANUP_UNCONFIRMED")
-        trial.fail(code)
+        trial.fail(code, failure=error)
         trial.record["cleanup_failures"].append(code)
         trial.record["native_checks"]["owned_cleanup"] = "FAIL"
     try:
         trial.refresh_acquisition()
     except BaseException as error:
-        trial.fail(fixed_code(error, "FINAL_ACQUISITION_OBSERVATION"))
+        trial.fail(fixed_code(error, "FINAL_ACQUISITION_OBSERVATION"), failure=error)
     trial.record["elapsed_ms"] = round((time.monotonic() - trial.started) * 1000)
     if time.monotonic() >= trial.observation_deadline():
         trial.fail("FINAL_DEADLINE")
@@ -1834,7 +1944,7 @@ def finish_trial(trial):
                 atomic_private(trial.root / "summary.json", report_bytes(public_summary(trial.record)))
             trial.sample()
         except BaseException as error:
-            trial.fail(fixed_code(error, "FINAL_RESOURCE_OR_REPORT_FAILURE"))
+            trial.fail(fixed_code(error, "FINAL_RESOURCE_OR_REPORT_FAILURE"), failure=error)
             trial.record["native_execution_qualified"] = False
     trial.record["elapsed_ms"] = round((time.monotonic() - trial.started) * 1000)
     if time.monotonic() >= trial.observation_deadline():
@@ -1850,7 +1960,7 @@ def finish_trial(trial):
             trial.save()
             atomic_private(trial.root / "summary.json", report_bytes(public_summary(trial.record)))
     except BaseException as error:
-        trial.fail(fixed_code(error, "FINAL_REPORT_UNCONFIRMED"))
+        trial.fail(fixed_code(error, "FINAL_REPORT_UNCONFIRMED"), failure=error)
         trial.record["native_execution_qualified"] = False
         trial.record["elapsed_ms"] = round((time.monotonic() - trial.started) * 1000)
         # A retained file alone is never acceptance: the native workflow must
