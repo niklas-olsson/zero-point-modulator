@@ -241,6 +241,10 @@ def run(args):
                 return json.loads(result.stdout).get("ready") is True
 
             processes.run_once("bootstrap", manager + ["bootstrap"], bundle, clean_environment(), 900)
+            from check_openjules_installation_validation import qualify as qualify_native_validation
+            native_validation = qualify_native_validation(
+                bundle, args.openjules_checkout, root / "openjules-native-validation", profile_case="model")
+            require(not model.requests, "native configuration validation made a model request")
             preflight_inventory = docker_inventory()
             processes.start("installation", manager + ["start"], bundle, manager_environment)
             eventually(installed_ready, processes, "generated model installation readiness", 60)
@@ -331,6 +335,7 @@ def run(args):
 
             report = {"passed": True, "schema_version": 1, "deployment_id": scope["deployment_id"], "image": image,
                       "component_revisions": revisions, "installation_bootstrap_and_doctor": "passed", "checks": checks,
+                      "openjules_native_validation": native_validation,
                       "canonical_task": task, "candidate": candidate["id"], "captured_artifacts": attempt["captured_artifacts"],
                       "model_fixture_calls": len(model.requests), "final_reserved": plan()["reserved"],
                       "authority_admission": admission,
