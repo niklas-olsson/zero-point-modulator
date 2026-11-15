@@ -39,7 +39,9 @@ fixed context and bound the separately delivered dependency source on main.
 All eleven plans, candidate bytes, allowed origins, authority/resource caps and
 deadlines remain unchanged. The missing action is to establish the actual
 rejected destination and a supported, reviewed redirect contract for the pinned
-anonymous blob. No guessed origin expansion or blind retry is selected.
+anonymous blob. A separate, prospective [destination observation](#separate-destination-observation)
+is selected to collect limited current metadata. No guessed origin expansion,
+blind native retry or additional native attempt is selected.
 This [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 qualification fixture follows the inert catalog/compiler delivered in
 [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65). The original
@@ -89,6 +91,70 @@ The host and guest programs are fixture drivers, not a new reusable execution
 framework. Reuse the existing APK signature/archive helpers, production wheel
 identity parser, exact source checks and established owned-resource custody
 patterns. Do not import sibling application modules in the host process.
+
+## Separate destination observation
+
+The [accepted observation scope](https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6897044327)
+adds `check_oci_destination.py`, `oci-destination/observation-plan-1.json` and a
+separate `oci-destination-observation.yml` workflow. It is prospective source,
+with observation `NOT_RUN`. It does not change any of the eleven consumed native
+inputs, existing plans, native workflow, candidate, allowed origins or caps.
+Its result belongs only to this new operation and cannot reconstruct the
+destination rejected in attempt 11 or qualify a native installation.
+
+The selected Ubuntu 24.04/Python 3.12 job permits at most two sequential HTTPS
+requests: the existing anonymous token GET, then a GET of the exact first pinned
+`library/python` blob. There is no HEAD fallback, manifest lookup, retry or
+redirect follow. System TLS verification stays enabled; proxies and inherited
+credentials are absent. The worker keeps the anonymous token only in memory and
+sends it only to the fixed registry endpoint. Each request has one ten-second
+deadline across its response work, 65,536 bytes of bounded metadata, and the
+token response has a 1 MiB body limit. The blob's existing 3,853,673-byte
+prospective reservation remains charged, but its response closes without any
+application body read or artifact retention. TLS/socket prefetch is not claimed
+to be zero. No Docker, guest, service, package or model operation runs.
+
+Only HTTP 307 can produce `OBSERVED` and a parsed hostname. Exactly one Location
+must pass the fixed raw ASCII, HTTPS, DNS, port, userinfo, fragment and token
+reflection checks. The hostname is a bounded lowercase DNS name, excluding IP
+literals and normalization/repair cases. The report also retains fixed predicate
+results, status classes, counters, cleanup outcomes and comparisons against the
+unchanged current hostname/path predicates. Other statuses, including other
+redirect codes, are inconclusive with no hostname; unavailable or malformed
+evidence refuses. No received URL, path, query, userinfo, header, token, raw
+exception or hash of an arbitrary target is exported. A newly observed hostname
+is evidence for subsequent review, not an allowed origin or redirect contract.
+
+Source admission captures the exact bounded import closure, observer, workflow,
+recipe and plan bytes, then requires all fourteen selected files to be regular
+blobs in the admitted Git commit. Git replacement objects, global/system
+configuration, hooks, file monitors and transport are disabled for the bounded
+local plumbing. Imports execute only
+the captured repository sources, without ambient sibling modules or bytecode.
+The immutable observation ref is
+`qualification/oci-destination/run/<plan-sha256>/<source-commit>`; its commit must
+match the actual checkout and `GITHUB_SHA`. Only Actions attempt 1 and a fresh
+private work directory are admitted. A target commit that disagrees with the
+ref's encoded source identity, reused work or a changed selected input refuses
+before HTTP. Creating the ref once, without moving, deleting or recreating it,
+remains the recorded activation protocol; the program does not claim historical
+ref-replay detection. Ordinary source publication runs only synthetic tests and
+data-only `--check-plan` checks in this separate workflow. Ordinary repository CI
+remains independent and may run its installed/Docker gates on the same push.
+Root admission and creation of the distinct exact observation ref are separate
+actions.
+
+The original total budget is thirty seconds, with worker work ending at
+twenty-five seconds and the remaining time reserved for owned termination and
+reaping. Git helpers and the worker share that original deadline. Local file
+operations are bounded by size and checked cooperatively; this is not an
+interrupting wall-clock guarantee for every filesystem syscall. Unknown cleanup
+and partial counters remain unknown. The CLI returns 0 only for a validated
+current observed/inconclusive report, reserved exit 20 for a validated current
+failure report, and 2 when no current report is eligible. The workflow creates
+the fixed upload marker only after receiving 0 or 20, then translates 20 to a
+failed step. Generic interpreter failures, stale summaries, report-write errors
+and a final validation that crosses the original deadline cannot enable upload.
 
 ## Admission and source custody
 
