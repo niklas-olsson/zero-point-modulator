@@ -366,10 +366,14 @@ The [eleventh attempt](docs/native-alpine-evidence/attempt-11/outcome.md) failed
 `OCI_REDIRECT_REFUSED / HOSTNAME / OTHER`, with zero completed artifacts or
 followed redirects and cleanup PASS. Its rejected destination remains unknown;
 the Docker sampling context was not reached. Python installation and interfaces
-remain unqualified, and no next attempt is selected. The missing action is to
-establish the actual acquisition destination and a supported, reviewed redirect
-contract for the pinned anonymous blob. Every plan, candidate, allowed origin,
-authority, timeout and resource cap remains unchanged.
+remain unqualified. The separate [destination observation](docs/oci-destination-evidence/observation-1/outcome.md)
+later recorded the existing CloudFront hostname and path-prefix match without a
+follow or native work; it cannot identify native11's target or a routing cause.
+The [prospective native12 source](docs/native-alpine-active-harness.md#finite-acquisition-and-image-assembly)
+corrects response ownership before urllib parsing and preserves original errors
+through closure. It selects no new origin, retry or allowance; native execution
+is `NOT_RUN` pending fresh gates and exact admission. Plans 1–11, observer plan1,
+candidate bytes, authority, timeouts and resource caps remain unchanged.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private

@@ -45,7 +45,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-11.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-12.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -418,7 +418,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-11"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-12"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -810,6 +810,30 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None
 
+    def http_error_302(self, request, response, code, message, headers):
+        # urllib's default handler parses Location before redirect_request.
+        # Transfer the untouched response into Acquisition's owned error path.
+        raise urllib.error.HTTPError(request.full_url, code, message, headers, response)
+
+    http_error_301 = http_error_302
+    http_error_303 = http_error_302
+    http_error_307 = http_error_302
+    http_error_308 = http_error_302
+
+
+def close_acquisition_resources(*resources, original=None):
+    """Attempt all owned closes without replacing an earlier body/control error."""
+    failure = None
+    for resource in resources:
+        if resource is not None:
+            try:
+                resource.close()
+            except BaseException as error:
+                if failure is None:
+                    failure = error
+    if original is None and failure is not None:
+        raise failure
+
 
 class HeaderBound(Refused):
     def __init__(self, observed):
@@ -941,18 +965,23 @@ class Acquisition:
             raise
         except urllib.error.HTTPError as error:
             redirected = error.code in (301, 302, 303, 307, 308) and allow_redirect
+            original = None
             try:
                 self.header_observation(error.fp)
                 if redirected:
                     locations = error.headers.get_all("Location", [])
                     _require_oci_redirect(len(locations) == 1, "LOCATION_CARDINALITY")
                     location = redirect_url(locations[0], url)
+                else:
+                    raise Refused("ARTIFACT_HTTP_REFUSED") from None
+            except BaseException as failure:
+                original = failure
+                raise
             finally:
-                error.close()
+                close_acquisition_resources(error, original=original)
             if redirected:
                 self.record["redirects"] += 1
                 return self.open(location, maximum, token=None, allow_redirect=False)
-            raise Refused("ARTIFACT_HTTP_REFUSED") from None
         try:
             self.header_observation(response)
             require(response.status == 200, "ARTIFACT_HTTP_STATUS")
@@ -973,8 +1002,8 @@ class Acquisition:
                         and response.chunked is True and response.fp is not None, "HTTP_TOKEN_READER")
                 response.zpm_token_chunked = True
                 response.response_framing_bytes = 0
-        except BaseException:
-            response.close()
+        except BaseException as error:
+            close_acquisition_resources(response, original=error)
             raise
         return response
 
@@ -1022,6 +1051,7 @@ class Acquisition:
 
     def receive(self, response, size, destination=None):
         count, hasher, chunks, stream = 0, hashlib.sha256(), [], None
+        original = None
         try:
             lengths = response.headers.get_all("Content-Length", [])
             chunked = getattr(response, "zpm_token_chunked", False) is True
@@ -1057,10 +1087,11 @@ class Acquisition:
                 os.fsync(stream.fileno())
             require(chunked or count == int(lengths[0]), "HTTP_BODY_INCOMPLETE")
             return count, hasher.hexdigest(), b"".join(chunks)
+        except BaseException as error:
+            original = error
+            raise
         finally:
-            response.close()
-            if stream is not None:
-                stream.close()
+            close_acquisition_resources(response, stream, original=original)
 
     def run(self, recipe):
         _, _, raw = self.receive(self.open(TOKEN_URL, CAPS["metadata_response_bytes"]), CAPS["metadata_response_bytes"])
@@ -1277,7 +1308,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-11",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-12",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,

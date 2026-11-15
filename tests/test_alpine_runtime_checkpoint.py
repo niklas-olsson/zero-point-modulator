@@ -29,6 +29,7 @@ class RuntimeCheckpointTests(unittest.TestCase):
             8: "07788eb17025b3eb73fffc6da808b6512949325359ea1ba4a4218ddeed8644d2",
             9: "767dd8998d2e65448ce7ec9f63689c7665c280142da511da29059032127b6b8d",
             10: "8ce3ef40b09add5f2371c026229d95f80c51d06e13e86bdfcc7d872650053440",
+            11: "92c4d05be1388e058054d7bb45f90d9dcd4f272bb448db853a6f8819ee908645",
         }
         for number, reviewed in historical.items():
             path = candidate.ROOT / f"active-plan-{number}.json"
@@ -44,11 +45,11 @@ class RuntimeCheckpointTests(unittest.TestCase):
                 self.assertEqual(code, 2)
                 self.assertEqual(json.loads(output.getvalue())["failure"], "ACTIVE_PLAN_IDENTITY")
 
-    def test_prospective_binding_includes_diagnostic_and_delivered_dependency_source(self):
-        old = json.loads((candidate.ROOT / "active-plan-10.json").read_bytes())
+    def test_prospective_binding_changes_only_response_custody_and_workflow(self):
+        old = json.loads((candidate.ROOT / "active-plan-11.json").read_bytes())
         current = json.loads(runtime.ACTIVE_PLAN.read_bytes())
-        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-11.json")
-        self.assertEqual(current["attempt"], "native-alpine-11")
+        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-12.json")
+        self.assertEqual(current["attempt"], "native-alpine-12")
         self.assertEqual(set(current), set(old))
         for field in set(old) - {"attempt", "code"}:
             with self.subTest(field=field):
@@ -57,7 +58,7 @@ class RuntimeCheckpointTests(unittest.TestCase):
         self.assertEqual(len(current["code"]), 11)
         changed = {path for path in old["code"] if old["code"][path] != current["code"][path]}
         self.assertEqual(changed, {"tests/contracts/check_alpine_sealed_runtime.py",
-                                   ".github/workflows/native-alpine-candidate.yml", "zpm/dependencies.py"})
+                                   ".github/workflows/native-alpine-candidate.yml"})
 
     def test_tenth_attempt_retains_original_failure_without_later_context(self):
         root = runtime.REPO / "docs/native-alpine-evidence/attempt-10"

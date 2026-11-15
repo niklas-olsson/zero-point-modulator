@@ -1,7 +1,8 @@
 # Native Alpine active-harness contract
 
 **Status: attempt 11 FAILED at OCI_REDIRECT_REFUSED / HOSTNAME / OTHER;
-cleanup PASS. Native qualification has not passed. No next attempt is selected.**
+cleanup PASS. Prospective native12 response-custody source is selected;
+its native execution is NOT_RUN. Native qualification has not passed.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -85,6 +86,7 @@ or architecture-gated feature is part of this design.
 | `native-alpine/active-plan-9.json` | Historical ninth-attempt binding of the Docker-observation diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
 | `native-alpine/active-plan-10.json` | Historical tenth-attempt binding of the closed OCI hostname-class diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
 | `native-alpine/active-plan-11.json` | Consumed eleventh-attempt binding of fixed Docker sampling context and distinct workflow/work/report identities. It also binds the delivered `zpm/dependencies.py` from main; the other eight executing inputs, candidate, commands, authority and caps remain unchanged. Its [actual run failed during OCI acquisition](native-alpine-evidence/attempt-11/outcome.md); this plan admits no additional attempt. |
+| `native-alpine/active-plan-12.json` | Prospective binding of the response-custody correction and distinct native12 workflow/work/report identities. Only the runtime and native workflow change among the eleven executing inputs. All earlier plans, candidate, policy, commands, authority and caps remain unchanged; native execution is `NOT_RUN`. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -159,6 +161,16 @@ failure report, and 2 when no current report is eligible. The workflow creates
 the fixed upload marker only after receiving 0 or 20, then translates 20 to a
 failed step. Generic interpreter failures, stale summaries, report-write errors
 and a final validation that crosses the original deadline cannot enable upload.
+
+After the native12 correction, the observer workflow checks the current observer
+fixtures, then checks out original source
+`67e7d0dc6c3dd43e842d34e304f64bedfe414737` in a separate directory. It verifies that
+HEAD, reruns the original observer fixtures and admits the unchanged observer1
+plan `54844e18bbf22d75841b6bcbfd22e7d455c52f70e4743d9919bc23f145f0ca55` and native11
+plan `92c4d05be1388e058054d7bb45f90d9dcd4f272bb448db853a6f8819ee908645` against their
+original bytes. A separate current-tree check admits prospective native12.
+These historical checks preserve evidence; they do not qualify changed source
+or reactivate either consumed operation.
 
 ## Admission and source custody
 
@@ -279,6 +291,23 @@ allowed CloudFront redirect uses a fresh credential-free request. APK and wheel
 redirects, automatic retries, mutable tag pulls, index refreshes and resolution
 are refused. No signed-query or token value enters a report.
 
+The [selected native12 correction](https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6897794009)
+transfers all five native redirect statuses into the owned HTTP-error path before
+urllib can parse or repair Location. The original destination predicates then
+evaluate the untouched value. Malformed or unsafe responses receive a close
+attempt without a follow; a valid allowed redirect is followed only after its
+response closes successfully. No accepted status, hostname, path, credential, single-hop,
+request, byte, hash or deadline rule changes. This defect is not a diagnosis of
+native11, which reached the hostname guard.
+
+Acquisition cleanup attempts both already-owned response and destination-stream
+closure. A later close failure cannot replace an earlier refusal, parser error,
+read error or control exception. If closure fails first, that exception stops
+the operation. Per-response closure is not separately reported; an incomplete
+close remains unconfirmed and cannot be inferred from the aggregate
+`owned_cleanup` result, which retains its process/container/image meaning. The
+public report schema and its closed diagnostic projection remain unchanged.
+
 An existing `OCI_REDIRECT_REFUSED` guard can retain one optional
 `oci_redirect_predicate` in the existing 4,096-byte acquisition-child result and
 256-KiB final summary. Its closed values are `LOCATION_CARDINALITY`,
@@ -326,7 +355,7 @@ runtime at `SOURCE_FILE_BOUND`, before the unchanged `ACTIVE_CODE_IDENTITY` hash
 check. The attempt-8 runner instead rejected those earlier attempt
 identities before reading their code inputs. Its new exact plan can pass the
 inert source check; its actual native result is retained separately. The current
-attempt-11 runner rejects all ten earlier plan identities before their code
+attempt-12 runner rejects all eleven earlier plan identities before their code
 reads. Native execution still requires independent review, fresh required gates
 and a separate admission.
 
