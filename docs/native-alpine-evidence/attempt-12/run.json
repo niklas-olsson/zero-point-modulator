@@ -1,0 +1,80 @@
+{
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "coordinator": "ChatGPT /root; independently acquired original artifact and source/log evidence by /root/transition_integration",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Derived custody metadata, not a native receipt. Original summary unchanged. STORAGE_OBSERVATION retains no syscall, path or errno. The host interpreter_identity stage is coarse and does not establish an interpreter mismatch or absence of later guest work.",
+  "source": {
+    "commit": "aa842e8ddecfeb13c3ff8d980230cbcc550728ba",
+    "tree": "a58bd866cbd6d492a9bdeb35c07c73319051a9df",
+    "parents": [
+      "2c563e34fffdf6f8a360d975877c887a6db09d5b"
+    ],
+    "plan_file": "tests/contracts/native-alpine/active-plan-12.json",
+    "plan_bytes": 9263,
+    "plan_sha256": "989ea9f36d1dabdca4cba44e92f10dd26c0d86d69f1d30deac870625b94f375e"
+  },
+  "admission_record": {
+    "issue": 63,
+    "comment_id": 6898176025,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6898176025"
+  },
+  "outcome_record": {
+    "issue": 63,
+    "comment_id": 6898272196,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6898272196"
+  },
+  "workflow": {
+    "run_id": 43739611680,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/native-alpine/run/989ea9f36d1dabdca4cba44e92f10dd26c0d86d69f1d30deac870625b94f375e",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43739611680",
+    "source_job_id": 132889644583,
+    "source_job_conclusion": "success",
+    "native_job_id": 132889714559,
+    "native_job_conclusion": "failure",
+    "execution_exit_code": 1,
+    "summary_upload": "success"
+  },
+  "artifact": {
+    "id": 14172360206,
+    "name": "native-alpine-12-summary-43739611680-1",
+    "zip_bytes": 1336,
+    "zip_sha256": "479879550190f9ab742521944fc9214760d3cc85535bf6b3ae0b6f4717aef900",
+    "members": [
+      "summary.json"
+    ]
+  },
+  "summary": {
+    "bytes": 2143,
+    "sha256": "d6e4546861e69889dd4b6b76293765edf0dcd7a6e10313519583c1b0ee88e2d0"
+  },
+  "decoded_utf8_log": {
+    "bytes": 44621,
+    "sha256": "d1e9466a89cc1cb61c3c43613db5c48a059b476c92a0a8c7678ea6cbc948207d"
+  },
+  "source_decoded_utf8_log": {
+    "bytes": 63448,
+    "sha256": "2f3a3bcab863f390964fc4ceb1b18fb787f551f62cb3779a2b6edd87a4e1757c"
+  },
+  "outcome": {
+    "status": "FAILED",
+    "first_failure": "STORAGE_OBSERVATION",
+    "storage_operation_path_errno": "not-retained; unknown",
+    "guest_progress_beyond_last_accepted_result": "unknown",
+    "native_execution_qualified": false,
+    "owned_cleanup": "PASS",
+    "cleanup_failures": [],
+    "pending_mutation_reservations": 0
+  },
+  "fresh_verification": {
+    "original_archive_and_summary_independently_acquired_and_hashed": true,
+    "sole_regular_zip_member_matches_original_summary": true,
+    "original_summary_source_and_plan_match_consumed_source": true,
+    "decoded_native_log_confirms_all_checkouts_exit_and_artifact_identity": true,
+    "decoded_source_log_confirms_196_tests_preflight_and_exact_admissions": true
+  },
+  "no_followup_activation": true
+}

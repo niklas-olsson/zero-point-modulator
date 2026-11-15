@@ -1,8 +1,8 @@
 # Native Alpine active-harness contract
 
-**Status: attempt 11 FAILED at OCI_REDIRECT_REFUSED / HOSTNAME / OTHER;
-cleanup PASS. Prospective native12 response-custody source is selected;
-its native execution is NOT_RUN. Native qualification has not passed.**
+**Status: attempt 12 FAILED at STORAGE_OBSERVATION; cleanup PASS.
+The actual storage operation, path and errno were not retained. Native
+qualification has not passed; no next native operation is admitted.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -50,6 +50,13 @@ qualification fixture follows the inert catalog/compiler delivered in
 [candidate, caps and ownership](native-alpine-qualification.md) remain its input
 contract, not evidence of a native result.
 
+The [twelfth attempt](native-alpine-evidence/attempt-12/outcome.md) completed all
+173 acquisitions and the APK checks, then refused `STORAGE_OBSERVATION`, with
+cleanup PASS. The host's coarse `interpreter_identity` label does not prove an
+interpreter mismatch or that later guest work never began. The failing storage
+operation, path and errno remain unknown. A separately selected source correction
+will retain fixed context without weakening accounting or admitting a new run.
+
 ## Subject and acceptance
 
 Keep `plan-v1.json` unchanged at SHA-256
@@ -86,7 +93,7 @@ or architecture-gated feature is part of this design.
 | `native-alpine/active-plan-9.json` | Historical ninth-attempt binding of the Docker-observation diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
 | `native-alpine/active-plan-10.json` | Historical tenth-attempt binding of the closed OCI hostname-class diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
 | `native-alpine/active-plan-11.json` | Consumed eleventh-attempt binding of fixed Docker sampling context and distinct workflow/work/report identities. It also binds the delivered `zpm/dependencies.py` from main; the other eight executing inputs, candidate, commands, authority and caps remain unchanged. Its [actual run failed during OCI acquisition](native-alpine-evidence/attempt-11/outcome.md); this plan admits no additional attempt. |
-| `native-alpine/active-plan-12.json` | Prospective binding of the response-custody correction and distinct native12 workflow/work/report identities. Only the runtime and native workflow change among the eleven executing inputs. All earlier plans, candidate, policy, commands, authority and caps remain unchanged; native execution is `NOT_RUN`. |
+| `native-alpine/active-plan-12.json` | Consumed binding of the response-custody correction and distinct native12 workflow/work/report identities. Only the runtime and native workflow change among the eleven executing inputs. Its [actual operation failed at storage observation](native-alpine-evidence/attempt-12/outcome.md), with cleanup PASS. All earlier plans, candidate, policy, commands, authority and caps remain unchanged; this plan admits no additional operation. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -168,9 +175,10 @@ fixtures, then checks out original source
 HEAD, reruns the original observer fixtures and admits the unchanged observer1
 plan `54844e18bbf22d75841b6bcbfd22e7d455c52f70e4743d9919bc23f145f0ca55` and native11
 plan `92c4d05be1388e058054d7bb45f90d9dcd4f272bb448db853a6f8819ee908645` against their
-original bytes. A separate current-tree check admits prospective native12.
-These historical checks preserve evidence; they do not qualify changed source
-or reactivate either consumed operation.
+original bytes. The separate current-tree native12 check is inert source
+validation; its original operation is now consumed and failed. These historical
+checks preserve evidence; they do not qualify changed source or reactivate a
+consumed operation.
 
 ## Admission and source custody
 

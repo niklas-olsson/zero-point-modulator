@@ -369,11 +369,14 @@ the Docker sampling context was not reached. Python installation and interfaces
 remain unqualified. The separate [destination observation](docs/oci-destination-evidence/observation-1/outcome.md)
 later recorded the existing CloudFront hostname and path-prefix match without a
 follow or native work; it cannot identify native11's target or a routing cause.
-The [prospective native12 source](docs/native-alpine-active-harness.md#finite-acquisition-and-image-assembly)
-corrects response ownership before urllib parsing and preserves original errors
-through closure. It selects no new origin, retry or allowance; native execution
-is `NOT_RUN` pending fresh gates and exact admission. Plans 1–11, observer plan1,
-candidate bytes, authority, timeouts and resource caps remain unchanged.
+The [twelfth attempt](docs/native-alpine-evidence/attempt-12/outcome.md) passed
+all 173 acquisitions, APK transaction and installed inventory, then refused
+`STORAGE_OBSERVATION`, with cleanup PASS. Its coarse `interpreter_identity` host
+stage does not establish an interpreter mismatch or how far the guest progressed.
+The failed syscall, path and errno were not retained. Fixed storage-error context
+is the selected next source correction; no next native operation is admitted.
+Plans 1–12, observer plan1, candidate bytes, authority, timeouts and resource caps
+remain unchanged. Native installation and interfaces remain unqualified.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private
