@@ -45,7 +45,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-7.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-8.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -250,7 +250,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-7"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-8"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -1047,7 +1047,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-7",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-8",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,

@@ -347,14 +347,16 @@ passed artifact bytes, APK trust and base-image identity, then failed
 `CONTAINER_MUTATION_OUTCOME_UNKNOWN`; zero final pending reservations do not
 turn that into confirmed cleanup. The [sixth attempt](docs/native-alpine-evidence/attempt-6/outcome.md)
 passed the same three checks, then failed `CONTAINER_STATS_MISSING` during
-assembly, with cleanup PASS. Candidate installation and interfaces remain
-unqualified. Attempts 3 and 4's exact paths, attempt 5's inspect payload and
-attempt 6's stats payload/state chronology remain unretained. The previous
-corrections stay in place. A distinct seventh plan admits Docker 28.0.4's
-documented one-shot stats representation through the existing full-ID ownership
-check, keeps every live counter mandatory and preserves identity/type/limit
-refusals. Requested authority, cleanup uncertainty and all caps remain unchanged.
-Independent review and fresh gates precede any separate activation.
+assembly, with cleanup PASS. The
+[seventh attempt](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43639051137)
+refused OCI acquisition after two requests and 5,489 body bytes, with zero
+artifacts or followed redirects and cleanup PASS. Its target and failed
+predicate remain unknown. Candidate installation and interfaces remain
+unqualified. The previous corrections and historical evidence stay in place.
+A prospective eighth plan binds a closed refusal diagnostic and distinct
+attempt identities, preserving the candidate, authority, redirect policy and
+all caps. It remains source-only; independent review and fresh gates precede
+any separate native admission.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private

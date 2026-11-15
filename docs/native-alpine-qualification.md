@@ -1,7 +1,7 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: six actual attempts failed; corrected attempt 7 is an unactivated
-source candidate pending review and fresh gates.**
+**Status: seven actual attempts failed; prospective attempt 8 is source-only
+and awaits independent review and fresh gates. Native execution is NOT_RUN.**
 The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
 `SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
 records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
@@ -16,8 +16,12 @@ in assembly. Cleanup failed with `CONTAINER_MUTATION_OUTCOME_UNKNOWN`. Its
 actual inspect payload and precise failed call site were not retained. The
 [sixth outcome](native-alpine-evidence/attempt-6/outcome.md) passed the same three
 checks, then failed `CONTAINER_STATS_MISSING` in assembly with cleanup PASS.
-Its actual stats payload and state chronology remain unknown. No candidate
-installation or interface qualification is established. This
+Its actual stats payload and state chronology remain unknown. The
+[seventh attempt](https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43639051137)
+failed `OCI_REDIRECT_REFUSED` after two requests and 5,489 body bytes, with zero
+artifacts or followed redirects and cleanup PASS. Its target and failed
+predicate remain unknown; no installation or interface qualification is
+established. This
 [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 fixture keeps the original inert compiler and adds a separate, explicitly gated
 native runner. It changes no installer, Python admission, operative integration
@@ -95,7 +99,7 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [current active plan](../tests/contracts/native-alpine/active-plan-6.json) binds the
+The [prospective eighth plan](../tests/contracts/native-alpine/active-plan-8.json) binds the
 host/guest drivers, their local imports, the workflow, original plan/recipe,
 commands, authority and caps. The original `plan-v1.json` and inert checker retain
 their historical `active_trial_implemented: false` fields. They do not become
@@ -151,7 +155,8 @@ source proof, controlled reproduction and the unknown actual payload. Lost
 create acknowledgement still prevents a cleanup PASS even after matching owned
 object removal and observed absence. All prior plans and authority remain intact.
 
-The distinct seventh plan fixes the source-proven one-shot stats mismatch.
+The unchanged [seventh plan](../tests/contracts/native-alpine/active-plan-7.json)
+bound the source-proven one-shot stats correction.
 Docker 28.0.4/API 1.45 can omit `id` and `name` on a successful response; the
 existing full owned inspection and fixed full-ID request bind that observation.
 Any supplied identity must match exactly. Every required live counter remains
@@ -162,7 +167,16 @@ exact owned terminal state, yielding no sample. The
 [sixth outcome](native-alpine-evidence/attempt-6/outcome.md) records the exact
 primary-source proof, controlled regressions and unknown actual payload. New
 attempt/work/upload identity, unchanged caps and all six prior plans prevent a
-source correction from rewriting historical evidence.
+source correction from rewriting historical evidence. Its actual run failed
+during OCI acquisition before exercising the stats correction.
+
+The prospective eighth plan binds the reviewed, closed OCI refusal diagnostic
+and distinct runner/workflow/work/report identities. The other nine executing
+inputs, all seven historical plans, candidate/pins, commands, authority and
+resource limits remain unchanged. The
+[active-harness contract](native-alpine-active-harness.md#finite-acquisition-and-image-assembly)
+describes the diagnostic and its existing first-failure limitation. This is a
+source binding, not another run, redirect-policy change or qualification.
 
 Check active-plan source consistency without acquisition, Docker or candidate
 execution using an externally recorded exact hash:

@@ -17,6 +17,69 @@ from tests.contracts import alpine_sealed_guest as guest
 
 
 class RuntimeCheckpointTests(unittest.TestCase):
+    def test_historical_plans_keep_their_bytes_and_refuse_before_source_or_effects(self):
+        historical = {
+            1: "8917e1b695e7154c9ecd60f40ab2defcd691ca715da81ae8b23b5dc60ebcb953",
+            2: "bc4e5168483bdf372af334a14f6e3e0bc1b58850bd026262cce834274028bced",
+            3: "6da9d7727ae89c35ac9d26c6437a5a3c549efb07961d43309cf619903520ea72",
+            4: "929ffd1c1b6b8bcd471673e0a8fdc1b78b3a6809aa96618411a1008399c074c0",
+            5: "017c6ffb7c0a15b8efbc3046da53e3978d45f9b3bb8bda1d264d579f638575cf",
+            6: "11907aa13d2300c092d69ff02cf7e1ce8c17aa38c414ec71bdd9b6ca284c55d6",
+            7: "d87dba65bad619979dd704a4e1035acfb5c7383ec6fe0c795cd34d9fc55a3973",
+        }
+        for number, reviewed in historical.items():
+            path = candidate.ROOT / f"active-plan-{number}.json"
+            with self.subTest(attempt=number):
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), reviewed)
+                with patch.object(runtime, "source_blob", side_effect=AssertionError("code read")), \
+                        patch.object(runtime.subprocess, "Popen", side_effect=AssertionError("child")), \
+                        patch.object(runtime.socket, "socket", side_effect=AssertionError("socket")), \
+                        patch.object(Path, "mkdir", side_effect=AssertionError("write")), \
+                        contextlib.redirect_stdout(io.StringIO()) as output:
+                    code = runtime.main(["--check-plan", "--plan", str(path),
+                                         "--reviewed-plan-sha256", reviewed])
+                self.assertEqual(code, 2)
+                self.assertEqual(json.loads(output.getvalue())["failure"], "ACTIVE_PLAN_IDENTITY")
+
+    def test_prospective_binding_changes_only_two_executing_inputs(self):
+        old = json.loads((candidate.ROOT / "active-plan-7.json").read_bytes())
+        current = json.loads(runtime.ACTIVE_PLAN.read_bytes())
+        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-8.json")
+        self.assertEqual(current["attempt"], "native-alpine-8")
+        self.assertEqual(set(current), set(old))
+        for field in set(old) - {"attempt", "code"}:
+            with self.subTest(field=field):
+                self.assertEqual(current[field], old[field])
+        self.assertEqual(set(current["code"]), set(old["code"]))
+        self.assertEqual(len(current["code"]), 11)
+        changed = {path for path in old["code"] if old["code"][path] != current["code"][path]}
+        self.assertEqual(changed, {"tests/contracts/check_alpine_sealed_runtime.py",
+                                   ".github/workflows/native-alpine-candidate.yml"})
+
+    def test_plan_workflow_work_artifact_and_actual_report_select_the_same_attempt(self):
+        plan = json.loads(runtime.ACTIVE_PLAN.read_bytes())
+        attempt = plan["attempt"]
+        workflow = (runtime.REPO / ".github/workflows/native-alpine-candidate.yml").read_text()
+        self.assertIn("sha256sum tests/contracts/native-alpine/" + runtime.ACTIVE_PLAN.name, workflow)
+        self.assertIn('--work "$RUNNER_TEMP/' + attempt + '"', workflow)
+        self.assertIn("name: " + attempt + "-summary-${{ github.run_id }}-${{ github.run_attempt }}", workflow)
+        self.assertIn("path: ${{ runner.temp }}/" + attempt + "/summary.json", workflow)
+        self.assertNotIn("native-alpine-7", workflow)
+        documents = {name: json.loads((candidate.ROOT / name).read_bytes()) for name in candidate.METADATA}
+        reviewed = hashlib.sha256(runtime.ACTIVE_PLAN.read_bytes()).hexdigest()
+        with tempfile.TemporaryDirectory() as temporary, \
+                patch.object(runtime.subprocess, "Popen", side_effect=AssertionError("child")), \
+                patch.object(runtime.socket, "socket", side_effect=AssertionError("socket")):
+            root = Path(temporary)
+            trial = runtime.Trial(root, {name: root / name for name in candidate.SOURCES},
+                                  reviewed, "b" * 40, documents)
+            retained = json.loads((root / "private-report.json").read_bytes())
+            self.assertEqual(trial.record["attempt"], attempt)
+            self.assertEqual(retained["attempt"], attempt)
+            self.assertEqual(retained["plan_sha256"], reviewed)
+            self.assertFalse(retained["native_execution_qualified"])
+            self.assertEqual(set(retained["native_checks"].values()), {"NOT_RUN"})
+
     def test_cold_host_import_closure_is_bound_without_effects(self):
         script = r'''
 import json, os, sys

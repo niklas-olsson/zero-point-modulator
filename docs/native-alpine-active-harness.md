@@ -1,6 +1,6 @@
 # Native Alpine active-harness contract
 
-**Status: refusal-diagnostic source candidate for independent review.**
+**Status: prospective attempt-8 source binding; native execution NOT_RUN.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -20,8 +20,9 @@ chronology remains unknown. The
 refused acquisition with `OCI_REDIRECT_REFUSED` after two requests and 5,489 body
 bytes, with zero completed artifacts or redirects and cleanup PASS. Its target
 and failed predicate remain unknown. The source correction below adds a closed
-refusal diagnostic, retaining every original authority/resource cap. These
-edits do not admit another native attempt.
+refusal diagnostic, retaining every original authority/resource cap. The
+distinct eighth plan binds that correction and new work/report identities.
+Independent review and fresh gates precede any separate native admission.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
 It changes only the ZPM qualification fixture. The original
@@ -60,6 +61,7 @@ or architecture-gated feature is part of this design.
 | New `check_alpine_sealed_runtime.py` | Explicit active entry point, plan admission, host process/resource guardian, bounded acquisition, Docker custody, stages, safe result reduction and cleanup. |
 | New `alpine_sealed_guest.py` | Fixed assembly-inventory and nonroot qualification commands. Use the original production APIs, separate owner interpreters and finite probe IDs. |
 | `native-alpine/active-plan-7.json` | Historical seventh-attempt binding of the original plan/recipe, commands, source manifests and authority/resource limits. It and all six prior plans remain unchanged; it cannot admit the diagnostic source revision. |
+| `native-alpine/active-plan-8.json` | Prospective exact binding of the diagnostic runner and distinct workflow/work/report identities. The other nine executing inputs, candidate, commands, authority and caps remain unchanged. No native attempt is admitted by publishing this plan. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -213,10 +215,13 @@ remain in force.
 
 This is a source diagnostic, not a qualified redirect change. Native attempt 7
 retains its original generic refusal; its failed predicate and target remain
-unknown. Historical plans 1 through 7 are unchanged. Plan 7 rejects this larger
-runtime at its existing `SOURCE_FILE_BOUND` check, before the unchanged
-`ACTIVE_CODE_IDENTITY` hash check. Any future native attempt requires a separately
-reviewed exact source binding and admission.
+unknown. Historical plans 1 through 7 are unchanged. Against the diagnostic-only
+revision `1abee085cb19e3c2248ee1038d68d18c87c54b66`, plan 7 rejects the larger
+runtime at `SOURCE_FILE_BOUND`, before the unchanged `ACTIVE_CODE_IDENTITY` hash
+check. The prospective attempt-8 runner instead rejects those earlier attempt
+identities before reading their code inputs. Its new exact plan can pass the
+inert source check; native execution still requires independent review, fresh
+required gates and a separate admission.
 
 Reverify each whole-file identity, every OCI diff ID and archive member bound,
 wheel metadata/native-member catalog, and each APK's control signature and
