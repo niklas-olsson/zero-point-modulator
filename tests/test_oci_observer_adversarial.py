@@ -949,7 +949,7 @@ class AdmissionAndPublicationTests(ObservationFixture):
                 patch.object(observer, "observe", side_effect=AssertionError("no HTTP from reused work")) as observe, \
                 patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}):
             status, result = self.call_main(self.work)
-        self.assertNotEqual(status, 0)
+        self.assertEqual(status, 2)
         self.assertEqual(result["first_failure"], "WORK_REUSED")
         self.assertEqual(summary.read_bytes(), original)
         self.assertEqual(output.read_bytes(), b"")
@@ -970,7 +970,7 @@ class AdmissionAndPublicationTests(ObservationFixture):
                 patch.object(observer, "mark_current_summary", wraps=observer.mark_current_summary) as marker, \
                 patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}):
             status, result = self.call_main(self.work)
-        self.assertNotEqual(status, 0)
+        self.assertEqual(status, 2)
         self.assertEqual(result["first_failure"], "REGISTRY_TOKEN")
         self.assertEqual(result["report_failure"], "REPORT_WRITE")
         self.assertEqual(result["counters"], original["counters"])
@@ -982,19 +982,28 @@ class AdmissionAndPublicationTests(ObservationFixture):
         self.assertEqual(output.read_bytes(), b"")
         marker.assert_not_called()
 
-    def test_new_failed_current_report_is_eligible_without_becoming_success(self):
-        original = self.observe(SequenceOpener(token_reply(b'{"token":""}')))
-        original["owned_child_cleanup"] = "CONFIRMED"
-        output = self.github_output()
-        with patch.object(observer, "load_plan", return_value=self.admission), \
-                patch.object(observer, "admit_run", return_value=self.identity()), \
-                patch.object(observer, "supervise", return_value=copy.deepcopy(original)), \
-                patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}):
-            status, result = self.call_main(self.work)
-        self.assertNotEqual(status, 0)
-        self.assertEqual(result["first_failure"], "REGISTRY_TOKEN")
-        self.assertEqual(result, json.loads((self.work / "summary.json").read_bytes()))
-        self.assertEqual(output.read_bytes(), b"summary_created=true\n")
+    def test_current_success_and_failure_have_distinct_reserved_eligible_exits(self):
+        self.assertEqual(observer.CURRENT_FAILURE_EXIT, 20)
+        for success in (False, True):
+            with self.subTest(success=success), tempfile.TemporaryDirectory(dir=self.work) as name:
+                work = Path(name)
+                opener = (SequenceOpener(token_reply(), blob_reply()) if success else
+                          SequenceOpener(token_reply(b'{"token":""}')))
+                original = observer.observe(self.admission, work, time.monotonic() + 20,
+                                            opener=opener, runtime=runtime)
+                original["owned_child_cleanup"] = "CONFIRMED"
+                output = self.github_output()
+                with patch.object(observer, "load_plan", return_value=self.admission), \
+                        patch.object(observer, "admit_run", return_value=self.identity()), \
+                        patch.object(observer, "supervise", return_value=copy.deepcopy(original)), \
+                        patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}):
+                    status, result = self.call_main(work)
+                self.assertEqual(status, 0 if success else 20)
+                self.assertEqual(result["first_failure"], None if success else "REGISTRY_TOKEN")
+                self.assertEqual(result, json.loads((work / "summary.json").read_bytes()))
+                # Only the workflow interprets the reserved exit after Python
+                # finishes. The producer does not emit an early upload marker.
+                self.assertEqual(output.read_bytes(), b"")
 
     def test_delayed_final_marker_read_cannot_enable_a_saved_over_budget_success(self):
         original = self.observe(SequenceOpener(token_reply(), blob_reply()))
@@ -1016,7 +1025,7 @@ class AdmissionAndPublicationTests(ObservationFixture):
                 patch.object(observer.time, "monotonic", side_effect=lambda: current[0]), \
                 patch.dict(os.environ, {"GITHUB_OUTPUT": str(output)}):
             status, result = self.call_main(self.work)
-        self.assertNotEqual(status, 0)
+        self.assertEqual(status, 2)
         self.assertEqual(result["first_failure"], "OPERATION_DEADLINE")
         self.assertEqual(result["owned_child_cleanup"], "CONFIRMED")
         self.assertEqual(result["source_revision"], self.identity()["source_revision"])
