@@ -1,6 +1,7 @@
 # Native Alpine active-harness contract
 
-**Status: prospective attempt-11 source binding; native execution NOT_RUN.**
+**Status: attempt 11 FAILED at OCI_REDIRECT_REFUSED / HOSTNAME / OTHER;
+cleanup PASS. Native qualification has not passed. No next attempt is selected.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -30,14 +31,18 @@ predicates were not evaluated. The [tenth attempt](native-alpine-evidence/attemp
 records artifact acquisitions, APK transaction and installed inventory PASS,
 with `DOCKER_DEADLINE` at `CONTAINER_SIZE / RESPONSE_HEADERS` and cleanup PASS.
 Its sampling location, owned stage and storage backend remain unknown.
-The distinct eleventh plan retains that missing fixed context and binds the
-separately delivered dependency source on main. All ten historical plans,
-candidate bytes, original allowed origins, authority/resource caps and deadlines
-remain unchanged. Attempt 11 is `NOT_RUN`.
-Independent review and fresh gates precede any separate native admission.
-This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
-following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
-It changes only the ZPM qualification fixture. The original
+The [eleventh attempt](native-alpine-evidence/attempt-11/outcome.md) failed
+`OCI_REDIRECT_REFUSED / HOSTNAME / OTHER`, with zero completed artifacts or
+followed redirects and cleanup PASS. The actual destination remains unknown;
+the Docker sampling context was not reached. Its distinct plan added only that
+fixed context and bound the separately delivered dependency source on main.
+All eleven plans, candidate bytes, allowed origins, authority/resource caps and
+deadlines remain unchanged. The missing action is to establish the actual
+rejected destination and a supported, reviewed redirect contract for the pinned
+anonymous blob. No guessed origin expansion or blind retry is selected.
+This [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
+qualification fixture follows the inert catalog/compiler delivered in
+[PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65). The original
 [candidate, caps and ownership](native-alpine-qualification.md) remain its input
 contract, not evidence of a native result.
 
@@ -76,7 +81,7 @@ or architecture-gated feature is part of this design.
 | `native-alpine/active-plan-8.json` | Historical eighth-attempt binding of the OCI diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
 | `native-alpine/active-plan-9.json` | Historical ninth-attempt binding of the Docker-observation diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
 | `native-alpine/active-plan-10.json` | Historical tenth-attempt binding of the closed OCI hostname-class diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
-| `native-alpine/active-plan-11.json` | Prospective binding of fixed Docker sampling context and distinct workflow/work/report identities. It also binds the delivered `zpm/dependencies.py` from main; the other eight executing inputs, candidate, commands, authority and caps remain unchanged. Publishing this plan admits no native attempt. |
+| `native-alpine/active-plan-11.json` | Consumed eleventh-attempt binding of fixed Docker sampling context and distinct workflow/work/report identities. It also binds the delivered `zpm/dependencies.py` from main; the other eight executing inputs, candidate, commands, authority and caps remain unchanged. Its [actual run failed during OCI acquisition](native-alpine-evidence/attempt-11/outcome.md); this plan admits no additional attempt. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -251,7 +256,7 @@ runtime at `SOURCE_FILE_BOUND`, before the unchanged `ACTIVE_CODE_IDENTITY` hash
 check. The attempt-8 runner instead rejected those earlier attempt
 identities before reading their code inputs. Its new exact plan can pass the
 inert source check; its actual native result is retained separately. The current
-attempt-10 runner rejects all nine historical plan identities before their code
+attempt-11 runner rejects all ten earlier plan identities before their code
 reads. Native execution still requires independent review, fresh required gates
 and a separate admission.
 
@@ -514,11 +519,12 @@ fixtures for admission-before-effects, interrupted body accounting, redirect
 credential confinement, archive/path rejection, source drift, absent/live/reused
 processes, Docker identity/config drift, missing counters, deadline exhaustion,
 command/log overflow, partial image/container mutation, report failure and
-cleanup uncertainty. There is no currently missing artifact identity. Native
-fit, APK execution, interpreter ABI, imports and cleanup remain unobserved until
-that one admitted run.
+cleanup uncertainty. The frozen artifact identities remain complete, but attempt
+11 did not retain its rejected redirect destination. Qualification requires all
+eleven checks to pass in one admitted attempt; partial APK and cleanup successes
+from earlier attempts do not establish that result.
 
-## Implemented source boundaries awaiting activation
+## Implemented source boundaries and retained outcomes
 
 The active plan binds the workflow and complete local import set, including the
 valid empty `tests/__init__.py` blob. Direct isolated-script invocation checks

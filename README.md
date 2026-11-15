@@ -362,11 +362,14 @@ were not evaluated. The [tenth attempt](docs/native-alpine-evidence/attempt-10/o
 records all 173 acquisitions, APK transaction and installed inventory PASS, with
 `DOCKER_DEADLINE` at `CONTAINER_SIZE / RESPONSE_HEADERS`. Cleanup passed;
 the sampling location, owned stage and storage backend were not retained.
-Python installation and interfaces remain unqualified. A prospective eleventh
-plan retains only that missing fixed context and binds the separately delivered
-dependency source on main. Every historical plan, candidate, allowed origin,
-authority, timeout and resource cap remains unchanged. Plan11 is source-only;
-independent review and fresh gates precede a separate admission.
+The [eleventh attempt](docs/native-alpine-evidence/attempt-11/outcome.md) failed
+`OCI_REDIRECT_REFUSED / HOSTNAME / OTHER`, with zero completed artifacts or
+followed redirects and cleanup PASS. Its rejected destination remains unknown;
+the Docker sampling context was not reached. Python installation and interfaces
+remain unqualified, and no next attempt is selected. The missing action is to
+establish the actual acquisition destination and a supported, reviewed redirect
+contract for the pinned anonymous blob. Every plan, candidate, allowed origin,
+authority, timeout and resource cap remains unchanged.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private

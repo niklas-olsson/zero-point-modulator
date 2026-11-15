@@ -1,0 +1,83 @@
+{
+  "schema": "zpm-native-alpine-run-custody/v1",
+  "coordinator": "ChatGPT /root; evidence record authored by /root/zpm_investigation",
+  "repository": "niklas-olsson/zero-point-modulator",
+  "scope": "Derived custody metadata, not a native receipt. Original summary unchanged. The rejected destination remains unknown; OTHER identifies no origin and no Docker sampling context was emitted.",
+  "source": {
+    "commit": "e99e38d29e6f19b46596716e8011a09e8215cdae",
+    "tree": "47b3157d04bd23fefdd4fdda185cd433d5b362ad",
+    "parents": [
+      "6537476681fafcf1d35bd4c4a52a4241192b200f",
+      "7ac2861359c7ffca74dd4961d4e5db59428689fa"
+    ],
+    "plan_file": "tests/contracts/native-alpine/active-plan-11.json",
+    "plan_bytes": 9263,
+    "plan_sha256": "92c4d05be1388e058054d7bb45f90d9dcd4f272bb448db853a6f8819ee908645"
+  },
+  "admission_record": {
+    "issue": 63,
+    "comment_id": 6896761251,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6896761251"
+  },
+  "outcome_record": {
+    "issue": 63,
+    "comment_id": 6896872795,
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6896872795"
+  },
+  "workflow": {
+    "run_id": 43729353381,
+    "run_attempt": 1,
+    "event": "push",
+    "head_branch": "qualification/native-alpine/run/92c4d05be1388e058054d7bb45f90d9dcd4f272bb448db853a6f8819ee908645",
+    "status": "completed",
+    "conclusion": "failure",
+    "url": "https://github.com/niklas-olsson/zero-point-modulator/actions/runs/43729353381",
+    "source_job_id": 132858149894,
+    "source_job_conclusion": "success",
+    "native_job_id": 132858239822,
+    "native_job_conclusion": "failure",
+    "execution_exit_code": 1,
+    "summary_upload": "success"
+  },
+  "artifact": {
+    "id": 14167523176,
+    "name": "native-alpine-11-summary-43729353381-1",
+    "zip_bytes": 1305,
+    "zip_sha256": "218956a46a5fbfe9cdad7a7667f0e5b6300394e54c1197cf5331f05ad96f5ee5",
+    "members": [
+      "summary.json"
+    ]
+  },
+  "summary": {
+    "bytes": 2108,
+    "sha256": "45d78f45b51251bfac796aef6298d02d65564681061a113b3eb599c2ebb82645"
+  },
+  "decoded_utf8_log": {
+    "bytes": 44622,
+    "sha256": "31e8aafa3f47db57d648c9bab305c38583c7be598d745e87e5f4f31d9a1dce73"
+  },
+  "source_decoded_utf8_log": {
+    "bytes": 60752,
+    "sha256": "134170208a5bb665a08ecd60e2d3273acf0e97473e7ebe009b35f5fe1c9852e5"
+  },
+  "outcome": {
+    "status": "FAILED",
+    "first_failure": "OCI_REDIRECT_REFUSED",
+    "oci_redirect_predicate": "HOSTNAME",
+    "oci_redirect_hostname_class": "OTHER",
+    "rejected_destination": "not-retained; unknown",
+    "docker_sampling_context_emitted": false,
+    "native_execution_qualified": false,
+    "owned_cleanup": "PASS",
+    "cleanup_failures": [],
+    "pending_mutation_reservations": 0
+  },
+  "fresh_verification": {
+    "original_files_independently_acquired_and_hashed_by_coordinator_and_reviewer": true,
+    "sole_ordinary_zip_member_matches_original_summary": true,
+    "original_summary_source_and_plan_match_retained_source": true,
+    "decoded_native_log_confirms_all_checkouts_exit_and_artifact_identity": true,
+    "decoded_source_log_confirms_185_tests_preflight_and_exact_admission": true
+  },
+  "no_followup_activation": true
+}
