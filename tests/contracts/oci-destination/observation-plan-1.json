@@ -25,8 +25,8 @@
       "sha256": "98712de675b5d3e67c509737c693abab0183252a5ae7a05fec0df2537ca932b9"
     },
     "tests/contracts/check_oci_destination.py": {
-      "bytes": 43387,
-      "sha256": "22fa50144ef355a56ced3a836a4b3d2db931326441205e5b3032ee63ddf05b20"
+      "bytes": 44578,
+      "sha256": "4f573a64d9fc0e9bc45b2b23c43a18597c6c13f15498c3550134e5d04c0e6f90"
     },
     "zpm/__init__.py": {
       "bytes": 102,

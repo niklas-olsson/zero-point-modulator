@@ -369,6 +369,7 @@ class _ClosingOpener:
     """Keep the real response type while making cleanup preserve an earlier failure."""
     def __init__(self, opener, runtime):
         self.opener, self.runtime, self.responses = opener, runtime, []
+        self.attempts = 0
 
     def _own(self, response):
         state = {"attempted": False, "closed": False}
@@ -391,10 +392,24 @@ class _ClosingOpener:
         return response
 
     def open(self, request, timeout):
+        self.attempts += 1
+        response = None
         try:
-            return self._own(self.opener.open(request, timeout=timeout))
-        except urllib.error.HTTPError as error:
-            self._own(error)
+            try:
+                response = self.opener.open(request, timeout=timeout)
+            except urllib.error.HTTPError as error:
+                response = error
+                self._own(error)
+                raise
+            return self._own(response)
+        except BaseException:
+            # A deadline during transfer cannot abandon an already returned
+            # response or replace the original failure with a close failure.
+            try:
+                if response is not None and not any(item is response for item, _ in self.responses):
+                    response.close()
+            except BaseException:
+                pass
             raise
 
     def close_all(self):
@@ -410,7 +425,8 @@ class _ClosingOpener:
             raise failure
 
     def confirmed(self):
-        return bool(self.responses) and all(state["closed"] for _, state in self.responses)
+        return (bool(self.responses) and len(self.responses) == self.attempts
+                and all(state["closed"] for _, state in self.responses))
 
 
 def observe(admission, work, deadline, *, opener=None, runtime=None):
@@ -418,7 +434,18 @@ def observe(admission, work, deadline, *, opener=None, runtime=None):
     runtime = runtime or load_runtime(admission)
     directory = Path(work) / "private"
     directory.mkdir(mode=0o700)
-    raw_opener = opener or urllib.request.build_opener(urllib.request.ProxyHandler({}), runtime.NoRedirect(), runtime.BoundedHTTPSHandler())
+    class HeadersOnlyRedirect(runtime.NoRedirect):
+        # The standard redirect handler parses Location before redirect_request.
+        # Transfer the untouched response first, including for malformed values.
+        def http_error_302(self, request, response, code, message, headers):
+            raise urllib.error.HTTPError(request.full_url, code, message, headers, response)
+
+        http_error_301 = http_error_302
+        http_error_303 = http_error_302
+        http_error_307 = http_error_302
+        http_error_308 = http_error_302
+
+    raw_opener = opener or urllib.request.build_opener(urllib.request.ProxyHandler({}), HeadersOnlyRedirect(), runtime.BoundedHTTPSHandler())
     owned = _ClosingOpener(raw_opener, runtime)
     class Transport(runtime.Acquisition):
         def persist(self):
