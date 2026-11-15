@@ -1,6 +1,6 @@
 # Native Alpine active-harness contract
 
-**Status: prospective attempt-9 source binding; native execution NOT_RUN.**
+**Status: prospective attempt-10 source binding; native execution NOT_RUN.**
 The [first attempt](native-alpine-evidence/attempt-1/outcome.md) failed at source
 metadata admission. The [second attempt](native-alpine-evidence/attempt-2/outcome.md)
 passed that boundary and refused token response framing before reading a body.
@@ -22,9 +22,13 @@ bytes, with zero completed artifacts or redirects and cleanup PASS. Its target
 and failed predicate remain unknown. The [eighth attempt](native-alpine-evidence/attempt-8/outcome.md)
 passed acquisition, APK trust, base-image identity, APK transaction and installed
 APK inventory, then failed `DOCKER_DEADLINE`. Cleanup passed with zero pending
-mutations. Its exact request and transport phase remain unknown. The distinct
-ninth plan binds a closed Docker-observation diagnostic and new work/report
-identities, retaining every original authority/resource cap and deadline.
+mutations. Its exact request and transport phase remain unknown. The
+[ninth attempt](native-alpine-evidence/attempt-9/outcome.md) failed OCI `HOSTNAME`
+after two requests and 5,489 body bytes, with zero completed artifacts or followed
+redirects and cleanup PASS. Its actual hostname was not retained; later redirect
+predicates were not evaluated. The distinct tenth plan adds a closed hostname
+classification and new work/report identities, retaining every original allowed
+origin, authority/resource cap and deadline.
 Independent review and fresh gates precede any separate native admission.
 This is the next bounded slice of [ZPM #63](https://github.com/niklas-olsson/zero-point-modulator/issues/63),
 following the inert catalog/compiler delivered in [PR #65](https://github.com/niklas-olsson/zero-point-modulator/pull/65).
@@ -49,7 +53,7 @@ complete installed APK inventory, observed interpreter identity, production
 prepare/verify, sealed bootstrap, native imports/interfaces, unchanged repeat
 bytes and confirmed owned cleanup. No new native validator, broker, authority
 mapping or installer is introduced. Polyphony #139 and paired installation
-admission remain separate, unimplemented producer dependencies.
+admission remain separate work and are not exercised by this frozen tuple.
 
 ZPM's current `AGENTS.md` requires focused changes, independent review and its
 ordinary unit/package/CLI and affected integration checks. It adds no ensemble
@@ -65,7 +69,8 @@ or architecture-gated feature is part of this design.
 | New `alpine_sealed_guest.py` | Fixed assembly-inventory and nonroot qualification commands. Use the original production APIs, separate owner interpreters and finite probe IDs. |
 | `native-alpine/active-plan-7.json` | Historical seventh-attempt binding of the original plan/recipe, commands, source manifests and authority/resource limits. It and all six prior plans remain unchanged; it cannot admit the diagnostic source revision. |
 | `native-alpine/active-plan-8.json` | Historical eighth-attempt binding of the OCI diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
-| `native-alpine/active-plan-9.json` | Prospective binding of the Docker-observation diagnostic and distinct workflow/work/report identities. The other nine executing inputs, candidate, commands, authority and caps remain unchanged. Publishing this plan admits no native attempt. |
+| `native-alpine/active-plan-9.json` | Historical ninth-attempt binding of the Docker-observation diagnostic and distinct workflow/work/report identities. It and all earlier plans remain unchanged. |
+| `native-alpine/active-plan-10.json` | Prospective binding of the closed OCI hostname-class diagnostic and distinct workflow/work/report identities. The other nine executing inputs, candidate, commands, authority and caps remain unchanged. Publishing this plan admits no native attempt. |
 | New focused tests | Synthetic transport/archive/process/Docker/guest results and failure injection. No Docker daemon, candidate acquisition, package install or candidate import in the fixture lane. |
 | Existing candidate workflow and canonical guide | Source checks on candidate changes, plus an explicit reviewed-plan native job and truthful result documentation. Ordinary required CI remains unchanged. |
 
@@ -217,6 +222,21 @@ policy and omits it. This diagnostic does not change that ordering. Existing
 response closure, request accounting, credential stripping and redirect policy
 remain in force.
 
+When that existing guard fails at `HOSTNAME`, the same already-read operand may
+also produce `oci_redirect_hostname_class`. Its only values are `MISSING`,
+`HISTORICAL_CLOUDFLARE`, `HISTORICAL_DOCKER_R2`, `OTHER` and `UNAVAILABLE`.
+The two historical values compare exact fixed public literals documented in the
+[ninth outcome](native-alpine-evidence/attempt-9/outcome.md#what-is-known-about-the-redirect).
+They remain refused destinations. Classification occurs after the original
+guard raises and performs no new parse, property read, normalization, request,
+follow or retry. The existing parsed hostname operand is not exported or hashed.
+Only its fixed class follows the same immutable exception association, child
+transfer, first-latched failure and bounded summary/overflow projection. A
+missing or unrelated predicate, another stage, an earlier first failure, or a
+forged exception attribute cannot attach this class. Optional diagnostic failure
+yields `UNAVAILABLE` and preserves the original refusal. No later predicate is
+evaluated or inferred from a hostname class.
+
 This is a source diagnostic, not a qualified redirect change. Native attempt 7
 retains its original generic refusal; its failed predicate and target remain
 unknown. Historical plans 1 through 7 are unchanged. Against the diagnostic-only
@@ -225,7 +245,7 @@ runtime at `SOURCE_FILE_BOUND`, before the unchanged `ACTIVE_CODE_IDENTITY` hash
 check. The attempt-8 runner instead rejected those earlier attempt
 identities before reading their code inputs. Its new exact plan can pass the
 inert source check; its actual native result is retained separately. The current
-attempt-9 runner rejects all eight historical plan identities before their code
+attempt-10 runner rejects all nine historical plan identities before their code
 reads. Native execution still requires independent review, fresh required gates
 and a separate admission.
 

@@ -1,7 +1,7 @@
 # Alpine sealed-bootstrap qualification candidate
 
-**Status: eight actual attempts failed; prospective attempt 9 is source-only
-and awaits independent review and fresh gates. Attempt 9 is NOT_RUN.**
+**Status: nine actual attempts failed; prospective attempt 10 is source-only
+and awaits independent review and fresh gates. Attempt 10 is NOT_RUN.**
 The [first outcome](native-alpine-evidence/attempt-1/outcome.md) records
 `SOURCE_GIT_INDIRECTION`. The [second outcome](native-alpine-evidence/attempt-2/outcome.md)
 records `HTTP_FRAMING` at the anonymous token response, zero body bytes and zero
@@ -23,8 +23,12 @@ artifacts or followed redirects and cleanup PASS. Its target and failed
 predicate remain unknown. The [eighth outcome](native-alpine-evidence/attempt-8/outcome.md)
 passed the APK transaction and installed APK inventory, then failed
 `DOCKER_DEADLINE`, with cleanup PASS and zero pending mutations. Its exact Docker
-endpoint and transport phase were not retained. Python installation and
-interfaces remain unqualified. This
+endpoint and transport phase were not retained. The
+[ninth outcome](native-alpine-evidence/attempt-9/outcome.md) failed the OCI
+`HOSTNAME` guard after two requests and 5,489 body bytes, with no completed
+artifacts or followed redirects and cleanup PASS. Its actual hostname is unknown;
+later redirect predicates were not evaluated. Python installation and interfaces
+remain unqualified. This
 [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63)
 fixture keeps the original inert compiler and adds a separate, explicitly gated
 native runner. It changes no installer, Python admission, operative integration
@@ -102,7 +106,7 @@ required unit, package, CLI and integration gates remain unchanged.
 
 ## Separate explicit native entry point
 
-The [prospective ninth plan](../tests/contracts/native-alpine/active-plan-9.json) binds the
+The [prospective tenth plan](../tests/contracts/native-alpine/active-plan-10.json) binds the
 host/guest drivers, their local imports, the workflow, original plan/recipe,
 commands, authority and caps. The original `plan-v1.json` and inert checker retain
 their historical `active_trial_implemented: false` fields. They do not become
@@ -182,12 +186,23 @@ checks, then failed a Docker observation before Python qualification. The
 [active-harness contract](native-alpine-active-harness.md#finite-acquisition-and-image-assembly)
 describes the OCI diagnostic and its existing first-failure limitation.
 
-The prospective ninth plan binds a closed Docker endpoint-family and phase
+The unchanged [ninth plan](../tests/contracts/native-alpine/active-plan-9.json)
+binds a closed Docker endpoint-family and phase
 diagnostic. It does not identify attempt 8's missing endpoint or change its
 failure. Existing error codes, first-latched ordering, request/response/close
 behavior, one-second request ceiling and all original resources and authority
-remain unchanged. All eight historical plans remain intact. This source-only
-binding is not a retry, timeout increase or completed qualification.
+remain unchanged. Its actual run failed at the OCI hostname comparison before
+exercising the Docker diagnostic. The original summary remains unchanged.
+
+The prospective tenth plan adds one closed hostname-class diagnostic to that
+existing OCI `HOSTNAME` refusal, using the already-read operand without a new
+property read or parse. Only `MISSING`, `HISTORICAL_CLOUDFLARE`,
+`HISTORICAL_DOCKER_R2`, `OTHER` or `UNAVAILABLE` may cross child-result and
+first-failure custody. Historical host literals classify a refusal; they do not
+expand the exact CloudFront-only allowlist. No raw target or arbitrary-target
+hash is retained. The other nine executing inputs, all nine historical plans,
+candidate/pins, requests, commands, authority, deadlines and caps remain unchanged.
+This source-only binding supplies neither a behavior fix nor native qualification.
 
 Check active-plan source consistency without acquisition, Docker or candidate
 execution using an externally recorded exact hash:

@@ -45,7 +45,7 @@ CAPS = candidate.CAPS
 require, exact, digest, encoded = candidate.require, candidate.exact, candidate.digest, candidate.encoded
 Refused = candidate.Refused
 ORIGINAL_PLAN = "c89b824cb979e31eca9227c299e3de0f6c4f5877d5831612fbb5a537fc643a76"
-ACTIVE_PLAN = candidate.ROOT / "active-plan-9.json"
+ACTIVE_PLAN = candidate.ROOT / "active-plan-10.json"
 REPO = Path(__file__).resolve().parents[2]
 SOCKET = "/var/run/docker.sock"
 API = "1.45"
@@ -161,6 +161,10 @@ _OCI_REDIRECT_PREDICATES = frozenset({
     "BACKSLASH", "PRINTABLE_ASCII", "UNAVAILABLE",
 })
 _oci_redirect_failures = weakref.WeakKeyDictionary()
+_OCI_REDIRECT_HOSTNAME_CLASSES = frozenset({
+    "MISSING", "HISTORICAL_CLOUDFLARE", "HISTORICAL_DOCKER_R2", "OTHER", "UNAVAILABLE",
+})
+_oci_redirect_hostname_failures = weakref.WeakKeyDictionary()
 
 # Diagnostic metadata only. Neither the path nor exception text is retained.
 # The phase identifies where the existing refusal surfaced, not its cause.
@@ -259,6 +263,48 @@ def _oci_redirect_predicate(error):
         return "UNAVAILABLE"
 
 
+def _classify_oci_redirect_hostname(value):
+    # Historical exact literals are diagnostic labels, never admitted origins.
+    # This receives the original operand only after its HOSTNAME guard refused.
+    if value is None:
+        return "MISSING"
+    if type(value) is not str:
+        return "UNAVAILABLE"
+    if value == "production.cloudflare.docker.com":
+        return "HISTORICAL_CLOUDFLARE"
+    if value == "docker-images-prod.6aa30f8b08e16409b46e0173d6de2f56.r2.cloudflarestorage.com":
+        return "HISTORICAL_DOCKER_R2"
+    return "OTHER"
+
+
+def _safe_oci_redirect_hostname_class(value):
+    try:
+        return value if type(value) is str and len(value) <= 32 and value in _OCI_REDIRECT_HOSTNAME_CLASSES else "UNAVAILABLE"
+    except BaseException:
+        return "UNAVAILABLE"
+
+
+def _remember_oci_redirect_hostname_class(error, value):
+    try:
+        if (type(error) is Refused and _oci_redirect_predicate(error) == "HOSTNAME"
+                and error not in _oci_redirect_hostname_failures):
+            _oci_redirect_hostname_failures[error] = "UNAVAILABLE"
+            _oci_redirect_hostname_failures[error] = _safe_oci_redirect_hostname_class(value)
+    except BaseException:
+        # Optional classification cannot replace or relabel the original refusal.
+        pass
+
+
+def _oci_redirect_hostname_class(error):
+    if type(error) is not Refused or _oci_redirect_predicate(error) != "HOSTNAME":
+        return None
+    try:
+        value = _oci_redirect_hostname_failures.get(error)
+        return None if value is None else _safe_oci_redirect_hostname_class(value)
+    except BaseException:
+        return "UNAVAILABLE"
+
+
 def _require_oci_redirect(condition, predicate):
     # Evaluation remains at the call site. Do not classify an operand failure
     # or add a truth conversion for an unexpected non-boolean operand.
@@ -283,6 +329,10 @@ def _child_failure_result(name, error):
         predicate = _oci_redirect_predicate(error)
         if predicate is not None:
             result["oci_redirect_predicate"] = predicate
+        if predicate == "HOSTNAME":
+            hostname_class = _oci_redirect_hostname_class(error)
+            if hostname_class is not None:
+                result["oci_redirect_hostname_class"] = hostname_class
     return result
 
 
@@ -297,6 +347,8 @@ def _check_child_result(name, value, status):
                 and code == "OCI_REDIRECT_REFUSED" and type(child_status) is str and child_status == "FAIL"
                 and "oci_redirect_predicate" in value):
             _remember_oci_redirect_failure(error, value["oci_redirect_predicate"])
+            if "oci_redirect_hostname_class" in value:
+                _remember_oci_redirect_hostname_class(error, value["oci_redirect_hostname_class"])
         raise
 
 
@@ -319,7 +371,7 @@ def admit_plan(path, reviewed_sha256, repo=REPO):
     raw = candidate.read_bounded(path, 65536, reviewed_sha256)
     plan = candidate.decode(raw)
     candidate.object_fields(plan, "schema attempt original_plan_sha256 recipe_sha256 caps authority policy commands code", "ACTIVE_PLAN_FIELDS")
-    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-9"], "ACTIVE_PLAN_IDENTITY")
+    exact([plan["schema"], plan["attempt"]], ["zpm-native-alpine-active-plan/v1", "native-alpine-10"], "ACTIVE_PLAN_IDENTITY")
     exact(plan["original_plan_sha256"], ORIGINAL_PLAN, "ORIGINAL_PLAN")
     exact(plan["recipe_sha256"], candidate.METADATA["inputs-v1.json"][1], "RECIPE_HASH")
     exact(plan["caps"], CAPS, "ACTIVE_CAPS")
@@ -403,6 +455,8 @@ def report_bytes(report):
         if report.get("first_failure") is None:
             report["first_failure"] = "REPORT_BOUND"
         predicate = report.get("oci_redirect_predicate") if type(report) is dict else None
+        hostname_class_present = type(report) is dict and "oci_redirect_hostname_class" in report
+        hostname_class = report.get("oci_redirect_hostname_class") if hostname_class_present else None
         docker_observation = report.get("docker_observation") if type(report) is dict else None
         report = {key: report[key] for key in (
             "schema", "attempt", "plan_sha256", "harness_source_revision", "production_sources",
@@ -412,6 +466,11 @@ def report_bytes(report):
                 report["oci_redirect_predicate"] = _safe_oci_redirect_predicate(predicate)
             except BaseException:
                 report["oci_redirect_predicate"] = "UNAVAILABLE"
+            if report["oci_redirect_predicate"] == "HOSTNAME" and hostname_class_present:
+                try:
+                    report["oci_redirect_hostname_class"] = _safe_oci_redirect_hostname_class(hostname_class)
+                except BaseException:
+                    report["oci_redirect_hostname_class"] = "UNAVAILABLE"
         if docker_observation is not None and report["first_failure"] in _DOCKER_FAILURE_CODES:
             try:
                 report["docker_observation"] = _safe_docker_observation(docker_observation)
@@ -437,6 +496,11 @@ def public_summary(report):
             result["oci_redirect_predicate"] = _safe_oci_redirect_predicate(report["oci_redirect_predicate"])
         except BaseException:
             result["oci_redirect_predicate"] = "UNAVAILABLE"
+        if result["oci_redirect_predicate"] == "HOSTNAME" and "oci_redirect_hostname_class" in report:
+            try:
+                result["oci_redirect_hostname_class"] = _safe_oci_redirect_hostname_class(report["oci_redirect_hostname_class"])
+            except BaseException:
+                result["oci_redirect_hostname_class"] = "UNAVAILABLE"
     if (type(report) is dict and type(result.get("first_failure")) is str
             and result["first_failure"] in _DOCKER_FAILURE_CODES and "docker_observation" in report):
         try:
@@ -751,13 +815,22 @@ def redirect_url(url, original):
         return value  # No truth conversion, parsing or second property read.
     components = (observed("ORIGINAL_REGISTRY", original.startswith(REGISTRY)) and
                   observed("HTTPS_SCHEME", parts.scheme == "https") and
-                  observed("HOSTNAME", parts.hostname == "production.cloudfront.docker.com") and
+                  observed("HOSTNAME", (hostname := parts.hostname) == "production.cloudfront.docker.com") and
                   observed("PORT", parts.port in (None, 443)) and
                   observed("USERNAME", not parts.username) and
                   observed("PASSWORD", not parts.password) and
                   observed("FRAGMENT", not parts.fragment) and
                   observed("PATH_PREFIX", parts.path.startswith("/registry-v2/docker/registry/v2/blobs/sha256/")))
-    _require_oci_redirect(components, predicate)
+    try:
+        _require_oci_redirect(components, predicate)
+    except Refused as error:
+        if _oci_redirect_predicate(error) == "HOSTNAME":
+            try:
+                hostname_class = _classify_oci_redirect_hostname(hostname)
+            except BaseException:
+                hostname_class = "UNAVAILABLE"
+            _remember_oci_redirect_hostname_class(error, hostname_class)
+        raise
     text = (observed("URL_LENGTH", len(url) <= 16384) and
             observed("BACKSLASH", "\\" not in url) and
             observed("PRINTABLE_ASCII", all(33 <= ord(char) <= 126 for char in url)))
@@ -1146,7 +1219,7 @@ class Trial:
                             "PYTHONDONTWRITEBYTECODE": "1"}
         self.docker = ["/usr/bin/docker", "--config", str(root / "docker-config"), "--host", "unix://" + SOCKET]
         self.record = {
-            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-9",
+            "schema": "zpm-native-alpine-native-report/v1", "attempt": "native-alpine-10",
             "plan_sha256": plan_sha, "harness_source_revision": revision,
             "production_sources": dict(candidate.SOURCES), "recipe_sha256": candidate.METADATA["inputs-v1.json"][1],
             "status": "RUNNING", "first_failure": None, "native_execution_qualified": False,
@@ -1198,6 +1271,10 @@ class Trial:
                 predicate = _oci_redirect_predicate(failure)
                 if predicate is not None:
                     self.record["oci_redirect_predicate"] = predicate
+                if predicate == "HOSTNAME":
+                    hostname_class = _oci_redirect_hostname_class(failure)
+                    if hostname_class is not None:
+                        self.record["oci_redirect_hostname_class"] = hostname_class
             if type(code) is str and code in _DOCKER_FAILURE_CODES:
                 observation = _docker_observation(failure)
                 if observation is not None:

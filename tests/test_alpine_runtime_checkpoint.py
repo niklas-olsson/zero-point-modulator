@@ -27,6 +27,7 @@ class RuntimeCheckpointTests(unittest.TestCase):
             6: "11907aa13d2300c092d69ff02cf7e1ce8c17aa38c414ec71bdd9b6ca284c55d6",
             7: "d87dba65bad619979dd704a4e1035acfb5c7383ec6fe0c795cd34d9fc55a3973",
             8: "07788eb17025b3eb73fffc6da808b6512949325359ea1ba4a4218ddeed8644d2",
+            9: "767dd8998d2e65448ce7ec9f63689c7665c280142da511da29059032127b6b8d",
         }
         for number, reviewed in historical.items():
             path = candidate.ROOT / f"active-plan-{number}.json"
@@ -43,10 +44,10 @@ class RuntimeCheckpointTests(unittest.TestCase):
                 self.assertEqual(json.loads(output.getvalue())["failure"], "ACTIVE_PLAN_IDENTITY")
 
     def test_prospective_binding_changes_only_two_executing_inputs(self):
-        old = json.loads((candidate.ROOT / "active-plan-8.json").read_bytes())
+        old = json.loads((candidate.ROOT / "active-plan-9.json").read_bytes())
         current = json.loads(runtime.ACTIVE_PLAN.read_bytes())
-        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-9.json")
-        self.assertEqual(current["attempt"], "native-alpine-9")
+        self.assertEqual(runtime.ACTIVE_PLAN.name, "active-plan-10.json")
+        self.assertEqual(current["attempt"], "native-alpine-10")
         self.assertEqual(set(current), set(old))
         for field in set(old) - {"attempt", "code"}:
             with self.subTest(field=field):
@@ -57,6 +58,23 @@ class RuntimeCheckpointTests(unittest.TestCase):
         self.assertEqual(changed, {"tests/contracts/check_alpine_sealed_runtime.py",
                                    ".github/workflows/native-alpine-candidate.yml"})
 
+    def test_ninth_attempt_evidence_keeps_original_bytes_and_unknown_target(self):
+        root = runtime.REPO / "docs/native-alpine-evidence/attempt-9"
+        raw = (root / "summary.json").read_bytes()
+        self.assertEqual(len(raw), 2069)
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), "96a8b0551a36d042dcc1854a368742b885ad68f7795d82ee07b0cf2ae3cef418")
+        original = json.loads(raw)
+        self.assertEqual(original["attempt"], "native-alpine-9")
+        self.assertEqual(original["first_failure"], "OCI_REDIRECT_REFUSED")
+        self.assertEqual(original["oci_redirect_predicate"], "HOSTNAME")
+        self.assertNotIn("oci_redirect_hostname_class", original)
+        self.assertFalse(original["native_execution_qualified"])
+        custody = json.loads((root / "run.json").read_bytes())
+        self.assertEqual(custody["source"]["commit"], original["harness_source_revision"])
+        self.assertEqual(custody["source"]["plan_sha256"], original["plan_sha256"])
+        self.assertEqual(custody["outcome"]["actual_redirect_hostname"], "not-retained")
+        self.assertEqual(custody["outcome"]["later_redirect_predicates"], "not-evaluated")
+
     def test_plan_workflow_work_artifact_and_actual_report_select_the_same_attempt(self):
         plan = json.loads(runtime.ACTIVE_PLAN.read_bytes())
         attempt = plan["attempt"]
@@ -65,7 +83,7 @@ class RuntimeCheckpointTests(unittest.TestCase):
         self.assertIn('--work "$RUNNER_TEMP/' + attempt + '"', workflow)
         self.assertIn("name: " + attempt + "-summary-${{ github.run_id }}-${{ github.run_attempt }}", workflow)
         self.assertIn("path: ${{ runner.temp }}/" + attempt + "/summary.json", workflow)
-        self.assertNotIn("native-alpine-8", workflow)
+        self.assertNotIn("native-alpine-9", workflow)
         documents = {name: json.loads((candidate.ROOT / name).read_bytes()) for name in candidate.METADATA}
         reviewed = hashlib.sha256(runtime.ACTIVE_PLAN.read_bytes()).hexdigest()
         with tempfile.TemporaryDirectory() as temporary, \

@@ -1733,6 +1733,185 @@ class OciRedirectDiagnosticTests(Fixture):
         parse.assert_called_once_with(self.target)
         self.assertEqual(reads, ["scheme", "hostname"])
         self.assertEqual(runtime._oci_redirect_predicate(error), "HOSTNAME")
+        self.assertEqual(runtime._oci_redirect_hostname_class(error), "OTHER")
+
+    def test_hostname_classes_are_exact_diagnostics_and_never_admit_a_redirect(self):
+        cases = (
+            ("https:/registry-v2/docker/registry/v2/blobs/sha256/aa/data", "MISSING"),
+            (self.target.replace("production.cloudfront.docker.com", "production.cloudflare.docker.com"),
+             "HISTORICAL_CLOUDFLARE"),
+            (self.target.replace("production.cloudfront.docker.com",
+                                 "docker-images-prod.6aa30f8b08e16409b46e0173d6de2f56.r2.cloudflarestorage.com"),
+             "HISTORICAL_DOCKER_R2"),
+            ("https://sensitive-user:sensitive-password@unapproved.invalid:bad/sensitive?token=sensitive#sensitive", "OTHER"),
+            (self.target.replace("production.cloudfront.docker.com", "production.cloudflare.docker.com."), "OTHER"),
+        )
+        for target, expected in cases:
+            with self.subTest(expected=expected):
+                error = self.refused_target(target)
+                self.assertEqual(runtime._oci_redirect_predicate(error), "HOSTNAME")
+                self.assertEqual(runtime._oci_redirect_hostname_class(error), expected)
+                child = runtime._child_failure_result("acquisition", error)
+                self.assertEqual(child, {"status": "FAIL", "failure": "OCI_REDIRECT_REFUSED",
+                                         "oci_redirect_predicate": "HOSTNAME",
+                                         "oci_redirect_hostname_class": expected})
+                raw = runtime.encoded(child)
+                self.assertLess(len(raw), 4096)
+                for forbidden in (b"sensitive", b"https:", b"docker.com", b"cloudflarestorage.com", b"invalid"):
+                    self.assertNotIn(forbidden, raw)
+        self.assertEqual(runtime._classify_oci_redirect_hostname("PRODUCTION.CLOUDFLARE.DOCKER.COM"), "OTHER")
+        self.assertEqual(runtime._classify_oci_redirect_hostname("production.cloudfront.docker.com"), "OTHER")
+        error = self.transport_refusal([cases[1][0]])
+        self.assertEqual(runtime._oci_redirect_hostname_class(error), "HISTORICAL_CLOUDFLARE")
+
+    def test_hostname_classification_runs_only_after_the_original_guard_refuses(self):
+        events, errors = [], []
+        original_require = runtime.require
+        original_classify = runtime._classify_oci_redirect_hostname
+        def require(condition, code):
+            try:
+                return original_require(condition, code)
+            except candidate.Refused as error:
+                errors.append(error)
+                events.append("original-refusal")
+                raise
+        def classify(value):
+            self.assertEqual(events, ["original-refusal"])
+            events.append("classification")
+            return original_classify(value)
+        with patch.object(runtime, "require", side_effect=require), \
+                patch.object(runtime, "_classify_oci_redirect_hostname", side_effect=classify) as classifier:
+            error = self.refused_target(self.target.replace("production.cloudfront.docker.com", "unapproved.invalid"))
+        self.assertIs(error, errors[0])
+        classifier.assert_called_once_with("unapproved.invalid")
+        self.assertEqual(events, ["original-refusal", "classification"])
+        with patch.object(runtime, "_classify_oci_redirect_hostname", side_effect=AssertionError("unreached operand")) as classifier:
+            self.refused_target(self.target.replace("https:", "http:"))
+            self.refused_target(self.target + "#sensitive")
+            self.assertEqual(runtime.redirect_url(self.target, self.origin), self.target)
+        classifier.assert_not_called()
+
+    def test_hostname_classification_faults_preserve_original_error_and_first_slot(self):
+        for boundary in ("_classify_oci_redirect_hostname", "_safe_oci_redirect_hostname_class"):
+            with self.subTest(boundary=boundary), \
+                    patch.object(runtime, boundary, side_effect=RuntimeError("sensitive diagnostic fault")):
+                error = self.refused_target(self.target.replace("production.cloudfront.docker.com", "unapproved.invalid"))
+                child = runtime._child_failure_result("acquisition", error)
+            self.assertEqual(str(error), "OCI_REDIRECT_REFUSED")
+            self.assertEqual(child["oci_redirect_hostname_class"], "UNAVAILABLE")
+            runtime._remember_oci_redirect_hostname_class(error, "HISTORICAL_CLOUDFLARE")
+            self.assertEqual(runtime._oci_redirect_hostname_class(error), "UNAVAILABLE")
+            self.assertNotIn("sensitive", json.dumps(child))
+
+    def test_hostname_child_transfer_and_first_failure_keep_the_original_class(self):
+        error = self.refused_target(self.target.replace("production.cloudfront.docker.com", "production.cloudflare.docker.com"))
+        child = candidate.decode(runtime.encoded(runtime._child_failure_result("acquisition", error)))
+        with self.assertRaisesRegex(candidate.Refused, "^OCI_REDIRECT_REFUSED$") as caught:
+            runtime._check_child_result("acquisition", child, 1 << 8)
+        parent_error = caught.exception
+        child["oci_redirect_hostname_class"] = "MISSING"
+        parent_error.oci_redirect_hostname_class = "OTHER"
+        runtime._remember_oci_redirect_hostname_class(parent_error, "OTHER")
+        trial = self.trial()
+        trial.fail("OCI_REDIRECT_REFUSED", failure=parent_error)
+        later = self.refused_target("https:/sensitive")
+        trial.fail("OCI_REDIRECT_REFUSED", failure=later)
+        summary = runtime.public_summary(trial.record)
+        self.assertEqual(summary["oci_redirect_hostname_class"], "HISTORICAL_CLOUDFLARE")
+        summary["oci_redirect_hostname_class"] = "MISSING"
+        self.assertEqual(runtime.public_summary(trial.record)["oci_redirect_hostname_class"], "HISTORICAL_CLOUDFLARE")
+        trial.cleanup = Mock(side_effect=candidate.Refused("CLEANUP_UNCONFIRMED"))
+        trial.refresh_acquisition = Mock()
+        trial.sample = Mock()
+        self.assertEqual(runtime.finish_trial(trial), 1)
+        final = json.loads((trial.root / "summary.json").read_bytes())
+        self.assertEqual(final["first_failure"], "OCI_REDIRECT_REFUSED")
+        self.assertEqual(final["oci_redirect_hostname_class"], "HISTORICAL_CLOUDFLARE")
+        self.assertIn("CLEANUP_UNCONFIRMED", final["cleanup_failures"])
+
+    def test_hostname_class_cannot_cross_an_unrelated_predicate_stage_or_first_failure(self):
+        error = self.refused_target(self.target.replace("production.cloudfront.docker.com", "unapproved.invalid"))
+        self.assertNotIn("oci_redirect_hostname_class", runtime._child_failure_result("artifact-verification", error))
+        for predicate, stage, failure, status in (
+                ("FRAGMENT", "acquisition", "OCI_REDIRECT_REFUSED", "FAIL"),
+                ("HOSTNAME", "artifact-verification", "OCI_REDIRECT_REFUSED", "FAIL"),
+                ("HOSTNAME", "acquisition", "OTHER_FAILURE", "FAIL"),
+                ("HOSTNAME", "acquisition", "OCI_REDIRECT_REFUSED", "PASS")):
+            child = {"status": status, "failure": failure, "oci_redirect_predicate": predicate,
+                     "oci_redirect_hostname_class": "HISTORICAL_CLOUDFLARE"}
+            with self.subTest(predicate=predicate, stage=stage, failure=failure, status=status), \
+                    self.assertRaises(candidate.Refused) as caught:
+                runtime._check_child_result(stage, child, 1 << 8)
+            self.assertIsNone(runtime._oci_redirect_hostname_class(caught.exception))
+        forged = candidate.Refused("OCI_REDIRECT_REFUSED")
+        forged.oci_redirect_hostname_class = "HISTORICAL_CLOUDFLARE"
+        forged._oci_redirect_hostname_class = "MISSING"
+        self.assertIsNone(runtime._oci_redirect_hostname_class(forged))
+        trial = self.trial()
+        trial.fail("EARLIER_FAILURE")
+        trial.fail("OCI_REDIRECT_REFUSED", failure=error)
+        self.assertNotIn("oci_redirect_hostname_class", runtime.public_summary(trial.record))
+        trial.record.update(oci_redirect_predicate="HOSTNAME", oci_redirect_hostname_class="MISSING")
+        self.assertNotIn("oci_redirect_hostname_class", runtime.public_summary(trial.record))
+
+    def test_malformed_hostname_class_is_unavailable_without_coercion_or_private_output(self):
+        class Hostile:
+            def __str__(inner):
+                raise AssertionError("hostname coercion")
+            def __eq__(inner, other):
+                raise AssertionError("hostname comparison")
+        class StringSubclass(str):
+            def __eq__(inner, other):
+                raise AssertionError("hostname subclass comparison")
+        trial = self.trial()
+        for value in (Hostile(), StringSubclass("MISSING"), {"target": "sensitive"}, ["sensitive"], "sensitive" * 10000, None):
+            child = {"status": "FAIL", "failure": "OCI_REDIRECT_REFUSED", "oci_redirect_predicate": "HOSTNAME",
+                     "oci_redirect_hostname_class": value}
+            with self.assertRaisesRegex(candidate.Refused, "^OCI_REDIRECT_REFUSED$") as caught:
+                runtime._check_child_result("acquisition", child, 1 << 8)
+            self.assertEqual(runtime._oci_redirect_hostname_class(caught.exception), "UNAVAILABLE")
+            trial.record.update(first_failure="OCI_REDIRECT_REFUSED", oci_redirect_predicate="HOSTNAME",
+                                oci_redirect_hostname_class=value)
+            summary = runtime.public_summary(trial.record)
+            self.assertEqual(summary["oci_redirect_hostname_class"], "UNAVAILABLE")
+            self.assertNotIn("sensitive", json.dumps(summary))
+        self.assertEqual(runtime._classify_oci_redirect_hostname(Hostile()), "UNAVAILABLE")
+        self.assertEqual(runtime._classify_oci_redirect_hostname(StringSubclass("production.cloudflare.docker.com")), "UNAVAILABLE")
+
+    def test_report_overflow_retains_only_the_closed_hostname_class_for_its_original_failure(self):
+        trial = self.trial()
+        error = self.refused_target(self.target.replace("production.cloudfront.docker.com", "production.cloudflare.docker.com"))
+        trial.fail("OCI_REDIRECT_REFUSED", failure=error)
+        trial.record["ignored_private_data"] = "sensitive" * candidate.CAPS["report_bytes"]
+        result = json.loads(runtime.report_bytes(trial.record))
+        self.assertEqual(result["oci_redirect_hostname_class"], "HISTORICAL_CLOUDFLARE")
+        self.assertTrue(result["truncated"])
+        self.assertNotIn("sensitive", json.dumps(result))
+        trial.record["oci_redirect_hostname_class"] = {"target": "sensitive"}
+        self.assertEqual(json.loads(runtime.report_bytes(trial.record))["oci_redirect_hostname_class"], "UNAVAILABLE")
+        trial.record["oci_redirect_predicate"] = "PORT"
+        self.assertNotIn("oci_redirect_hostname_class", json.loads(runtime.report_bytes(trial.record)))
+        trial.record.update(first_failure="EARLIER_FAILURE", oci_redirect_predicate="HOSTNAME")
+        self.assertNotIn("oci_redirect_hostname_class", json.loads(runtime.report_bytes(trial.record)))
+
+    @unittest.skipUnless(hasattr(os, "pidfd_open") and hasattr(os, "fork"), "Linux owned-child fixture")
+    def test_hostname_class_follows_the_original_owned_child_custody_without_transport(self):
+        trial = self.trial()
+        trial.sample = Mock()
+        target = self.target.replace("production.cloudfront.docker.com", "production.cloudflare.docker.com")
+        try:
+            with self.assertRaisesRegex(candidate.Refused, "^OCI_REDIRECT_REFUSED$") as caught:
+                trial.fork_stage("acquisition", 2, lambda end: runtime.redirect_url(target, self.origin))
+            child = candidate.decode(candidate.read_bounded(trial.root / "acquisition-child.json", 4096))
+            self.assertEqual(child, {"status": "FAIL", "failure": "OCI_REDIRECT_REFUSED",
+                                     "oci_redirect_predicate": "HOSTNAME",
+                                     "oci_redirect_hostname_class": "HISTORICAL_CLOUDFLARE"})
+            trial.fail(runtime.fixed_code(caught.exception), failure=caught.exception)
+            self.assertEqual(runtime.public_summary(trial.record)["oci_redirect_hostname_class"], "HISTORICAL_CLOUDFLARE")
+            self.assertFalse(Path(f"/proc/{trial.direct_children[0]}").exists())
+        finally:
+            for fd in trial.pidfds.values():
+                os.close(fd)
 
     def test_operand_and_parser_errors_are_not_marked_as_guard_failures(self):
         for boundary in ("parse", "property"):

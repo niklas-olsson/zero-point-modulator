@@ -355,10 +355,14 @@ predicate remain unknown. The [eighth attempt](docs/native-alpine-evidence/attem
 passed acquisition, APK trust, base-image identity, the APK transaction and
 installed APK inventory, then failed `DOCKER_DEADLINE`, with cleanup PASS and
 no pending mutations. Its exact Docker request and transport phase were not
-retained. Python installation and interfaces remain unqualified. A prospective
-ninth plan adds a closed Docker-observation diagnostic, preserving every
-historical plan, candidate, authority, timeout and resource cap. It remains
-source-only; independent review and fresh gates precede a separate admission.
+retained. The [ninth attempt](docs/native-alpine-evidence/attempt-9/outcome.md)
+failed OCI `HOSTNAME`, with zero completed artifacts or followed redirects and
+cleanup PASS. Its actual hostname remains unknown; later redirect predicates
+were not evaluated. Python installation and interfaces remain unqualified.
+A prospective tenth plan adds only a closed hostname classification at that
+existing refusal, preserving every allowed origin, historical plan, candidate,
+authority, timeout and resource cap. It remains source-only; independent review
+and fresh gates precede a separate admission.
 
 The [installation-admission data API](docs/single-host-installation.md#installation-admission-contract-fixtures)
 binds exact selected inputs and compares producer contract examples. Its private
