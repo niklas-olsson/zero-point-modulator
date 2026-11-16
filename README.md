@@ -420,6 +420,20 @@ The [CI workflow](.github/workflows/ci.yml) also installs the package and checks
 the CLI on Python 3.11 and 3.12. Tests cover enrollment and capacity recovery,
 uncertain transport outcomes, preparation process death and artifact retention.
 Process-death tests do not establish storage hardware power-loss behavior.
+
+CI routing uses only `[factory-zero-point-modulator]` for public local jobs, without default
+runner labels. Trusted non-PR jobs and same-repository PR-family jobs by an
+`OWNER`, `MEMBER` or `COLLABORATOR` route locally. Fork, untrusted-author and
+missing-head PR-family jobs retain their original GitHub-hosted Ubuntu runner;
+routing does not skip them or change existing job conditions. Qualification gates
+and retained evidence are unchanged. The default branch's separate manual,
+repository-owner-only `local-runner-health.yml` checks runner health, not workload
+qualification. See [local runner details](.github/LOCAL_RUNNERS.md).
+Complete hosted-byte exceptions are `managed-publication-execution.yml` (exact
+admission-header contract), `native-alpine-candidate.yml` and
+`oci-destination-observation.yml` (frozen source-plan contracts). Ordinary source
+CI stays local. Restoring original workflows changes no assertions, plans or
+receipts and does not qualify native execution or remove historical source drift.
 The following guides own each separate integration procedure and its evidence:
 
 | Trial | What its evidence covers |
