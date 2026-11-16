@@ -420,6 +420,18 @@ The [CI workflow](.github/workflows/ci.yml) also installs the package and checks
 the CLI on Python 3.11 and 3.12. Tests cover enrollment and capacity recovery,
 uncertain transport outcomes, preparation process death and artifact retention.
 Process-death tests do not establish storage hardware power-loss behavior.
+
+CI jobs eligible for local routing use only `[factory-zero-point-modulator]`,
+without default runner labels. Trusted non-PR jobs and same-repository PR-family
+jobs by `OWNER`, `MEMBER` or `COLLABORATOR` route locally; forks, untrusted
+authors and missing head metadata retain the original hosted Ubuntu runner.
+Existing job conditions and qualification gates are unchanged. The frozen
+`native-alpine-candidate.yml`, `oci-destination-observation.yml` and
+`managed-publication-execution.yml` stay hosted and byte-identical to original
+HEAD: routing changes do not authorize changes to source-plan hashes or the
+mandatory publication header contract. No test, reviewed hash or retained
+evidence is refreshed. See
+[local runner details and host prerequisites](.github/LOCAL_RUNNERS.md).
 The following guides own each separate integration procedure and its evidence:
 
 | Trial | What its evidence covers |
@@ -457,6 +469,7 @@ The table is navigation, not another protocol specification.
 | Role-local installation and original host identity | [role schema/rendering](zpm/deployment_roles.py), [service-set projection](zpm/installation_roles.py), [role commands](zpm/role_manager.py) | [Role-local installation](docs/role-installation.md) |
 | Offline installation receipt and contract examples | [pure admission data API](zpm/installation_admission.py), [attributed fixtures](tests/fixtures/installation-admission) | [Installation-admission contract fixtures](docs/single-host-installation.md#installation-admission-contract-fixtures); [#56](https://github.com/niklas-olsson/zero-point-modulator/issues/56) |
 | Explicit paired native installation preflight | [production preflight](zpm/installation_preflight.py), [installed qualification](tests/contracts/check_paired_installation_preflight.py) | [Paired native installation preflight](docs/single-host-installation.md#paired-native-installation-preflight) |
+| CI job routing and frozen hosted exceptions | [workflow jobs](.github/workflows) | [Local runner details and host prerequisites](.github/LOCAL_RUNNERS.md) |
 | Installed trials and component pins | [trial harnesses](tests/contracts), [CI workflow](.github/workflows/ci.yml) | The corresponding trial guide above; [#3](https://github.com/niklas-olsson/zero-point-modulator/issues/3) for integrated acceptance |
 | Native Alpine sealed-bootstrap investigation | [inert source admission](tests/contracts/check_alpine_sealed_candidate.py), [explicit native runner](tests/contracts/check_alpine_sealed_runtime.py), [frozen public inputs and plans](tests/contracts/native-alpine), [injected census owner](tests/contracts/private_ext4_observer.py) | [Native candidate, limits and retained outcomes](docs/native-alpine-qualification.md), [active-harness contract](docs/native-alpine-active-harness.md), [source-only private ext4 census proposal](docs/native-alpine-private-ext4-observer.md); [#63](https://github.com/niklas-olsson/zero-point-modulator/issues/63) |
 | Cold-session and idle observations | [operational measurements](tests/contracts/operational_measurement.py), [cold trial](tests/contracts/check_cold_children_stack.py) | [Cold-session measurements](docs/cold-session-measurements.md) |
