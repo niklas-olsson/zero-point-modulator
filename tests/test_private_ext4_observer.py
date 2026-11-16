@@ -484,6 +484,144 @@ class PrivateExt4ObserverTests(unittest.TestCase):
         self.assertEqual(f.owner.snapshot()["first_failure"], "REENTRANT_CONTROL")
         self.assertEqual(len(f.effects), 1)
 
+    def caught_reentry(self, function):
+        self.refusal("REENTRANT_CONTROL", function)
+
+    def test_caught_reentrancy_in_freeze_preflight_never_dispatches(self):
+        for boundary in ("clock", "checkpoint", "observe"):
+            f = Fixture()
+
+            def caught(*args):
+                self.caught_reentry(f.freeze)
+                return f.identity
+
+            if boundary == "clock":
+                def clock():
+                    caught()
+                    return f.now
+                f.owner._clock = clock
+                changes = {}
+            else:
+                changes = {boundary: caught}
+            self.refusal("REENTRANT_CONTROL", f.freeze, **changes)
+            self.assertEqual(f.effects, [])
+            self.assertEqual(f.owner.first_failure, "REENTRANT_CONTROL")
+            self.assertTrue(f.owner.snapshot()["control_misuse"])
+            self.refusal("FREEZE_REPLAY", f.freeze)
+            self.refusal("CENSUS_NOT_ADMITTED", f.census)
+
+    def test_caught_reentrancy_before_collect_blocks_read_and_allows_matching_cleanup(self):
+        for boundary in ("clock", "observe"):
+            f = Fixture()
+            f.frozen()
+            attempted, collected = [], []
+
+            def caught(*args):
+                if not attempted:
+                    attempted.append(True)
+                    self.caught_reentry(f.census)
+                return f.identity
+
+            if boundary == "clock":
+                def clock():
+                    caught()
+                    return f.now
+                f.owner._clock = clock
+                observe = f.observe
+            else:
+                observe = caught
+            self.refusal("REENTRANT_CONTROL", f.owner.census, observe=observe,
+                         collect=lambda fd, end: collected.append(fd) or (0, 0))
+            self.assertEqual(collected, [])
+            f.released()
+            self.assertEqual([r.operation for r in f.effects], ["FREEZE", "THAW"])
+            self.assertEqual(f.owner.snapshot()["declared_barrier_release"], "ACKNOWLEDGED")
+            self.assertEqual(f.owner.snapshot()["sample"], "UNQUALIFIED")
+            self.assertEqual(f.owner.first_failure, "REENTRANT_CONTROL")
+
+    def test_caught_reentrancy_in_collect_retains_observation_and_matching_cleanup(self):
+        f = Fixture()
+        f.frozen()
+
+        def collect(fd, end):
+            self.caught_reentry(f.thaw)
+            return 12, 34
+
+        self.refusal("REENTRANT_CONTROL", f.owner.census, observe=f.observe, collect=collect)
+        self.assertEqual(f.owner.snapshot()["census"], "OBSERVED")
+        self.assertEqual(f.owner.snapshot()["contents_bytes"], 12)
+        self.assertEqual(len(f.effects), 1)
+        f.released()
+        self.assertEqual(f.owner.snapshot()["declared_barrier_release"], "ACKNOWLEDGED")
+        self.assertEqual(f.owner.snapshot()["sample"], "UNQUALIFIED")
+
+    def test_caught_reentrancy_after_dispatch_keeps_pending_original_for_cleanup(self):
+        f = Fixture()
+
+        def caught(request):
+            f.effects.append(request)
+            self.caught_reentry(f.freeze)
+
+        self.refusal("REENTRANT_CONTROL", f.freeze, dispatch=caught)
+        self.assertEqual(f.owner.snapshot()["freeze"]["state"], "PENDING")
+        f.owner.complete_freeze(f.effects[0], success=True, observe=f.observe)
+        f.released()
+        self.assertEqual(f.owner.first_failure, "REENTRANT_CONTROL")
+        self.assertEqual(f.owner.snapshot()["declared_barrier_release"], "ACKNOWLEDGED")
+
+    def test_caught_reentrancy_during_ack_blocks_census_but_allows_matching_cleanup(self):
+        f = Fixture()
+        request = f.freeze()
+
+        def caught():
+            self.caught_reentry(f.census)
+            return f.identity
+
+        self.refusal("REENTRANT_CONTROL", f.owner.complete_freeze, request, success=True, observe=caught)
+        self.assertFalse(f.owner.snapshot()["freeze"]["timely_ack"])
+        self.refusal("CENSUS_NOT_ADMITTED", f.census)
+        f.released()
+        self.assertEqual(f.owner.snapshot()["declared_barrier_release"], "ACKNOWLEDGED")
+
+    def test_clock_mutation_after_identity_read_never_passes_changed_fd_to_collect(self):
+        f = Fixture()
+        request = f.frozen()
+        calls, collected = [], []
+
+        def clock():
+            calls.append(True)
+            if len(calls) == 2:
+                object.__setattr__(f.identity.mount, "fd", 999)
+            return f.now
+
+        f.owner._clock = clock
+        self.refusal("OWNERSHIP_CHANGED", f.owner.census, observe=f.observe,
+                     collect=lambda fd, end: collected.append(fd) or (0, 0))
+        self.assertEqual(collected, [])
+        self.assertEqual(request.root_fd, 12)
+        self.assertEqual(f.owner._root_fd, 12)
+        self.assertTrue(f.owner.snapshot()["ownership_lost"])
+
+    def test_mutated_accepted_freeze_ticket_never_admits_census(self):
+        for boundary in ("before", "last_clock"):
+            f = Fixture()
+            request = f.frozen()
+            calls, collected = [], []
+            if boundary == "before":
+                object.__setattr__(request, "root_fd", 999)
+            else:
+                def clock():
+                    calls.append(True)
+                    if len(calls) == 2:
+                        object.__setattr__(request, "root_fd", 999)
+                    return f.now
+                f.owner._clock = clock
+            self.refusal("REQUEST_CHANGED", f.owner.census, observe=f.observe,
+                         collect=lambda fd, end: collected.append(fd) or (0, 0))
+            self.assertEqual(collected, [])
+            self.refusal("REQUEST_CHANGED", f.owner.snapshot)
+            self.assertEqual(len(f.effects), 1)
+
     def test_clock_failure_or_regression_never_creates_a_fresh_window(self):
         for bad in (99.0, float("nan"), float("inf"), True, 10**1000):
             f = Fixture()

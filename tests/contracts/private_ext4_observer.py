@@ -183,6 +183,8 @@ class FrozenCensus:
         self._first_failure = None
         self._identity_lost = False
         self._clock_lost = False
+        self._control_misuse = False
+        self._current_misuse = False
         self._busy = False
         self._freeze = self._thaw = None
         self._freeze_state = self._thaw_state = "NOT_ISSUED"
@@ -223,6 +225,7 @@ class FrozenCensus:
         except BaseException:
             self._clock_lost = True
             self._refuse("CLOCK_UNAVAILABLE")
+        self._after_callback()
         if not finite(now) or now < self._last_time:
             self._clock_lost = True
             self._refuse("CLOCK_INVALID")
@@ -236,19 +239,41 @@ class FrozenCensus:
             self._refuse("OWNERSHIP_LOST")
         try:
             current = observe()
-            key = identity_key(current)
-            original = identity_key(self._identity)
         except BaseException:
             self._identity_lost = True
             self._refuse("IDENTITY_UNAVAILABLE")
-        if key != self._identity_key or original != self._identity_key:
+        self._after_callback()
+        try:
+            key = identity_key(current)
+        except BaseException:
+            self._identity_lost = True
+            self._refuse("IDENTITY_UNAVAILABLE")
+        if key != self._identity_key:
             self._identity_lost = True
             self._refuse("OWNERSHIP_CHANGED")
 
     def _enter(self):
         if self._busy:
+            self._control_misuse = self._current_misuse = True
             self._refuse("REENTRANT_CONTROL")
+        self._current_misuse = False
         self._busy = True
+
+    def _after_callback(self):
+        """Pure retained-data fence, with no additional observation callback."""
+        if self._current_misuse:
+            self._refuse("REENTRANT_CONTROL")
+        try:
+            original = identity_key(self._identity)
+        except BaseException:
+            self._identity_lost = True
+            self._refuse("IDENTITY_UNAVAILABLE")
+        if original != self._identity_key:
+            self._identity_lost = True
+            self._refuse("OWNERSHIP_CHANGED")
+        for request, kind in ((self._freeze, "FREEZE"), (self._thaw, "THAW")):
+            if request is not None and not self._request_valid(request, kind):
+                self._refuse("REQUEST_CHANGED")
 
     def _request_valid(self, request, kind):
         end = self._work_end if kind == "FREEZE" else self._end
@@ -270,6 +295,7 @@ class FrozenCensus:
                 if self._freeze_state != "ACK" or self._thaw is not None or self._census == "PENDING":
                     self._refuse("THAW_WITHOUT_RESOLVED_FREEZE")
                 end = self._end
+            self._after_callback()
             self._time(end)
             request = Request(kind, self._root_fd, self._identity_sha256, end)
             if kind == "FREEZE":
@@ -281,6 +307,7 @@ class FrozenCensus:
                 checkpoint(self.snapshot())
             except BaseException:
                 self._refuse("CHECKPOINT_UNCONFIRMED")
+            self._after_callback()
             self._time(end)
             self._observe(observe)
             self._time(end)  # A delayed identity read never admits a late effect.
@@ -293,6 +320,7 @@ class FrozenCensus:
                 dispatch(request)
             except BaseException:
                 self._refuse(kind + "_DISPATCH_UNKNOWN")
+            self._after_callback()
             self._time(end)
             return request
         finally:
@@ -350,12 +378,13 @@ class FrozenCensus:
             if (self._first_failure is not None or self._freeze_state != "ACK" or not self._freeze_timely
                     or self._thaw is not None or self._census != "NOT_RUN"):
                 self._refuse("CENSUS_NOT_ADMITTED")
+            self._after_callback()
             self._time(self._work_end)
             self._observe(observe)
             self._time(self._work_end)
             self._census = "PENDING"
             try:
-                values = collect(self._identity.mount.fd, self._work_end)
+                values = collect(self._root_fd, self._work_end)
             except BaseException:
                 self._census = "FAILED"
                 self._refuse("CENSUS_UNAVAILABLE")
@@ -366,6 +395,7 @@ class FrozenCensus:
             self._contents, self._other = values
             self._total = BACKING_BYTES + self._contents + self._other
             self._census = "OBSERVED"
+            self._after_callback()
             self._time(self._work_end)
             self._observe(observe)
             self._time(self._work_end)
@@ -391,6 +421,7 @@ class FrozenCensus:
             "first_failure": self._first_failure, "identity_sha256": self._identity_sha256,
             "identity": json.loads(self._identity_key), "ownership_lost": self._identity_lost,
             "clock_lost": self._clock_lost,
+            "control_misuse": self._control_misuse,
             "work_deadline": self._work_end, "total_deadline": self._end,
             "freeze": {"state": self._freeze_state, "timely_ack": self._freeze_timely},
             "thaw": {"state": self._thaw_state, "timely_ack": self._thaw_timely},

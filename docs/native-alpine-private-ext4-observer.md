@@ -90,6 +90,15 @@ operation, and must check its immutable absolute deadline at the actual effect
 boundary. It must never turn a delayed queue callback into a fresh relative
 timeout.
 
+Each callback return also checks the sealed declaration and original tickets in
+memory, without an extra host read. Census collection always receives the cached
+original root FD. A changed accepted freeze ticket or declaration cannot admit
+a census through an intervening clock callback. Reentrant control latches a
+first failure even if the callback catches the refusal; the outer operation then
+stops before any new work effect. A later, separate matching cleanup thaw remains
+possible for an already-acknowledged original freeze. Misuse during the cleanup
+call itself still stops its continuation; it grants no retry.
+
 Dispatch exceptions or late returns retain PENDING uncertainty. Only completion
 of that same object is accepted; equal copied tickets, another owner's ticket,
 duplicates and non-Boolean completions refuse. A late original acknowledgement
@@ -119,7 +128,7 @@ contain callback errors, paths or stacks. Fixture success is labeled
 acknowledgements before the deadline; it is not actual filesystem-release
 evidence. Missing, failed, late or ownership-invalid release stays `UNKNOWN`.
 The projected journal grants no completion, restore or privileged authority.
-The fixed-key scalar envelope is 3,342 bytes: all admitted string values are
+The fixed-key scalar envelope is 3,365 bytes: all admitted string values are
 closed ASCII of at most 64 characters, numbers use fewer than 32 representation
 bytes, and nullable slots retain the conservative longer bound. A maximum-width
 identity/overflow fixture and the envelope both remain below the enforced cap.
