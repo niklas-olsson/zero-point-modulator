@@ -622,6 +622,55 @@ class PrivateExt4ObserverTests(unittest.TestCase):
             self.refusal("REQUEST_CHANGED", f.owner.snapshot)
             self.assertEqual(len(f.effects), 1)
 
+    def test_caught_projection_refusal_and_restored_ticket_stop_outer_census(self):
+        f = Fixture()
+        request = f.frozen()
+        calls, collected = [], []
+
+        def clock():
+            calls.append(True)
+            if len(calls) == 2:
+                object.__setattr__(request, "root_fd", 999)
+                self.refusal("REQUEST_CHANGED", f.owner.snapshot)
+                object.__setattr__(request, "root_fd", 12)
+            return f.now
+
+        f.owner._clock = clock
+        self.refusal("REQUEST_CHANGED", f.owner.census, observe=f.observe,
+                     collect=lambda fd, end: collected.append(fd) or (0, 0))
+        self.assertEqual(collected, [])
+        self.assertEqual(f.owner.snapshot()["census"], "NOT_RUN")
+        self.assertEqual(f.owner.first_failure, "REQUEST_CHANGED")
+        f.released()
+        self.assertEqual(f.owner.snapshot()["declared_barrier_release"], "ACKNOWLEDGED")
+        self.assertEqual(f.owner.snapshot()["sample"], "UNQUALIFIED")
+
+    def test_prior_projection_failure_allows_separate_original_matching_cleanup(self):
+        f = Fixture()
+        request = f.frozen()
+        object.__setattr__(request, "root_fd", 999)
+        self.refusal("REQUEST_CHANGED", f.owner.snapshot)
+        object.__setattr__(request, "root_fd", 12)
+        f.released()
+        self.assertEqual([r.operation for r in f.effects], ["FREEZE", "THAW"])
+        self.assertEqual(f.owner.first_failure, "REQUEST_CHANGED")
+        self.assertEqual(f.owner.snapshot()["declared_barrier_release"], "ACKNOWLEDGED")
+
+    def test_caught_new_refusal_during_cleanup_is_not_hidden_by_older_failure(self):
+        f = Fixture()
+        request = f.frozen()
+        self.refusal("LOGICAL_STORAGE_BOUND", f.census, observer.STORAGE_BYTES, 0)
+
+        def checkpoint(record):
+            object.__setattr__(request, "root_fd", 999)
+            self.refusal("REQUEST_CHANGED", f.owner.snapshot)
+            object.__setattr__(request, "root_fd", 12)
+
+        self.refusal("REQUEST_CHANGED", f.thaw, checkpoint=checkpoint)
+        self.assertEqual(len(f.effects), 1)
+        self.assertEqual(f.owner.first_failure, "LOGICAL_STORAGE_BOUND")
+        self.assertEqual(f.owner.snapshot()["declared_barrier_release"], "UNKNOWN")
+
     def test_clock_failure_or_regression_never_creates_a_fresh_window(self):
         for bad in (99.0, float("nan"), float("inf"), True, 10**1000):
             f = Fixture()

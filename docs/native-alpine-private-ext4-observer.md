@@ -94,8 +94,10 @@ Each callback return also checks the sealed declaration and original tickets in
 memory, without an extra host read. Census collection always receives the cached
 original root FD. A changed accepted freeze ticket or declaration cannot admit
 a census through an intervening clock callback. Reentrant control latches a
-first failure even if the callback catches the refusal; the outer operation then
-stops before any new work effect. A later, separate matching cleanup thaw remains
+first failure even if the callback catches the refusal. Every refusal in the
+active call is retained separately, including a caught public-projection refusal
+after ticket mutation followed by repair. The outer operation then stops before
+any new work effect. A later, separate matching cleanup thaw remains
 possible for an already-acknowledged original freeze. Misuse during the cleanup
 call itself still stops its continuation; it grants no retry.
 

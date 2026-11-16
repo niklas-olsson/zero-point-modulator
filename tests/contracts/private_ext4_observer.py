@@ -184,7 +184,7 @@ class FrozenCensus:
         self._identity_lost = False
         self._clock_lost = False
         self._control_misuse = False
-        self._current_misuse = False
+        self._current_failure = None
         self._busy = False
         self._freeze = self._thaw = None
         self._freeze_state = self._thaw_state = "NOT_ISSUED"
@@ -213,6 +213,8 @@ class FrozenCensus:
         return self._first_failure
 
     def _refuse(self, code):
+        if self._busy and self._current_failure is None:
+            self._current_failure = code
         if self._first_failure is None:
             self._first_failure = code
         raise Refused(code)
@@ -254,15 +256,15 @@ class FrozenCensus:
 
     def _enter(self):
         if self._busy:
-            self._control_misuse = self._current_misuse = True
+            self._control_misuse = True
             self._refuse("REENTRANT_CONTROL")
-        self._current_misuse = False
+        self._current_failure = None
         self._busy = True
 
     def _after_callback(self):
         """Pure retained-data fence, with no additional observation callback."""
-        if self._current_misuse:
-            self._refuse("REENTRANT_CONTROL")
+        if self._current_failure is not None:
+            self._refuse(self._current_failure)
         try:
             original = identity_key(self._identity)
         except BaseException:
