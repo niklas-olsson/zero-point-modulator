@@ -381,6 +381,9 @@ routing does not skip them or change existing job conditions. Qualification gate
 and retained evidence are unchanged. The default branch's separate manual,
 repository-owner-only `local-runner-health.yml` checks runner health, not workload
 qualification. See [local runner details](.github/LOCAL_RUNNERS.md).
+The complete `managed-publication-execution.yml` workflow is an explicit hosted
+exception: its mandatory deterministic contract binds the original admission
+header. Ordinary source CI stays local; no assertion or retained receipt changes.
 The following guides own each separate integration procedure and its evidence:
 
 | Trial | What its evidence covers |

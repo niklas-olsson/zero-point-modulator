@@ -8,6 +8,12 @@ GitHub-hosted Ubuntu label instead. Routing changes only `runs-on`, not existing
 job conditions, build commands, qualification gates or artifact actions.
 Artifact storage/billing is separate from runner compute.
 
+Exception: the entire `managed-publication-execution.yml` workflow retains its
+original hosted bytes. Its deterministic execution contract requires the exact
+hosted permission/admission header. Ordinary source `ci.yml` and the non-frozen
+native-candidate source checker still use the local routing policy above. No
+source assertion, frozen plan or qualification receipt is refreshed by routing.
+
 One runner executes one job at a time for this repository (including matrix
 jobs). Its per-repository runner/daemon envelope is 2 CPU and 4 GiB RAM.
 All repositories share a host-wide aggregate ceiling of 3 CPU and 10 GiB RAM;
