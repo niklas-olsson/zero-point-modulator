@@ -16,7 +16,7 @@ jobs:
   managed-publication:
     name: Produce and replay one actual managed draft
     if: github.repository_id == '1453104676' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((!startsWith(github.event_name, 'pull_request') || (github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))) && '["factory-zero-point-modulator"]' || '"ubuntu-latest"') }}
     timeout-minutes: 25
     permissions:
       contents: write

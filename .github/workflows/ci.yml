@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((!startsWith(github.event_name, 'pull_request') || (github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))) && '["factory-zero-point-modulator"]' || '"ubuntu-latest"') }}
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
@@ -26,7 +26,7 @@ jobs:
   shared-lifecycle:
     name: OpenJules lifecycle contract
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((!startsWith(github.event_name, 'pull_request') || (github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))) && '["factory-zero-point-modulator"]' || '"ubuntu-latest"') }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
   managed-stack:
     name: Install and verify the managed stack
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((!startsWith(github.event_name, 'pull_request') || (github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))) && '["factory-zero-point-modulator"]' || '"ubuntu-latest"') }}
     timeout-minutes: 25
     steps:
       # Sibling checkouts preserve each repository's clean-tree invariant.
@@ -118,7 +118,7 @@ jobs:
   native-musl-preparation:
     name: Qualify native musl atomic preparation on ext2 and ext4
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((!startsWith(github.event_name, 'pull_request') || (github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))) && '["factory-zero-point-modulator"]' || '"ubuntu-latest"') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +144,7 @@ jobs:
   sealed-managed-stack:
     name: Bootstrap sealed Python artifacts with package networking denied
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((!startsWith(github.event_name, 'pull_request') || (github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))) && '["factory-zero-point-modulator"]' || '"ubuntu-latest"') }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -238,7 +238,7 @@ jobs:
   managed-isolation-stack:
     name: Install and isolate two deployments on one Docker Engine
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((!startsWith(github.event_name, 'pull_request') || (github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))) && '["factory-zero-point-modulator"]' || '"ubuntu-latest"') }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -287,7 +287,7 @@ jobs:
   managed-multi-repository-stack:
     name: Install two repositories behind one controller and service pair
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((!startsWith(github.event_name, 'pull_request') || (github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))) && '["factory-zero-point-modulator"]' || '"ubuntu-latest"') }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -336,7 +336,7 @@ jobs:
   managed-children-stack:
     name: Install and verify two children inside one worker
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((!startsWith(github.event_name, 'pull_request') || (github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))) && '["factory-zero-point-modulator"]' || '"ubuntu-latest"') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -441,7 +441,7 @@ jobs:
   managed-model-stack:
     name: Install and verify the model-backed root agent
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((!startsWith(github.event_name, 'pull_request') || (github.event.pull_request.head.repo.full_name != '' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))) && '["factory-zero-point-modulator"]' || '"ubuntu-latest"') }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
