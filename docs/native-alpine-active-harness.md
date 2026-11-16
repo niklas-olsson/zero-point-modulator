@@ -105,6 +105,12 @@ framework. Reuse the existing APK signature/archive helpers, production wheel
 identity parser, exact source checks and established owned-resource custody
 patterns. Do not import sibling application modules in the host process.
 
+The separate [private ext4 census prototype](native-alpine-private-ext4-observer.md)
+models one retained freeze/census/thaw cycle with injected effects only. It has no
+privileged backend, original-harness integration or native14 plan. Its declared
+acknowledgements are not kernel evidence; all consumed native13 inputs, caps,
+authority and failed outcomes remain unchanged.
+
 ## Separate destination observation
 
 The [accepted observation scope](https://github.com/niklas-olsson/zero-point-modulator/issues/63#issuecomment-6897044327)
